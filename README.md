@@ -109,7 +109,7 @@ Brooke's Reading Room 是一座互动式的个人书架。这里收藏着一些�
 
 由 **Brooke / LIAO YUXIN** 设计与制作
 
-[进入线上阅读室](https://brookell.github.io/brooke-bookshelf/) &nbsp;·&nbsp;
+[进入线上阅读室](https://brookell.github.io/brooke-bookshelf/) 
 
 [返回顶部](#brookes-reading-room)
 
