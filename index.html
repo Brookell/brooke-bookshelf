@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A quiet collection of books selected for Brooke's reading room." />
   <title>Brooke's Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20260811-27" />
+  <link rel="stylesheet" href="./styles.css?v=20260821-4" />
   <script defer src="./vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
@@ -29,6 +29,10 @@
           <button class="icon-button book-index-toggle" id="bookIndexToggle" type="button" title="View all books" aria-expanded="false" aria-controls="bookIndex">
             <i data-lucide="list"></i>
             <span class="sr-only">View all books</span>
+          </button>
+          <button class="icon-button my-shelf-toggle" id="myShelfToggle" type="button" title="My shelf" aria-expanded="false" aria-controls="myShelf">
+            <i data-lucide="bookmark"></i>
+            <span class="sr-only">My shelf</span>
           </button>
           <button class="icon-button" id="previousBook" type="button" title="Previous book">
             <i data-lucide="chevron-left"></i>
@@ -80,6 +84,29 @@
       <ol class="book-index-list" id="bookIndexList"></ol>
     </section>
 
+    <section class="my-shelf" id="myShelf" aria-labelledby="myShelfTitle" aria-hidden="true" hidden>
+      <header class="book-index-header">
+        <div>
+          <p>Personal shelf / <span id="myShelfCount">00</span> saved</p>
+          <h2 id="myShelfTitle">My shelf</h2>
+        </div>
+        <button class="book-index-close" id="myShelfClose" type="button" title="Return to shelf">
+          <i data-lucide="x"></i>
+          <span class="sr-only">Return to shelf</span>
+        </button>
+      </header>
+
+      <div class="my-shelf-filters" role="group" aria-label="Filter my shelf">
+        <button type="button" data-shelf-filter="all" aria-pressed="true">All</button>
+        <button type="button" data-shelf-filter="want_to_read" aria-pressed="false">Want</button>
+        <button type="button" data-shelf-filter="reading" aria-pressed="false">Reading</button>
+        <button type="button" data-shelf-filter="finished" aria-pressed="false">Finished</button>
+      </div>
+
+      <ol class="book-index-list my-shelf-list" id="myShelfList"></ol>
+      <p class="my-shelf-empty" id="myShelfEmpty" hidden>Your saved books will appear here.</p>
+    </section>
+
     <section class="book-detail" id="bookDetail" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true" hidden>
       <button class="detail-close" id="detailClose" type="button" title="Return to shelf">
         <i data-lucide="x"></i>
@@ -100,6 +127,24 @@
         <h2 id="detailTitle"></h2>
         <p class="detail-author" id="detailAuthor"></p>
         <div class="detail-description" id="detailDescription"></div>
+        <div class="detail-shelf-actions" aria-label="Personal shelf controls">
+          <button class="detail-save" id="detailSave" type="button">
+            <span class="detail-save-track" aria-hidden="true">
+              <span class="detail-save-thumb">
+                <i data-lucide="bookmark"></i>
+              </span>
+            </span>
+            <span id="detailSaveLabel">Add to my shelf</span>
+          </button>
+          <div class="detail-status" id="detailStatus" role="group" aria-label="Reading status">
+            <div class="detail-status-options">
+              <button type="button" data-detail-status="" aria-pressed="true">Not saved</button>
+              <button type="button" data-detail-status="want_to_read" aria-pressed="false">Want</button>
+              <button type="button" data-detail-status="reading" aria-pressed="false">Reading</button>
+              <button type="button" data-detail-status="finished" aria-pressed="false">Finished</button>
+            </div>
+          </div>
+        </div>
         <div class="detail-footer">
           <button id="detailReturn" type="button">
             <i data-lucide="arrow-left"></i>
@@ -111,6 +156,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20260811-28"></script>
+  <script defer src="./app.js?v=20260821-2"></script>
 </body>
 </html>

@@ -121,7 +121,7 @@ Brooke's Reading Room 是一座互动式的个人书架。这里收藏着一些�
 
 <div align="center">
 
-<sub>For book updates, deployment, and future development, see the <a href="MAINTENANCE.md">maintenance guide</a>.</sub>
+<sub>For book updates and deployment, see the <a href="MAINTENANCE.md">maintenance guide</a>. For the product upgrade direction, see the <a href="PRODUCT_UPGRADE_PLAN.md">upgrade plan</a>.</sub>
 
 </div>
 

@@ -13,6 +13,13 @@ const bookIndex = document.querySelector("#bookIndex");
 const bookIndexClose = document.querySelector("#bookIndexClose");
 const bookIndexCount = document.querySelector("#bookIndexCount");
 const bookIndexList = document.querySelector("#bookIndexList");
+const myShelfToggle = document.querySelector("#myShelfToggle");
+const myShelf = document.querySelector("#myShelf");
+const myShelfClose = document.querySelector("#myShelfClose");
+const myShelfCount = document.querySelector("#myShelfCount");
+const myShelfList = document.querySelector("#myShelfList");
+const myShelfEmpty = document.querySelector("#myShelfEmpty");
+const myShelfFilters = document.querySelector(".my-shelf-filters");
 const shelfHelpToggle = document.querySelector("#shelfHelpToggle");
 const shelfHelp = document.querySelector("#shelfHelp");
 const shelfHelpClose = document.querySelector("#shelfHelpClose");
@@ -29,10 +36,22 @@ const detailNumber = document.querySelector("#detailNumber");
 const detailTitle = document.querySelector("#detailTitle");
 const detailAuthor = document.querySelector("#detailAuthor");
 const detailDescription = document.querySelector("#detailDescription");
+const detailSave = document.querySelector("#detailSave");
+const detailSaveLabel = document.querySelector("#detailSaveLabel");
+const detailStatus = document.querySelector("#detailStatus");
 
 const bookElements = [];
+const SHELF_STORAGE_KEY = "brooke-bookshelf:user-books:v1";
+const DEFAULT_STATUS = "want_to_read";
+const STATUS_LABELS = {
+  want_to_read: "Want to read",
+  reading: "Reading",
+  finished: "Finished",
+};
 let activeIndex = null;
 let pinnedIndex = null;
+let userBooks = readUserBooks();
+let myShelfFilter = "all";
 let dragStartX = 0;
 let dragStartScroll = 0;
 let isDragging = false;
@@ -45,6 +64,7 @@ let detailCopyTimer = 0;
 let detailSettleTimer = 0;
 let detailCloseTimer = 0;
 let bookIndexCloseTimer = 0;
+let myShelfCloseTimer = 0;
 let shelfHelpCloseTimer = 0;
 
 const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (character) => ({
@@ -53,6 +73,59 @@ const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (character) => ({
   ">": "&gt;",
   "\"": "&quot;",
 }[character]));
+
+function slugifyBook(book, index) {
+  const raw = `${book.title}-${book.author}-${index + 1}`;
+  const normalized = raw
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || `book-${index + 1}`;
+}
+
+books.forEach((book, index) => {
+  book.id = book.id || slugifyBook(book, index);
+});
+window.BROOKE_BOOKS = books;
+
+function readUserBooks() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SHELF_STORAGE_KEY) || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeUserBooks() {
+  window.localStorage.setItem(SHELF_STORAGE_KEY, JSON.stringify(userBooks));
+}
+
+function getBookState(book) {
+  return userBooks[book.id] || null;
+}
+
+function saveBookState(book, status = DEFAULT_STATUS) {
+  const now = new Date().toISOString();
+  const previous = getBookState(book);
+  userBooks[book.id] = {
+    status,
+    savedAt: previous?.savedAt || now,
+    updatedAt: now,
+  };
+  writeUserBooks();
+  renderMyShelf();
+  updateDetailShelfControls();
+}
+
+function removeBookState(book) {
+  delete userBooks[book.id];
+  writeUserBooks();
+  renderMyShelf();
+  updateDetailShelfControls();
+}
 
 function colorLuminance(value) {
   const normalized = String(value).trim().replace("#", "");
@@ -119,6 +192,46 @@ function renderBookIndex() {
   `).join("");
 }
 
+function renderMyShelf() {
+  const savedEntries = books
+    .map((book, index) => ({ book, index, state: getBookState(book) }))
+    .filter(({ state }) => state && (myShelfFilter === "all" || state.status === myShelfFilter));
+  const totalSaved = Object.keys(userBooks).length;
+  myShelfCount.textContent = String(totalSaved).padStart(2, "0");
+  myShelfEmpty.hidden = savedEntries.length > 0;
+  myShelfList.innerHTML = savedEntries.map(({ book, index, state }) => `
+    <li>
+      <button type="button" data-my-shelf-index="${index}" aria-label="Open ${escapeHtml(book.title)}">
+        <span class="book-index-number">${String(index + 1).padStart(2, "0")}</span>
+        <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
+        <span class="book-index-copy">
+          <strong>${escapeHtml(book.title)}</strong>
+          <small>${escapeHtml(book.author)} / ${escapeHtml(STATUS_LABELS[state.status] || "Saved")}</small>
+        </span>
+        <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+      </button>
+    </li>
+  `).join("");
+  myShelfFilters.querySelectorAll("[data-shelf-filter]").forEach((button) => {
+    const pressed = button.dataset.shelfFilter === myShelfFilter;
+    button.setAttribute("aria-pressed", String(pressed));
+  });
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+function updateDetailShelfControls() {
+  if (detailIndex === null) return;
+  const book = books[detailIndex];
+  const state = getBookState(book);
+  const status = state?.status || "";
+  detailSave.classList.toggle("is-saved", Boolean(state));
+  detailSaveLabel.textContent = state ? "Remove from my shelf" : "Add to my shelf";
+  detailSave.setAttribute("aria-pressed", String(Boolean(state)));
+  detailStatus.querySelectorAll("[data-detail-status]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.detailStatus === status));
+  });
+}
+
 function closeShelfHelp({ restoreFocus = false, immediate = false } = {}) {
   if (shelfHelp.hidden) return;
   window.clearTimeout(shelfHelpCloseTimer);
@@ -148,6 +261,7 @@ function toggleShelfHelp() {
 function openBookIndex() {
   if (detailIndex !== null) return;
   closeShelfHelp({ immediate: true });
+  closeMyShelf({ restoreFocus: false, immediate: true });
   window.clearTimeout(bookIndexCloseTimer);
   pinnedIndex = null;
   if (activeIndex !== null) closeBook(activeIndex, true);
@@ -175,6 +289,52 @@ function closeBookIndex({ restoreFocus = true, immediate = false } = {}) {
   if (immediate) finish();
   else bookIndexCloseTimer = window.setTimeout(finish, 480);
   if (restoreFocus) bookIndexToggle.focus({ preventScroll: true });
+}
+
+function openMyShelf() {
+  if (detailIndex !== null) return;
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  window.clearTimeout(myShelfCloseTimer);
+  pinnedIndex = null;
+  if (activeIndex !== null) closeBook(activeIndex, true);
+  bookElements.forEach((element) => element.classList.remove("is-hovered"));
+  renderMyShelf();
+  myShelf.hidden = false;
+  myShelf.setAttribute("aria-hidden", "false");
+  myShelfToggle.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => {
+    library.classList.add("is-my-shelf-open");
+    myShelf.classList.add("is-visible");
+    myShelfClose.focus({ preventScroll: true });
+  });
+}
+
+function closeMyShelf({ restoreFocus = true, immediate = false } = {}) {
+  if (myShelf.hidden) return;
+  window.clearTimeout(myShelfCloseTimer);
+  library.classList.remove("is-my-shelf-open");
+  myShelf.classList.remove("is-visible");
+  myShelf.setAttribute("aria-hidden", "true");
+  myShelfToggle.setAttribute("aria-expanded", "false");
+  const finish = () => {
+    if (!myShelf.classList.contains("is-visible")) myShelf.hidden = true;
+  };
+  if (immediate) finish();
+  else myShelfCloseTimer = window.setTimeout(finish, 480);
+  if (restoreFocus) myShelfToggle.focus({ preventScroll: true });
+}
+
+function openBookFromMyShelf(index) {
+  closeMyShelf({ restoreFocus: false, immediate: true });
+  pinnedIndex = index;
+  openBook(index, true);
+  window.clearTimeout(detailOpenTimer);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  detailOpenTimer = window.setTimeout(() => {
+    detailOpenTimer = 0;
+    openBookDetail(index);
+  }, prefersReducedMotion ? 20 : 180);
 }
 
 function openBookFromIndex(index) {
@@ -417,6 +577,7 @@ function populateBookDetail(index) {
   detailDescription.innerHTML = book.description
     .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
     .join("");
+  updateDetailShelfControls();
 }
 
 function positionDetailBook() {
@@ -523,6 +684,7 @@ function navigateTo(index) {
 
 books.forEach(createBook);
 renderBookIndex();
+renderMyShelf();
 totalBooks.textContent = String(books.length).padStart(2, "0");
 activeTitle.textContent = books[0].title;
 window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
@@ -578,15 +740,44 @@ shelfHelpToggle.addEventListener("click", toggleShelfHelp);
 shelfHelpClose.addEventListener("click", () => closeShelfHelp({ restoreFocus: true }));
 bookIndexToggle.addEventListener("click", openBookIndex);
 bookIndexClose.addEventListener("click", () => closeBookIndex());
+myShelfToggle.addEventListener("click", openMyShelf);
+myShelfClose.addEventListener("click", () => closeMyShelf());
 bookIndexList.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-book-index]") : null;
   if (!button) return;
   const index = Number(button.dataset.bookIndex);
   if (Number.isInteger(index) && books[index]) openBookFromIndex(index);
 });
+myShelfList.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
+  if (!button) return;
+  const index = Number(button.dataset.myShelfIndex);
+  if (Number.isInteger(index) && books[index]) openBookFromMyShelf(index);
+});
+myShelfFilters.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-shelf-filter]") : null;
+  if (!button) return;
+  myShelfFilter = button.dataset.shelfFilter || "all";
+  renderMyShelf();
+});
 
 detailClose.addEventListener("click", closeBookDetail);
 detailReturn.addEventListener("click", closeBookDetail);
+detailSave.addEventListener("click", () => {
+  if (detailIndex === null) return;
+  const book = books[detailIndex];
+  if (getBookState(book)) removeBookState(book);
+  else saveBookState(book, DEFAULT_STATUS);
+});
+detailStatus.addEventListener("click", (event) => {
+  if (detailIndex === null) return;
+  const button = event.target instanceof Element ? event.target.closest("[data-detail-status]") : null;
+  if (!button) return;
+  const book = books[detailIndex];
+  const status = button.dataset.detailStatus || "";
+  if (!status) removeBookState(book);
+  else saveBookState(book, status);
+});
 
 document.addEventListener("keydown", (event) => {
   const isSpace = event.code === "Space" || event.key === " ";
@@ -605,6 +796,14 @@ document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       event.preventDefault();
       closeBookIndex();
+    }
+    return;
+  }
+
+  if (!myShelf.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMyShelf();
     }
     return;
   }

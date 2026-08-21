@@ -178,6 +178,10 @@ h1 {
   margin-right: 4px;
 }
 
+.my-shelf-toggle {
+  margin-right: 4px;
+}
+
 .shelf-help-toggle {
   margin-right: 2px;
 }
@@ -340,7 +344,8 @@ h1 {
   font: inherit;
 }
 
-.book-index {
+.book-index,
+.my-shelf {
   position: fixed;
   z-index: 80;
   inset: 0;
@@ -356,11 +361,13 @@ h1 {
   scrollbar-color: rgba(21, 21, 21, 0.22) transparent;
 }
 
-.book-index[hidden] {
+.book-index[hidden],
+.my-shelf[hidden] {
   display: none;
 }
 
-.book-index.is-visible {
+.book-index.is-visible,
+.my-shelf.is-visible {
   opacity: 1;
   visibility: visible;
   transform: translate3d(0, 0, 0);
@@ -369,7 +376,9 @@ h1 {
 }
 
 .book-index-header,
-.book-index-list {
+.book-index-list,
+.my-shelf-filters,
+.my-shelf-empty {
   width: min(1120px, 100%);
   margin-inline: auto;
 }
@@ -513,8 +522,52 @@ h1 {
   transform: translate(2px, -2px);
 }
 
+.my-shelf-filters {
+  display: flex;
+  margin-top: 18px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.my-shelf-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.my-shelf-filters button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(21, 21, 21, 0.24);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  font-size: 8px;
+  text-transform: uppercase;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+  white-space: nowrap;
+}
+
+.my-shelf-filters button[aria-pressed="true"],
+.my-shelf-filters button:hover,
+.my-shelf-filters button:focus-visible {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.my-shelf-empty {
+  margin-top: 34px;
+  color: var(--muted);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+}
+
 .library.is-index-open .masthead,
-.library.is-index-open .shelf-region {
+.library.is-index-open .shelf-region,
+.library.is-my-shelf-open .masthead,
+.library.is-my-shelf-open .shelf-region {
   opacity: 0;
   pointer-events: none;
   transform: translate3d(0, -12px, 0) scale(0.985);
@@ -960,7 +1013,7 @@ h1 {
 .detail-kicker,
 .detail-author,
 .detail-footer {
-  font-family: "Courier New", monospace;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   text-transform: uppercase;
 }
 
@@ -979,9 +1032,9 @@ h1 {
 .detail-copy h2 {
   max-width: 360px;
   margin: 0;
-  font-family: Didot, "Bodoni 72", "Times New Roman", serif;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   font-size: 42px;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1;
 }
@@ -999,9 +1052,150 @@ h1 {
 
 .detail-description p {
   margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", "Noto Serif CJK SC", serif;
   font-size: 13px;
   line-height: 1.5;
+}
+
+.detail-shelf-actions {
+  display: flex;
+  margin-top: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.detail-save {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 0 15px 0 7px;
+  align-items: center;
+  gap: 11px;
+  border: 1px solid color-mix(in srgb, var(--detail-ink) 38%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
+  white-space: nowrap;
+}
+
+.detail-save:hover,
+.detail-save:focus-visible {
+  border-color: var(--detail-ink);
+}
+
+.detail-save.is-saved {
+  border-color: var(--detail-ink);
+  background: color-mix(in srgb, var(--detail-ink) 12%, transparent);
+  color: inherit;
+}
+
+.detail-save:active {
+  transform: scale(0.98);
+}
+
+.detail-save-track {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--detail-ink) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--detail-bg) 90%, var(--detail-ink));
+  transition: background 180ms ease, border-color 180ms ease;
+}
+
+.detail-save-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--detail-ink);
+  color: var(--detail-bg);
+  transition: transform 220ms cubic-bezier(0.2, 0.78, 0.18, 1), background 180ms ease, color 180ms ease;
+}
+
+.detail-save.is-saved .detail-save-track {
+  border-color: var(--detail-ink);
+  background: var(--detail-ink);
+}
+
+.detail-save.is-saved .detail-save-thumb {
+  background: var(--detail-bg);
+  color: var(--detail-ink);
+  transform: translateX(14px);
+}
+
+.detail-save svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.5;
+}
+
+.detail-status {
+  display: grid;
+  min-width: 230px;
+  gap: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.detail-status-options {
+  display: grid;
+  padding: 3px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--detail-ink) 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--detail-bg) 92%, var(--detail-ink));
+}
+
+.detail-status-options button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  transition: background 180ms ease, color 180ms ease, opacity 180ms ease;
+  white-space: nowrap;
+}
+
+.detail-status-options button[aria-pressed="true"] {
+  background: var(--detail-ink);
+  color: var(--detail-bg);
+}
+
+.detail-status-options button:not([aria-pressed="true"]) {
+  opacity: 0.68;
+}
+
+.detail-status-options button:hover,
+.detail-status-options button:focus-visible {
+  opacity: 1;
+}
+
+.detail-status-options button:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--detail-ink) 62%, transparent);
+  outline-offset: 2px;
 }
 
 .detail-footer {
@@ -1093,7 +1287,8 @@ h1 {
     width: min(276px, calc(100% - 32px));
   }
 
-  .book-index {
+  .book-index,
+  .my-shelf {
     padding: max(22px, env(safe-area-inset-top)) 16px max(42px, env(safe-area-inset-bottom));
   }
 
@@ -1108,6 +1303,10 @@ h1 {
   .book-index-list {
     margin-top: 12px;
     grid-template-columns: 1fr;
+  }
+
+  .my-shelf-filters {
+    margin-top: 14px;
   }
 
   .book-index-list button {
@@ -1183,6 +1382,30 @@ h1 {
   .detail-description p {
     font-size: 10px;
     line-height: 1.35;
+  }
+
+  .detail-shelf-actions {
+    margin-top: 16px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .detail-save {
+    justify-content: center;
+  }
+
+  .detail-status {
+    min-width: 0;
+  }
+
+  .detail-status-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 12px;
+  }
+
+  .detail-status-options button {
+    min-height: 30px;
   }
 
   .detail-footer {
