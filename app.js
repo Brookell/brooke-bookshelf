@@ -1,6 +1,7 @@
 window.BROOKE_BOOKS_READY.then((books) => {
 const shelfGaps = window.BROOKE_SHELF_GAPS;
 
+const entryScreen = document.querySelector("#entryScreen");
 const viewport = document.querySelector("#shelfViewport");
 const track = document.querySelector("#booksTrack");
 const activeTitle = document.querySelector("#activeTitle");
@@ -14,15 +15,47 @@ const bookIndexClose = document.querySelector("#bookIndexClose");
 const bookIndexCount = document.querySelector("#bookIndexCount");
 const bookIndexList = document.querySelector("#bookIndexList");
 const myShelfToggle = document.querySelector("#myShelfToggle");
+const addBookToggle = document.querySelector("#addBookToggle");
+const roomOnlyToggle = document.querySelector("#roomOnlyToggle");
+const addBookPanel = document.querySelector("#addBookPanel");
+const addBookClose = document.querySelector("#addBookClose");
+const addBookSearch = document.querySelector("#addBookSearch");
+const addBookQuery = document.querySelector("#addBookQuery");
+const addBookStatus = document.querySelector("#addBookStatus");
+const addBookResults = document.querySelector("#addBookResults");
+const wereadImportForm = document.querySelector("#wereadImportForm");
+const wereadManualImportForm = document.querySelector("#wereadManualImportForm");
+const wereadApiKey = document.querySelector("#wereadApiKey");
+const wereadImportText = document.querySelector("#wereadImportText");
+const wereadImportStatus = document.querySelector("#wereadImportStatus");
+const authGate = document.querySelector("#authGate");
+const authGateClose = document.querySelector("#authGateClose");
+const authGateForm = document.querySelector("#authGateForm");
+const authEmail = document.querySelector("#authEmail");
+const authGateGuest = document.querySelector("#authGateGuest");
 const myShelf = document.querySelector("#myShelf");
 const myShelfClose = document.querySelector("#myShelfClose");
 const myShelfCount = document.querySelector("#myShelfCount");
 const myShelfList = document.querySelector("#myShelfList");
 const myShelfEmpty = document.querySelector("#myShelfEmpty");
 const myShelfFilters = document.querySelector(".my-shelf-filters");
+const myShelfSummary = document.querySelector("#myShelfSummary");
+const myShelfViewToggle = document.querySelector(".my-shelf-view-toggle");
+const myShelfListView = document.querySelector("#myShelfListView");
+const myShelfRoomView = document.querySelector("#myShelfRoomView");
+const myShelfRoom = document.querySelector("#myShelfRoom");
+const myRoomTitle = document.querySelector("#myRoomTitle");
+const myRoomNameForm = document.querySelector("#myRoomNameForm");
+const myRoomNameInput = document.querySelector("#myRoomNameInput");
 const shelfHelpToggle = document.querySelector("#shelfHelpToggle");
 const shelfHelp = document.querySelector("#shelfHelp");
 const shelfHelpClose = document.querySelector("#shelfHelpClose");
+const shelfOnboarding = document.querySelector("#shelfOnboarding");
+const shelfOnboardingKicker = document.querySelector("#shelfOnboardingKicker");
+const shelfOnboardingTitle = document.querySelector("#shelfOnboardingTitle");
+const shelfOnboardingCopy = document.querySelector("#shelfOnboardingCopy");
+const shelfOnboardingStart = document.querySelector("#shelfOnboardingStart");
+const shelfOnboardingRoom = document.querySelector("#shelfOnboardingRoom");
 const library = document.querySelector(".library");
 const masthead = document.querySelector(".masthead");
 const shelfRegion = document.querySelector(".shelf-region");
@@ -42,16 +75,190 @@ const detailStatus = document.querySelector("#detailStatus");
 
 const bookElements = [];
 const SHELF_STORAGE_KEY = "brooke-bookshelf:user-books:v1";
+const CUSTOM_BOOKS_STORAGE_KEY = "brooke-bookshelf:custom-books:v1";
+const GOOGLE_BOOKS_API_KEY_STORAGE_KEY = "brooke-bookshelf:google-books-api-key:v1";
+const AUTH_STORAGE_KEY = "brooke-bookshelf:auth-prototype:v1";
+const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
+const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
+const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
 const DEFAULT_STATUS = "want_to_read";
-const STATUS_LABELS = {
-  want_to_read: "Want to read",
-  reading: "Reading",
-  finished: "Finished",
+const CUSTOM_BOOK_PALETTE = [
+  ["#67242d", "#f8f0e5", "#5a1f28", "#f8f0e5"],
+  ["#178b78", "#fbf7ee", "#0f7668", "#fbf7ee"],
+  ["#254c39", "#fbf7ee", "#214431", "#fbf7ee"],
+  ["#e4c1a9", "#171514", "#d3ac93", "#171514"],
+  ["#f0eee8", "#171514", "#ddd8cf", "#171514"],
+  ["#665095", "#fbf7ee", "#5a4687", "#fbf7ee"],
+  ["#56595a", "#fbf7ee", "#4c5050", "#fbf7ee"],
+  ["#27899a", "#111111", "#217b8a", "#111111"],
+];
+const I18N = {
+  zh: {
+    languageName: "中文",
+    helpTitle: "书架操作",
+    helpButton: "如何使用书架",
+    helpClose: "关闭书架操作",
+    mouse: "鼠标",
+    mouseHelp: "悬停预览 · 点击打开",
+    keyboard: "键盘",
+    keyboardHelp: "← → 选择 · Space 打开 / 返回",
+    shelfStatus: "使用左右方向键选择一本书。按空格打开或返回书架。",
+    viewAll: "查看全部书籍",
+    myShelf: "我的书架",
+    addBook: "增添书籍",
+    previousBook: "上一本书",
+    nextBook: "下一本书",
+    bookIndexMeta: "全部书目 / {count} 本",
+    allBooks: "全部书籍",
+    returnToShelf: "返回书架",
+    personalShelfMeta: "个人书架 / {count} 本",
+    filterShelf: "筛选我的书架",
+    shelfSummary: "我的书架统计",
+    shelfView: "我的书架视图",
+    all: "全部",
+    want: "想读",
+    wantToRead: "想读",
+    reading: "在读",
+    finished: "读完",
+    list: "列表",
+    room: "房间",
+    personalReadingRoom: "个人阅读房间",
+    nameYourRoom: "设计房间名",
+    roomNamePlaceholder: "Your Reading Room",
+    saveRoomName: "保存",
+    myRoomShelf: "我的阅读房间书架",
+    emptyShelf: "你保存的书会出现在这里。",
+    detailKicker: "Brooke Reading Room",
+    personalShelfControls: "个人书架操作",
+    addToShelf: "加入我的书架",
+    readingStatus: "阅读状态",
+    saved: "已保存",
+    openBook: "打开《{title}》",
+    selectedPages: "Selected pages",
+    onboardingBuildKicker: "创建你的书架",
+    onboardingBuildTitle: "从一本书开始",
+    onboardingBuildCopy: "先浏览 Brooke 的 Reading Room，打开一本让你感兴趣的书，再把它加入书架，开始组装自己的房间。",
+    onboardingChoose: "选择一本书",
+    onboardingAddKicker: "变成你的",
+    onboardingAddTitle: "加入这本书",
+    onboardingAddCopy: "《{title}》可以成为你个人 Reading Room 的第一本书。点击加入书架，然后选择阅读状态。",
+    onboardingAdd: "加入这本书",
+    onboardingSavedKicker: "第一本已保存",
+    onboardingSavedTitle: "你的房间准备好了",
+    onboardingSavedCopy: "《{title}》已经在你的书架上。打开你的房间看看第一个版本，然后继续添加喜欢的书。",
+    onboardingKeepBrowsing: "继续浏览",
+    onboardingOpenRoom: "打开我的房间",
+    searchBookLabel: "搜索书名、作者或 ISBN",
+    searchBookPlaceholder: "例如：献给阿尔吉侬的花束",
+    searchBookAction: "搜索",
+    searchBookIdle: "可以搜索公开书目，选择一本加入你的书架。",
+    searchBookLoading: "正在搜索...",
+    searchBookEmpty: "没有找到合适的结果，试试换一个关键词。",
+    searchBookError: "搜索暂时失败，请稍后再试。",
+    searchBookQuotaError: "Google Books 搜索额度暂时受限。正式版需要配置 API key 或通过 Supabase 中转。",
+    addSearchResult: "加入书架",
+    addedSearchResult: "已加入",
+    wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
+    wereadSyncIdle: "输入 WeRead API Key 后，可以同步微信读书书架生成你的房间。",
+    wereadImportEmpty: "请先粘贴至少一本书名。",
+    wereadApiKeyEmpty: "请先输入微信读书 API Key。",
+    wereadImportLoading: "正在匹配第 {current} / {total} 本...",
+    wereadSyncLoading: "正在同步微信读书书架...",
+    wereadImportDone: "已导入 {count} 本书到你的书架。",
+    wereadImportPartial: "已导入 {count} 本，{failed} 本暂时没有匹配到。",
+    wereadSyncDone: "已从微信读书同步 {count} 本书。",
+    wereadSyncError: "微信读书同步暂时失败，请确认 API Key 或 Edge Function 是否已部署。",
+  },
+  en: {
+    languageName: "English",
+    helpTitle: "Shelf controls",
+    helpButton: "How to use the shelf",
+    helpClose: "Close shelf controls",
+    mouse: "Mouse",
+    mouseHelp: "Hover to preview · Click to open",
+    keyboard: "Keyboard",
+    keyboardHelp: "← → choose · Space open / return",
+    shelfStatus: "Use the left and right arrow keys to choose a book. Press Space to open it or return to the shelf.",
+    viewAll: "View all books",
+    myShelf: "My shelf",
+    addBook: "Add book",
+    previousBook: "Previous book",
+    nextBook: "Next book",
+    bookIndexMeta: "Book index / {count} volumes",
+    allBooks: "All books",
+    returnToShelf: "Return to shelf",
+    personalShelfMeta: "Personal shelf / {count} saved",
+    filterShelf: "Filter my shelf",
+    shelfSummary: "My shelf summary",
+    shelfView: "My shelf view",
+    all: "All",
+    want: "Want",
+    wantToRead: "Want to read",
+    reading: "Reading",
+    finished: "Finished",
+    list: "List",
+    room: "Room",
+    personalReadingRoom: "Personal reading room",
+    nameYourRoom: "Name your room",
+    roomNamePlaceholder: "Your Reading Room",
+    saveRoomName: "Save",
+    myRoomShelf: "My reading room shelf",
+    emptyShelf: "Your saved books will appear here.",
+    detailKicker: "Brooke Reading Room",
+    personalShelfControls: "Personal shelf controls",
+    addToShelf: "Add to my shelf",
+    readingStatus: "Reading status",
+    saved: "Saved",
+    openBook: "Open {title}",
+    selectedPages: "Selected pages",
+    onboardingBuildKicker: "Build your shelf",
+    onboardingBuildTitle: "Start with one book",
+    onboardingBuildCopy: "Browse Brooke's Reading Room, open a book that catches your eye, then add it to begin assembling your own room.",
+    onboardingChoose: "Choose a book",
+    onboardingAddKicker: "Make it yours",
+    onboardingAddTitle: "Add this book",
+    onboardingAddCopy: "{title} can be the first volume in your own reading room. Use Add to my shelf, then choose a status.",
+    onboardingAdd: "Add this book",
+    onboardingSavedKicker: "First book saved",
+    onboardingSavedTitle: "Your room is ready",
+    onboardingSavedCopy: "{title} is on your shelf. Open your room to see the first version, then keep adding books as you browse.",
+    onboardingKeepBrowsing: "Keep browsing",
+    onboardingOpenRoom: "Open my room",
+    searchBookLabel: "Search by title, author, or ISBN",
+    searchBookPlaceholder: "For example: Flowers for Algernon",
+    searchBookAction: "Search",
+    searchBookIdle: "Search public book records and add one to your shelf.",
+    searchBookLoading: "Searching...",
+    searchBookEmpty: "No matching books yet. Try another keyword.",
+    searchBookError: "Search is unavailable right now. Please try again later.",
+    searchBookQuotaError: "Google Books quota is limited right now. Production should use an API key or Supabase proxy.",
+    addSearchResult: "Add to shelf",
+    addedSearchResult: "Added",
+    wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
+    wereadSyncIdle: "Enter a WeRead API Key to sync your WeRead shelf into your room.",
+    wereadImportEmpty: "Paste at least one title first.",
+    wereadApiKeyEmpty: "Enter your WeRead API Key first.",
+    wereadImportLoading: "Matching book {current} / {total}...",
+    wereadSyncLoading: "Syncing your WeRead shelf...",
+    wereadImportDone: "Imported {count} books to your shelf.",
+    wereadImportPartial: "Imported {count}; {failed} could not be matched yet.",
+    wereadSyncDone: "Synced {count} books from WeRead.",
+    wereadSyncError: "WeRead sync failed. Check the API key or Edge Function deployment.",
+  },
+};
+const STATUS_LABEL_KEYS = {
+  want_to_read: "wantToRead",
+  reading: "reading",
+  finished: "finished",
 };
 let activeIndex = null;
 let pinnedIndex = null;
 let userBooks = readUserBooks();
+let showMyRoomFirst = readShowMyRoomFirst();
+let myRoomName = readRoomName();
 let myShelfFilter = "all";
+let myShelfView = "list";
+let myRoomActiveIndex = null;
 let dragStartX = 0;
 let dragStartScroll = 0;
 let isDragging = false;
@@ -59,13 +266,22 @@ let hasDragged = false;
 let didSetInitialScroll = false;
 let detailIndex = null;
 let detailOriginRect = null;
+let detailSourceElement = null;
+let detailSourceMode = "shelf";
 let detailOpenTimer = 0;
 let detailCopyTimer = 0;
 let detailSettleTimer = 0;
 let detailCloseTimer = 0;
 let bookIndexCloseTimer = 0;
 let myShelfCloseTimer = 0;
+let myShelfViewSwitchTimer = 0;
 let shelfHelpCloseTimer = 0;
+let onboardingCloseTimer = 0;
+let addBookCloseTimer = 0;
+let authGateCloseTimer = 0;
+let pendingAuthAction = null;
+let addBookAbortController = null;
+let lastSearchResults = [];
 
 const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (character) => ({
   "&": "&amp;",
@@ -74,21 +290,142 @@ const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (character) => ({
   "\"": "&quot;",
 }[character]));
 
-function slugifyBook(book, index) {
-  const raw = `${book.title}-${book.author}-${index + 1}`;
-  const normalized = raw
+function t(key, replacements = {}) {
+  const dictionary = I18N.zh;
+  const template = dictionary[key] ?? I18N.zh[key] ?? key;
+  return Object.entries(replacements).reduce(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+    template,
+  );
+}
+
+function setText(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.textContent = value;
+}
+
+function setHtml(selector, value) {
+  const element = document.querySelector(selector);
+  if (element) element.innerHTML = value;
+}
+
+function setButtonLabel(button, label) {
+  if (!button) return;
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  const srOnly = button.querySelector(".sr-only");
+  if (srOnly) srOnly.textContent = label;
+}
+
+function readRoomName() {
+  try {
+    const value = window.localStorage.getItem(ROOM_NAME_STORAGE_KEY)?.trim();
+    return value || "Your Reading Room";
+  } catch {
+    return "Your Reading Room";
+  }
+}
+
+function writeRoomName(value) {
+  try {
+    window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, value);
+  } catch {
+    // Room naming still updates for the current session when storage is unavailable.
+  }
+}
+
+function formatRoomTitle(value) {
+  const title = (value || "Your Reading Room").trim() || "Your Reading Room";
+  const words = title.split(/\s+/);
+  if (words.length <= 1) return escapeHtml(title);
+  if (/^your$/i.test(words[0]) && /^reading$/i.test(words[1]) && /^room$/i.test(words[2] || "")) {
+    return "Your<br />Reading Room";
+  }
+  const midpoint = Math.ceil(words.length / 2);
+  return `${escapeHtml(words.slice(0, midpoint).join(" "))}<br />${escapeHtml(words.slice(midpoint).join(" "))}`;
+}
+
+function slugifyText(value) {
+  return String(value)
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function slugifyBook(book, index) {
+  const raw = `${book.title}-${book.author}-${index + 1}`;
+  const normalized = slugifyText(raw);
   return normalized || `book-${index + 1}`;
 }
 
 books.forEach((book, index) => {
   book.id = book.id || slugifyBook(book, index);
 });
+books.push(...readCustomBooks());
 window.BROOKE_BOOKS = books;
+
+function normalizeBook(book, index = books.length) {
+  const palette = CUSTOM_BOOK_PALETTE[index % CUSTOM_BOOK_PALETTE.length];
+  const safeTitle = String(book.title || "未命名书籍").trim();
+  const safeAuthor = String(book.author || "作者未知").trim();
+  const width = Number(book.width) || 280;
+  const spineWidth = Number(book.spineWidth) || Math.min(84, Math.max(56, Math.round(34 + safeTitle.length * 1.8)));
+  return {
+    id: book.id || `custom-${slugifyText(`${safeTitle}-${safeAuthor}`) || Date.now()}`,
+    title: safeTitle,
+    author: safeAuthor,
+    description: Array.isArray(book.description) && book.description.length
+      ? book.description.map(String)
+      : ["这是你自己加入书架的书。之后接入用户数据库后，它会成为你专属书架的一部分。"],
+    color: book.color || palette[0],
+    ink: book.ink || palette[1],
+    spine: book.spine || palette[2],
+    spineInk: book.spineInk || palette[3],
+    detailColor: book.detailColor || book.color || palette[0],
+    width,
+    spineWidth,
+    height: Number(book.height) || 1,
+    shelfGap: Number(book.shelfGap) || 28,
+    image: book.image || "",
+    originalCover: Boolean(book.originalCover || book.image),
+    opacity: Number(book.opacity) || 1,
+    filter: book.filter || "none",
+    coverRatio: Number(book.coverRatio) || 2 / 3,
+    isCustom: Boolean(book.isCustom),
+    source: book.source || "",
+    sourceId: book.sourceId || "",
+    deepLink: book.deepLink || "",
+  };
+}
+
+function readCustomBooks() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(CUSTOM_BOOKS_STORAGE_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((book, index) => normalizeBook(book, index)).filter((book) => book.id);
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomBooks() {
+  const customBooks = books.filter((book) => book.isCustom);
+  window.localStorage.setItem(CUSTOM_BOOKS_STORAGE_KEY, JSON.stringify(customBooks));
+}
+
+function readGoogleBooksApiKey() {
+  return String(
+    window.BROOKE_GOOGLE_BOOKS_API_KEY ||
+    window.localStorage.getItem(GOOGLE_BOOKS_API_KEY_STORAGE_KEY) ||
+    "",
+  ).trim();
+}
+
+function readSupabaseFunctionsUrl() {
+  return String(window.BROOKE_SUPABASE_FUNCTIONS_URL || DEFAULT_SUPABASE_FUNCTIONS_URL).replace(/\/+$/, "");
+}
 
 function readUserBooks() {
   try {
@@ -103,11 +440,207 @@ function writeUserBooks() {
   window.localStorage.setItem(SHELF_STORAGE_KEY, JSON.stringify(userBooks));
 }
 
+function readShowMyRoomFirst() {
+  return window.localStorage.getItem(ROOM_DEFAULT_STORAGE_KEY) === "true";
+}
+
+function writeShowMyRoomFirst(value) {
+  window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(value));
+}
+
+function readAuthSession() {
+  try {
+    return JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function writeAuthSession(session) {
+  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+    email: session.email || "",
+    mode: session.mode || "prototype",
+    createdAt: session.createdAt || new Date().toISOString(),
+  }));
+}
+
+function hasAuthSession() {
+  return Boolean(readAuthSession());
+}
+
 function getBookState(book) {
   return userBooks[book.id] || null;
 }
 
+function hasSavedBooks() {
+  return books.some((book) => Boolean(getBookState(book)));
+}
+
+function setOnboardingContent({ kicker, title, copy, primary, showRoom = false }) {
+  shelfOnboardingKicker.textContent = kicker;
+  shelfOnboardingTitle.textContent = title;
+  shelfOnboardingCopy.textContent = copy;
+  shelfOnboardingStart.textContent = primary;
+  shelfOnboardingRoom.hidden = !showRoom;
+  shelfOnboardingRoom.textContent = t("onboardingOpenRoom");
+}
+
+function updateOnboarding() {
+  window.clearTimeout(onboardingCloseTimer);
+  const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden;
+  if (!shouldShow) {
+    shelfOnboarding.classList.remove("is-visible");
+    onboardingCloseTimer = window.setTimeout(() => {
+      if (!shelfOnboarding.classList.contains("is-visible")) shelfOnboarding.hidden = true;
+    }, 360);
+    return;
+  }
+
+  if (detailIndex !== null) {
+    const book = books[detailIndex];
+    setOnboardingContent({
+      kicker: t("onboardingAddKicker"),
+      title: t("onboardingAddTitle"),
+      copy: t("onboardingAddCopy", { title: book.title }),
+      primary: t("onboardingAdd"),
+    });
+  } else {
+    setOnboardingContent({
+      kicker: t("onboardingBuildKicker"),
+      title: t("onboardingBuildTitle"),
+      copy: t("onboardingBuildCopy"),
+      primary: t("onboardingChoose"),
+    });
+  }
+
+  shelfOnboarding.hidden = false;
+  requestAnimationFrame(() => shelfOnboarding.classList.add("is-visible"));
+}
+
+function showOnboardingRoomStep(book) {
+  window.clearTimeout(onboardingCloseTimer);
+  setOnboardingContent({
+    kicker: t("onboardingSavedKicker"),
+    title: t("onboardingSavedTitle"),
+    copy: t("onboardingSavedCopy", { title: book.title }),
+    primary: t("onboardingKeepBrowsing"),
+    showRoom: true,
+  });
+  shelfOnboardingRoom.textContent = t("onboardingOpenRoom");
+  shelfOnboarding.hidden = false;
+  requestAnimationFrame(() => shelfOnboarding.classList.add("is-visible"));
+}
+
+function updateStaticLanguage() {
+  document.documentElement.lang = "zh-Hans";
+
+  setButtonLabel(shelfHelpToggle, t("helpButton"));
+  setButtonLabel(bookIndexToggle, t("viewAll"));
+  setButtonLabel(myShelfToggle, t("myShelf"));
+  setButtonLabel(addBookToggle, t("addBook"));
+  setButtonLabel(roomOnlyToggle, "只看我的房间");
+  setButtonLabel(previousBook, t("previousBook"));
+  setButtonLabel(nextBook, t("nextBook"));
+  setButtonLabel(shelfHelpClose, t("helpClose"));
+  setButtonLabel(bookIndexClose, t("returnToShelf"));
+  setButtonLabel(myShelfClose, t("returnToShelf"));
+  setButtonLabel(addBookClose, t("returnToShelf"));
+  setButtonLabel(detailClose, t("returnToShelf"));
+
+  setText("#shelfHelpTitle", t("helpTitle"));
+  setText(".shelf-help-row:nth-of-type(1) strong", t("mouse"));
+  setText(".shelf-help-row:nth-of-type(1) span", t("mouseHelp"));
+  setText(".shelf-help-row:nth-of-type(2) strong", t("keyboard"));
+  setText(".shelf-help-row:nth-of-type(2) span", t("keyboardHelp"));
+  setText("#shelfStatus", t("shelfStatus"));
+  setText("#bookIndexTitle", t("allBooks"));
+  setText("#myShelfTitle", t("myShelf"));
+  setText("#myShelfEmpty", t("emptyShelf"));
+  setText("#addBookTitle", t("addBook"));
+  setText(".add-book-header p", "新增书籍");
+  setText(".add-book-search label", t("searchBookLabel"));
+  setText(".add-book-search button span", t("searchBookAction"));
+  setText("#wereadImportForm label", "输入你的微信读书 API Key");
+  setText("#wereadImportForm button span", "同步微信读书书架");
+  setText("#wereadManualImportForm label", "粘贴微信读书书架里的书名，每行一本");
+  setText("#wereadManualImportForm button span", "导入书名列表");
+  if (wereadImportStatus && !wereadImportStatus.textContent.trim()) wereadImportStatus.textContent = t("wereadSyncIdle");
+  if (addBookQuery) addBookQuery.placeholder = t("searchBookPlaceholder");
+  if (addBookStatus && !addBookStatus.textContent.trim()) addBookStatus.textContent = t("searchBookIdle");
+  setText(".detail-kicker", t("detailKicker"));
+  setText("#detailSaveLabel", t("addToShelf"));
+  setText("#detailReturn span", t("returnToShelf"));
+  setText(".my-room-heading p", t("personalReadingRoom"));
+  myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  myRoomTitle.title = "点击修改房间名";
+  myRoomTitle.setAttribute("aria-label", "点击修改房间名");
+  myRoomNameInput.placeholder = t("roomNamePlaceholder");
+  myRoomNameInput.value = myRoomName === "Your Reading Room" ? "" : myRoomName;
+  myRoomNameForm.querySelector("button").textContent = t("saveRoomName");
+
+  const bookIndexMeta = document.querySelector("#bookIndex .book-index-header p");
+  if (bookIndexMeta) {
+    bookIndexMeta.childNodes[0].textContent = "全部书目 / ";
+    bookIndexMeta.childNodes[2].textContent = " 本";
+  }
+  const myShelfMeta = document.querySelector("#myShelf .book-index-header p");
+  if (myShelfMeta) {
+    myShelfMeta.childNodes[0].textContent = "个人书架 / ";
+    myShelfMeta.childNodes[2].textContent = " 本";
+  }
+
+  myShelfFilters.setAttribute("aria-label", t("filterShelf"));
+  myShelfSummary.setAttribute("aria-label", t("shelfSummary"));
+  myShelfViewToggle.setAttribute("aria-label", t("shelfView"));
+  myShelfRoom.setAttribute("aria-label", t("myRoomShelf"));
+  detail.querySelector(".detail-shelf-actions")?.setAttribute("aria-label", t("personalShelfControls"));
+  detailStatus.setAttribute("aria-label", t("readingStatus"));
+
+  myShelfFilters.querySelector('[data-shelf-filter="all"]').textContent = t("all");
+  myShelfFilters.querySelector('[data-shelf-filter="want_to_read"]').textContent = t("want");
+  myShelfFilters.querySelector('[data-shelf-filter="reading"]').textContent = t("reading");
+  myShelfFilters.querySelector('[data-shelf-filter="finished"]').textContent = t("finished");
+  myShelfViewToggle.querySelector('[data-my-shelf-view="list"]').textContent = t("list");
+  myShelfViewToggle.querySelector('[data-my-shelf-view="room"]').textContent = t("room");
+  detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
+  detailStatus.querySelector('[data-detail-status="reading"]').textContent = t("reading");
+  detailStatus.querySelector('[data-detail-status="finished"]').textContent = t("finished");
+  roomOnlyToggle.setAttribute("aria-pressed", String(showMyRoomFirst));
+  updateDetailShelfControls();
+}
+
+function openCurrentBookFromOnboarding() {
+  closeShelfHelp({ immediate: true });
+  const index = activeIndex ?? 0;
+  const element = bookElements[index];
+  if (!element) return;
+  pinnedIndex = index;
+  openBook(index, true);
+  element.focus({ preventScroll: true });
+  window.clearTimeout(detailOpenTimer);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  detailOpenTimer = window.setTimeout(() => {
+    detailOpenTimer = 0;
+    openBookDetail(index);
+  }, prefersReducedMotion ? 20 : 420);
+}
+
+function openMyRoomFromOnboarding() {
+  shelfOnboarding.classList.remove("is-visible");
+  showMyRoomFirst = true;
+  writeShowMyRoomFirst(showMyRoomFirst);
+  const openRoom = () => requireAuth(() => openMyShelf({ view: "room", restoreFocus: false }));
+  if (detailIndex !== null) {
+    closeBookDetail();
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.setTimeout(openRoom, prefersReducedMotion ? 40 : 1080);
+  } else {
+    openRoom();
+  }
+}
+
 function saveBookState(book, status = DEFAULT_STATUS) {
+  const wasEmpty = !hasSavedBooks();
   const now = new Date().toISOString();
   const previous = getBookState(book);
   userBooks[book.id] = {
@@ -118,6 +651,8 @@ function saveBookState(book, status = DEFAULT_STATUS) {
   writeUserBooks();
   renderMyShelf();
   updateDetailShelfControls();
+  if (wasEmpty) showOnboardingRoomStep(book);
+  else updateOnboarding();
 }
 
 function removeBookState(book) {
@@ -125,6 +660,7 @@ function removeBookState(book) {
   writeUserBooks();
   renderMyShelf();
   updateDetailShelfControls();
+  updateOnboarding();
 }
 
 function colorLuminance(value) {
@@ -175,11 +711,22 @@ function notifyParentTheme(book = null) {
   }, targetOrigin);
 }
 
+function applyLanguage() {
+  updateStaticLanguage();
+  renderBookIndex();
+  renderMyShelf();
+  updateOnboarding();
+  if (detailIndex !== null) {
+    populateBookDetail(detailIndex);
+  }
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
 function renderBookIndex() {
   bookIndexCount.textContent = String(books.length).padStart(2, "0");
   bookIndexList.innerHTML = books.map((book, index) => `
     <li>
-      <button type="button" data-book-index="${index}" aria-label="Open ${escapeHtml(book.title)}">
+      <button type="button" data-book-index="${index}" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
         <span class="book-index-number">${String(index + 1).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
@@ -193,30 +740,399 @@ function renderBookIndex() {
 }
 
 function renderMyShelf() {
+  const allSavedEntries = books
+    .map((book, index) => ({ book, index, state: getBookState(book) }))
+    .filter(({ state }) => state);
   const savedEntries = books
     .map((book, index) => ({ book, index, state: getBookState(book) }))
     .filter(({ state }) => state && (myShelfFilter === "all" || state.status === myShelfFilter));
-  const totalSaved = Object.keys(userBooks).length;
+  const totalSaved = allSavedEntries.length;
+  const statusCounts = allSavedEntries.reduce((counts, { state }) => {
+    counts[state.status] = (counts[state.status] || 0) + 1;
+    return counts;
+  }, {});
   myShelfCount.textContent = String(totalSaved).padStart(2, "0");
+  myShelf.classList.toggle("is-room-view", myShelfView === "room");
   myShelfEmpty.hidden = savedEntries.length > 0;
+  myShelfListView.hidden = savedEntries.length === 0 || myShelfView !== "list";
+  myShelfRoomView.hidden = savedEntries.length === 0 || myShelfView !== "room";
+  myShelfSummary.hidden = totalSaved === 0 || myShelfView !== "list";
+  myShelfSummary.innerHTML = [
+    [t("saved"), totalSaved, "all"],
+    [t("want"), statusCounts.want_to_read || 0, "want_to_read"],
+    [t("reading"), statusCounts.reading || 0, "reading"],
+    [t("finished"), statusCounts.finished || 0, "finished"],
+  ].map(([label, value, filter]) => `
+    <button type="button" data-summary-filter="${filter}" aria-pressed="${String(myShelfFilter === filter)}">
+      <strong>${String(value).padStart(2, "0")}</strong>
+      <small>${label}</small>
+    </button>
+  `).join("");
   myShelfList.innerHTML = savedEntries.map(({ book, index, state }) => `
     <li>
-      <button type="button" data-my-shelf-index="${index}" aria-label="Open ${escapeHtml(book.title)}">
+      <div class="my-shelf-item">
+      <button class="my-shelf-open" type="button" data-my-shelf-index="${index}" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
         <span class="book-index-number">${String(index + 1).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
           <strong>${escapeHtml(book.title)}</strong>
-          <small>${escapeHtml(book.author)} / ${escapeHtml(STATUS_LABELS[state.status] || "Saved")}</small>
+          <small>${escapeHtml(book.author)}</small>
         </span>
         <i data-lucide="arrow-up-right" aria-hidden="true"></i>
       </button>
+      </div>
     </li>
   `).join("");
+  myShelfRoom.innerHTML = savedEntries.map(({ book, index, state }, roomIndex) => `
+    <button class="my-room-book" type="button" data-my-shelf-index="${index}" style="--room-spine: ${book.spine}; --room-ink: ${book.spineInk}; --room-width: ${book.spineWidth}px; --room-cover-width: ${book.width}px; --room-height: ${Math.round(430 * book.height)}px; --room-gap: ${Math.max(book.shelfGap, 18)}px; --room-cover: ${book.color}; --room-cover-ink: ${book.ink}; --art-opacity: ${book.opacity ?? 1}; --art-filter: ${book.filter ?? "none"}; --room-delay: ${roomIndex * 22}ms;" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
+      <span class="my-room-book-cover${book.originalCover ? " has-original-cover" : ""}" aria-hidden="true">
+        ${coverMarkup(book, index)}
+      </span>
+      <span class="my-room-book-spine">
+        <span>${escapeHtml(book.title)}</span>
+      </span>
+      <span class="my-room-book-meta">
+        <strong>${escapeHtml(book.title)}</strong>
+        <small>${escapeHtml(t(STATUS_LABEL_KEYS[state.status] || "saved"))}</small>
+      </span>
+    </button>
+  `).join("");
+  myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
+    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex));
+    element.addEventListener("mouseleave", () => {
+      if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
+    });
+    element.addEventListener("focus", () => openMyRoomBook(roomIndex));
+  });
   myShelfFilters.querySelectorAll("[data-shelf-filter]").forEach((button) => {
     const pressed = button.dataset.shelfFilter === myShelfFilter;
     button.setAttribute("aria-pressed", String(pressed));
   });
+  myShelfViewToggle.querySelectorAll("[data-my-shelf-view]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.myShelfView === myShelfView));
+  });
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+function switchMyShelfView(nextView) {
+  if (!nextView || nextView === myShelfView) return;
+  window.clearTimeout(myShelfViewSwitchTimer);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion) {
+    myShelfView = nextView;
+    renderMyShelf();
+    if (myShelfView === "room") {
+      requestAnimationFrame(() => {
+        if (!myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+      });
+    }
+    return;
+  }
+
+  myShelf.classList.add("is-view-switching");
+  myShelfViewSwitchTimer = window.setTimeout(() => {
+    myShelfView = nextView;
+    renderMyShelf();
+    requestAnimationFrame(() => {
+      myShelf.classList.remove("is-view-switching");
+      if (myShelfView === "room") {
+        requestAnimationFrame(() => {
+          if (!myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+        });
+      }
+    });
+  }, 170);
+}
+
+function bookExists(id) {
+  return books.some((book) => book.id === id);
+}
+
+function coverUrlFromSearchResult(result) {
+  const links = result.volumeInfo?.imageLinks || {};
+  const image = links.extraLarge || links.large || links.medium || links.small || links.thumbnail || links.smallThumbnail || "";
+  return image ? image.replace(/^http:/, "https:") : "";
+}
+
+function customBookFromSearchResult(result, offset = 0) {
+  const info = result.volumeInfo || {};
+  const title = info.title || "未命名书籍";
+  const author = info.authors?.slice(0, 2).join(" / ") || "作者未知";
+  const publishYear = info.publishedDate ? `出版时间：${info.publishedDate}` : "来自 Google Books 搜索。";
+  const description = String(info.description || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const idSource = result.id || `${title}-${author}`;
+  const paletteIndex = books.length + offset;
+  const palette = CUSTOM_BOOK_PALETTE[paletteIndex % CUSTOM_BOOK_PALETTE.length];
+  const cover = coverUrlFromSearchResult(result);
+  return normalizeBook({
+    id: `custom-${slugifyText(idSource)}`,
+    title,
+    author,
+    color: palette[0],
+    ink: palette[1],
+    spine: palette[2],
+    spineInk: palette[3],
+    detailColor: palette[0],
+    width: cover ? 300 : 270,
+    spineWidth: Math.min(88, Math.max(58, Math.round(36 + title.length * 1.7))),
+    height: 0.94 + (paletteIndex % 5) * 0.02,
+    shelfGap: 30,
+    image: cover,
+    originalCover: Boolean(cover),
+    description: [
+      publishYear,
+      description || "这本书由你搜索加入，可以继续设置为想读、在读或读完。",
+    ],
+    isCustom: true,
+  }, paletteIndex);
+}
+
+function customBookFromWereadItem(item, offset = 0) {
+  const title = item.title || item.name || "未命名书籍";
+  const author = item.author || item.authorName || "作者未知";
+  const idSource = item.bookId || item.albumId || `${title}-${author}`;
+  const paletteIndex = books.length + offset;
+  const palette = CUSTOM_BOOK_PALETTE[paletteIndex % CUSTOM_BOOK_PALETTE.length];
+  const status = item.finishReading || item.finish ? "finished" : "want_to_read";
+  const description = [
+    item.category ? `微信读书分类：${item.category}` : "来自微信读书书架同步。",
+    item.deepLink ? "这本书保留了微信读书打开链接。" : "这本书由微信读书同步加入。",
+  ];
+  return {
+    book: normalizeBook({
+      id: `weread-${slugifyText(idSource)}`,
+      title,
+      author,
+      description,
+      color: palette[0],
+      ink: palette[1],
+      spine: palette[2],
+      spineInk: palette[3],
+      detailColor: palette[0],
+      width: item.cover ? 300 : 270,
+      spineWidth: Math.min(88, Math.max(58, Math.round(36 + title.length * 1.7))),
+      height: 0.94 + (paletteIndex % 5) * 0.02,
+      shelfGap: 30,
+      image: item.cover || "",
+      originalCover: Boolean(item.cover),
+      isCustom: true,
+      source: "weread",
+      sourceId: idSource,
+      deepLink: item.deepLink || "",
+    }, paletteIndex),
+    status,
+  };
+}
+
+function renderAddBookResults(results = lastSearchResults) {
+  lastSearchResults = results;
+  addBookResults.innerHTML = results.map((book, index) => {
+    const saved = Boolean(getBookState(book)) || bookExists(book.id);
+    return `
+      <li>
+        <article class="add-book-result">
+          <div class="add-book-cover" style="--book-index-color: ${book.spine}">
+            ${book.image ? `<img src="${book.image}" alt="" loading="lazy" />` : `<span>${escapeHtml(book.title.slice(0, 2))}</span>`}
+          </div>
+          <div class="add-book-copy">
+            <h3>${escapeHtml(book.title)}</h3>
+            <p>${escapeHtml(book.author)}</p>
+            <small>${escapeHtml(book.description[0] || "")}</small>
+          </div>
+          <button type="button" data-add-book-result="${index}" ${saved ? "disabled" : ""}>
+            ${saved ? t("addedSearchResult") : t("addSearchResult")}
+          </button>
+        </article>
+      </li>
+    `;
+  }).join("");
+}
+
+async function searchBooks(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return;
+  addBookAbortController?.abort();
+  addBookAbortController = new AbortController();
+  addBookStatus.textContent = t("searchBookLoading");
+  addBookResults.innerHTML = "";
+  try {
+    const results = (await fetchGoogleBooks(trimmed, { limit: 8, signal: addBookAbortController.signal }))
+      .map((result, index) => customBookFromSearchResult(result, index));
+    addBookStatus.textContent = results.length ? `找到 ${results.length} 本相关书籍` : t("searchBookEmpty");
+    renderAddBookResults(results);
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    console.error(error);
+    addBookStatus.textContent = error.name === "GoogleBooksQuotaError" ? t("searchBookQuotaError") : t("searchBookError");
+  } finally {
+    addBookAbortController = null;
+  }
+}
+
+async function fetchGoogleBooks(query, { limit = 8, signal = null } = {}) {
+  const url = new URL("https://www.googleapis.com/books/v1/volumes");
+  url.searchParams.set("q", query.trim());
+  url.searchParams.set("maxResults", String(limit));
+  url.searchParams.set("printType", "books");
+  url.searchParams.set("projection", "lite");
+  const apiKey = readGoogleBooksApiKey();
+  if (apiKey) url.searchParams.set("key", apiKey);
+  const response = await fetch(url, { signal });
+  if (response.status === 429 || response.status === 403) {
+    const quotaError = new Error(`Google Books quota limited: ${response.status}`);
+    quotaError.name = "GoogleBooksQuotaError";
+    throw quotaError;
+  }
+  if (!response.ok) throw new Error(`Google Books responded ${response.status}`);
+  const data = await response.json();
+  return (data.items || []).filter((result) => result.volumeInfo?.title);
+}
+
+async function importWereadBooks(text) {
+  const titles = [...new Set(text
+    .split(/\n+/)
+    .map((line) => line.replace(/^\s*[\d*•\-、.]+/, "").trim())
+    .filter(Boolean))].slice(0, 20);
+  if (!titles.length) {
+    wereadImportStatus.textContent = t("wereadImportEmpty");
+    return;
+  }
+
+  let imported = 0;
+  let failed = 0;
+  wereadImportForm.querySelector("button").disabled = true;
+  for (const [index, title] of titles.entries()) {
+    wereadImportStatus.textContent = t("wereadImportLoading", { current: index + 1, total: titles.length });
+    try {
+      const [result] = await fetchGoogleBooks(title, { limit: 1 });
+      if (!result) {
+        failed += 1;
+        continue;
+      }
+      const book = customBookFromSearchResult(result, index);
+      if (!bookExists(book.id)) {
+        books.push(book);
+        writeCustomBooks();
+        createBook(book, books.length - 1);
+        imported += 1;
+      }
+      saveBookState(book, DEFAULT_STATUS);
+    } catch (error) {
+      console.error(error);
+      failed += 1;
+      if (error.name === "GoogleBooksQuotaError") break;
+    }
+  }
+  totalBooks.textContent = String(books.length).padStart(2, "0");
+  renderBookIndex();
+  renderMyShelf();
+  measureShelf();
+  wereadImportStatus.textContent = failed
+    ? t("wereadImportPartial", { count: imported, failed })
+    : t("wereadImportDone", { count: imported });
+  wereadImportForm.querySelector("button").disabled = false;
+  if (imported > 0) {
+    closeAddBookPanel({ restoreFocus: false });
+    window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
+  }
+}
+
+async function syncWereadShelf(apiKey) {
+  const trimmed = apiKey.trim();
+  if (!trimmed) {
+    wereadImportStatus.textContent = t("wereadApiKeyEmpty");
+    return;
+  }
+
+  const button = wereadImportForm.querySelector("button");
+  button.disabled = true;
+  wereadImportStatus.textContent = t("wereadSyncLoading");
+
+  try {
+    const response = await fetch(`${readSupabaseFunctionsUrl()}/sync-weread-shelf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wereadApiKey: trimmed }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `sync failed: ${response.status}`);
+
+    const items = Array.isArray(data.books) ? data.books : [];
+    let imported = 0;
+    items.forEach((item, index) => {
+      const { book, status } = customBookFromWereadItem(item, index);
+      if (!bookExists(book.id)) {
+        books.push(book);
+        writeCustomBooks();
+        createBook(book, books.length - 1);
+        imported += 1;
+      }
+      saveBookState(book, status || DEFAULT_STATUS);
+    });
+
+    totalBooks.textContent = String(books.length).padStart(2, "0");
+    renderBookIndex();
+    renderMyShelf();
+    measureShelf();
+    wereadImportStatus.textContent = t("wereadSyncDone", { count: items.length });
+    wereadApiKey.value = "";
+    if (items.length > 0) {
+      closeAddBookPanel({ restoreFocus: false });
+      window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
+    }
+  } catch (error) {
+    console.error(error);
+    wereadImportStatus.textContent = t("wereadSyncError");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function addCustomBook(book) {
+  if (!bookExists(book.id)) {
+    books.push(book);
+    writeCustomBooks();
+    createBook(book, books.length - 1);
+    totalBooks.textContent = String(books.length).padStart(2, "0");
+    renderBookIndex();
+    measureShelf();
+  }
+  saveBookState(book, DEFAULT_STATUS);
+  renderAddBookResults();
+  closeAddBookPanel({ restoreFocus: false });
+  window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
+}
+
+function openMyRoomBook(roomIndex, { focus = false } = {}) {
+  const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+  const active = roomBooks[roomIndex];
+  if (!active) return;
+  myRoomActiveIndex = roomIndex;
+  const coverWidth = Number.parseFloat(getComputedStyle(active).getPropertyValue("--room-cover-width"));
+  const spineWidth = Number.parseFloat(getComputedStyle(active).getPropertyValue("--room-width"));
+  const extra = Math.max(0, coverWidth - spineWidth);
+  const beforeShift = -extra * 0.34;
+  const afterShift = extra * 0.66;
+  const activeShift = beforeShift;
+
+  roomBooks.forEach((book, index) => {
+    const shift = index < roomIndex ? beforeShift : index > roomIndex ? afterShift : activeShift;
+    book.classList.toggle("is-open", index === roomIndex);
+    book.style.setProperty("--room-shift", `${Math.round(shift)}px`);
+  });
+  if (focus) active.focus({ preventScroll: true });
+  active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+}
+
+function resetMyRoomBooks() {
+  myRoomActiveIndex = null;
+  myShelfRoom.querySelectorAll(".my-room-book").forEach((book) => {
+    book.classList.remove("is-open");
+    book.style.setProperty("--room-shift", "0px");
+  });
 }
 
 function updateDetailShelfControls() {
@@ -225,11 +1141,17 @@ function updateDetailShelfControls() {
   const state = getBookState(book);
   const status = state?.status || "";
   detailSave.classList.toggle("is-saved", Boolean(state));
-  detailSaveLabel.textContent = state ? "Remove from my shelf" : "Add to my shelf";
+  detailSaveLabel.textContent = t("addToShelf");
   detailSave.setAttribute("aria-pressed", String(Boolean(state)));
-  detailStatus.querySelectorAll("[data-detail-status]").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.detailStatus === status));
+  let activeStatusIndex = -1;
+  detailStatus.querySelectorAll("[data-detail-status]").forEach((button, index) => {
+    const pressed = Boolean(state) && button.dataset.detailStatus === status;
+    button.setAttribute("aria-pressed", String(pressed));
+    if (pressed) activeStatusIndex = index;
   });
+  const statusOptions = detailStatus.querySelector(".detail-status-options");
+  statusOptions?.classList.toggle("has-active-status", activeStatusIndex >= 0);
+  statusOptions?.style.setProperty("--active-index", String(Math.max(activeStatusIndex, 0)));
 }
 
 function closeShelfHelp({ restoreFocus = false, immediate = false } = {}) {
@@ -262,6 +1184,7 @@ function openBookIndex() {
   if (detailIndex !== null) return;
   closeShelfHelp({ immediate: true });
   closeMyShelf({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true });
   window.clearTimeout(bookIndexCloseTimer);
   pinnedIndex = null;
   if (activeIndex !== null) closeBook(activeIndex, true);
@@ -269,6 +1192,7 @@ function openBookIndex() {
   bookIndex.hidden = false;
   bookIndex.setAttribute("aria-hidden", "false");
   bookIndexToggle.setAttribute("aria-expanded", "true");
+  updateOnboarding();
   requestAnimationFrame(() => {
     library.classList.add("is-index-open");
     bookIndex.classList.add("is-visible");
@@ -289,13 +1213,94 @@ function closeBookIndex({ restoreFocus = true, immediate = false } = {}) {
   if (immediate) finish();
   else bookIndexCloseTimer = window.setTimeout(finish, 480);
   if (restoreFocus) bookIndexToggle.focus({ preventScroll: true });
+  updateOnboarding();
 }
 
-function openMyShelf() {
+function openAddBookPanel() {
   if (detailIndex !== null) return;
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
+  closeMyShelf({ restoreFocus: false, immediate: true });
+  window.clearTimeout(addBookCloseTimer);
+  pinnedIndex = null;
+  if (activeIndex !== null) closeBook(activeIndex, true);
+  addBookPanel.hidden = false;
+  addBookPanel.setAttribute("aria-hidden", "false");
+  addBookToggle.setAttribute("aria-expanded", "true");
+  updateOnboarding();
+  requestAnimationFrame(() => {
+    library.classList.add("is-add-book-open");
+    addBookPanel.classList.add("is-visible");
+    addBookQuery.focus({ preventScroll: true });
+  });
+}
+
+function closeAddBookPanel({ restoreFocus = true, immediate = false } = {}) {
+  if (addBookPanel.hidden) return;
+  window.clearTimeout(addBookCloseTimer);
+  addBookAbortController?.abort();
+  addBookAbortController = null;
+  library.classList.remove("is-add-book-open");
+  addBookPanel.classList.remove("is-visible");
+  addBookPanel.setAttribute("aria-hidden", "true");
+  addBookToggle.setAttribute("aria-expanded", "false");
+  const finish = () => {
+    if (!addBookPanel.classList.contains("is-visible")) addBookPanel.hidden = true;
+  };
+  if (immediate) finish();
+  else addBookCloseTimer = window.setTimeout(finish, 480);
+  if (restoreFocus) addBookToggle.focus({ preventScroll: true });
+  updateOnboarding();
+}
+
+function openAuthGate(action) {
+  pendingAuthAction = action;
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  closeMyShelf({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true });
+  window.clearTimeout(authGateCloseTimer);
+  authGate.hidden = false;
+  authGate.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => {
+    library.classList.add("is-auth-gate-open");
+    authGate.classList.add("is-visible");
+    authEmail.focus({ preventScroll: true });
+  });
+}
+
+function closeAuthGate({ restoreFocus = true, immediate = false, runPending = false } = {}) {
+  if (authGate.hidden) return;
+  window.clearTimeout(authGateCloseTimer);
+  authGate.classList.remove("is-visible");
+  authGate.setAttribute("aria-hidden", "true");
+  library.classList.remove("is-auth-gate-open");
+  const action = pendingAuthAction;
+  pendingAuthAction = null;
+  const finish = () => {
+    if (!authGate.classList.contains("is-visible")) authGate.hidden = true;
+    if (runPending && typeof action === "function") action();
+  };
+  if (immediate) finish();
+  else authGateCloseTimer = window.setTimeout(finish, 280);
+  if (restoreFocus && !runPending) myShelfToggle.focus({ preventScroll: true });
+}
+
+function requireAuth(action) {
+  if (hasAuthSession()) {
+    action();
+    return;
+  }
+  openAuthGate(action);
+}
+
+function openMyShelf({ view = myShelfView, restoreFocus = true } = {}) {
+  if (detailIndex !== null) return;
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true });
   window.clearTimeout(myShelfCloseTimer);
+  myShelfView = view;
   pinnedIndex = null;
   if (activeIndex !== null) closeBook(activeIndex, true);
   bookElements.forEach((element) => element.classList.remove("is-hovered"));
@@ -303,10 +1308,12 @@ function openMyShelf() {
   myShelf.hidden = false;
   myShelf.setAttribute("aria-hidden", "false");
   myShelfToggle.setAttribute("aria-expanded", "true");
+  updateOnboarding();
   requestAnimationFrame(() => {
     library.classList.add("is-my-shelf-open");
     myShelf.classList.add("is-visible");
-    myShelfClose.focus({ preventScroll: true });
+    if (myShelfView === "room" && !myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+    else if (restoreFocus) myShelfClose.focus({ preventScroll: true });
   });
 }
 
@@ -315,6 +1322,7 @@ function closeMyShelf({ restoreFocus = true, immediate = false } = {}) {
   window.clearTimeout(myShelfCloseTimer);
   library.classList.remove("is-my-shelf-open");
   myShelf.classList.remove("is-visible");
+  myShelf.classList.remove("is-room-view");
   myShelf.setAttribute("aria-hidden", "true");
   myShelfToggle.setAttribute("aria-expanded", "false");
   const finish = () => {
@@ -322,7 +1330,9 @@ function closeMyShelf({ restoreFocus = true, immediate = false } = {}) {
   };
   if (immediate) finish();
   else myShelfCloseTimer = window.setTimeout(finish, 480);
+  myShelfView = "list";
   if (restoreFocus) myShelfToggle.focus({ preventScroll: true });
+  updateOnboarding();
 }
 
 function openBookFromMyShelf(index) {
@@ -335,6 +1345,20 @@ function openBookFromMyShelf(index) {
     detailOpenTimer = 0;
     openBookDetail(index);
   }, prefersReducedMotion ? 20 : 180);
+}
+
+function openBookFromMyRoom(index, sourceButton) {
+  const sourceElement = sourceButton.querySelector(".my-room-book-cover") || sourceButton;
+  const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+  const roomIndex = roomBooks.indexOf(sourceButton);
+  const wasOpen = sourceButton.classList.contains("is-open");
+  if (roomIndex >= 0) openMyRoomBook(roomIndex);
+  window.clearTimeout(detailOpenTimer);
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  detailOpenTimer = window.setTimeout(() => {
+    detailOpenTimer = 0;
+    openBookDetail(index, { sourceElement, sourceMode: "my-room" });
+  }, prefersReducedMotion ? 20 : wasOpen ? 80 : 420);
 }
 
 function openBookFromIndex(index) {
@@ -359,7 +1383,7 @@ function coverMarkup(book, index) {
     ? `<img class="cover-art" src="${book.image}" alt="" draggable="false" />`
     : "";
   return `
-    <span class="cover-series"><span>Selected pages</span><span>${String(index + 1).padStart(2, "0")}</span></span>
+    <span class="cover-series"><span>${escapeHtml(t("selectedPages"))}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
     <span class="cover-main">
       ${coverArt}
       <span class="cover-rule"></span>
@@ -439,7 +1463,7 @@ function measureShelf() {
     const element = bookElements[index];
     element.style.setProperty("--book-height", `${Math.round(maximumHeight * book.height)}px`);
     element.style.setProperty("--x", `${cursor}px`);
-    cursor += book.spineWidth + shelfGaps[index];
+    cursor += book.spineWidth + (shelfGaps[index] ?? book.shelfGap ?? 24);
   });
   const sidePadding = Math.max(190, viewport.clientWidth * 0.38);
   track.style.setProperty("--track-pad", `${Math.ceil(sidePadding)}px`);
@@ -532,10 +1556,10 @@ function closeBook(index, force = false) {
   resetBookShifts();
 }
 
-function getDetailBookRect() {
+function getDetailBookRect(index = detailIndex ?? activeIndex ?? 0) {
   const compact = window.innerWidth <= 720;
   const shortCompact = compact && window.innerHeight <= 640;
-  const book = books[detailIndex ?? activeIndex ?? 0];
+  const book = books[index];
   const coverRatio = book.coverRatio || 2 / 3;
   const idealWidth = compact
     ? Math.min(174, window.innerWidth * 0.44)
@@ -580,20 +1604,21 @@ function populateBookDetail(index) {
   updateDetailShelfControls();
 }
 
-function positionDetailBook() {
-  const target = getDetailBookRect();
+function positionDetailBook(index = detailIndex ?? activeIndex ?? 0) {
+  const target = getDetailBookRect(index);
   detailBookShell.style.width = `${target.width}px`;
   detailBookShell.style.height = `${target.height}px`;
   detailBookShell.style.transform = `translate3d(${target.left}px, ${target.top}px, 0) scale(1)`;
 }
 
-function openBookDetail(index) {
-  if (detailIndex !== null || activeIndex !== index) return;
+function openBookDetail(index, { sourceElement = null, sourceMode = "shelf" } = {}) {
+  if (detailIndex !== null) return;
+  if (sourceMode === "shelf" && activeIndex !== index) return;
   closeShelfHelp({ immediate: true });
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const source = bookElements[index].querySelector(".book-object");
+  const source = sourceElement || bookElements[index].querySelector(".book-object");
   const sourceRect = source.getBoundingClientRect();
-  const target = getDetailBookRect();
+  const target = getDetailBookRect(index);
   detailOriginRect = {
     left: sourceRect.left,
     top: sourceRect.top,
@@ -604,6 +1629,8 @@ function openBookDetail(index) {
   window.clearTimeout(detailSettleTimer);
   window.clearTimeout(detailCloseTimer);
   detailIndex = index;
+  detailSourceElement = sourceMode === "my-room" ? source.closest(".my-room-book") : bookElements[index];
+  detailSourceMode = sourceMode;
   populateBookDetail(index);
   notifyParentTheme(books[index]);
   detailCopy.classList.remove("is-visible");
@@ -611,10 +1638,17 @@ function openBookDetail(index) {
   detail.classList.remove("is-settled");
   detail.hidden = false;
   detail.setAttribute("aria-hidden", "false");
-  masthead.setAttribute("aria-hidden", "true");
-  shelfRegion.setAttribute("aria-hidden", "true");
-  shelfRegion.setAttribute("inert", "");
-  shelfRegion.inert = true;
+  updateOnboarding();
+  if (detailSourceMode === "my-room") {
+    myShelf.setAttribute("aria-hidden", "true");
+    myShelf.setAttribute("inert", "");
+    myShelf.inert = true;
+  } else {
+    masthead.setAttribute("aria-hidden", "true");
+    shelfRegion.setAttribute("aria-hidden", "true");
+    shelfRegion.setAttribute("inert", "");
+    shelfRegion.inert = true;
+  }
   detailBookShell.style.width = `${target.width}px`;
   detailBookShell.style.height = `${target.height}px`;
   detailBookShell.style.transform = getShellTransform(detailOriginRect, target);
@@ -623,8 +1657,8 @@ function openBookDetail(index) {
   requestAnimationFrame(() => {
     library.classList.add("is-detail-open");
     detail.classList.add("is-visible");
-    bookElements[index].classList.add("is-detail-source");
-    positionDetailBook();
+    detailSourceElement?.classList.add("is-detail-source");
+    positionDetailBook(index);
     detailCopyTimer = window.setTimeout(() => {
       detailCopy.classList.add("is-visible");
     }, prefersReducedMotion ? 20 : 560);
@@ -651,20 +1685,30 @@ function closeBookDetail() {
   if (detailOriginRect) detailBookShell.style.transform = getShellTransform(detailOriginRect, target);
 
   detailCloseTimer = window.setTimeout(() => {
-    bookElements[returnIndex].classList.remove("is-detail-source");
+    detailSourceElement?.classList.remove("is-detail-source");
     detail.hidden = true;
     detail.setAttribute("aria-hidden", "true");
     detail.classList.remove("is-visible");
     detail.classList.remove("is-returning");
     detailIndex = null;
     pinnedIndex = null;
-    masthead.removeAttribute("aria-hidden");
-    shelfRegion.removeAttribute("aria-hidden");
-    shelfRegion.removeAttribute("inert");
-    shelfRegion.inert = false;
-    bookElements[returnIndex].classList.remove("is-hovered");
-    closeBook(returnIndex, true);
-    bookElements[returnIndex].focus({ preventScroll: true });
+    if (detailSourceMode === "my-room") {
+      myShelf.removeAttribute("aria-hidden");
+      myShelf.removeAttribute("inert");
+      myShelf.inert = false;
+      detailSourceElement?.focus({ preventScroll: true });
+    } else {
+      masthead.removeAttribute("aria-hidden");
+      shelfRegion.removeAttribute("aria-hidden");
+      shelfRegion.removeAttribute("inert");
+      shelfRegion.inert = false;
+      bookElements[returnIndex].classList.remove("is-hovered");
+      closeBook(returnIndex, true);
+      bookElements[returnIndex].focus({ preventScroll: true });
+    }
+    detailSourceElement = null;
+    detailSourceMode = "shelf";
+    updateOnboarding();
   }, prefersReducedMotion ? 20 : 1040);
 }
 
@@ -683,11 +1727,9 @@ function navigateTo(index) {
 }
 
 books.forEach(createBook);
-renderBookIndex();
-renderMyShelf();
 totalBooks.textContent = String(books.length).padStart(2, "0");
 activeTitle.textContent = books[0].title;
-window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+applyLanguage();
 measureShelf();
 
 viewport.addEventListener("wheel", (event) => {
@@ -738,9 +1780,53 @@ previousBook.addEventListener("click", () => navigateTo((activeIndex ?? 0) - 1))
 nextBook.addEventListener("click", () => navigateTo((activeIndex ?? -1) + 1));
 shelfHelpToggle.addEventListener("click", toggleShelfHelp);
 shelfHelpClose.addEventListener("click", () => closeShelfHelp({ restoreFocus: true }));
+shelfOnboardingStart.addEventListener("click", () => {
+  if (detailIndex !== null && !hasSavedBooks()) {
+    saveBookState(books[detailIndex], DEFAULT_STATUS);
+    return;
+  }
+  if (hasSavedBooks() && !shelfOnboardingRoom.hidden) {
+    shelfOnboarding.classList.remove("is-visible");
+    if (detailIndex !== null) closeBookDetail();
+    return;
+  }
+  openCurrentBookFromOnboarding();
+});
+shelfOnboardingRoom.addEventListener("click", openMyRoomFromOnboarding);
 bookIndexToggle.addEventListener("click", openBookIndex);
 bookIndexClose.addEventListener("click", () => closeBookIndex());
-myShelfToggle.addEventListener("click", openMyShelf);
+addBookToggle.addEventListener("click", () => requireAuth(openAddBookPanel));
+addBookClose.addEventListener("click", () => closeAddBookPanel());
+addBookSearch.addEventListener("submit", (event) => {
+  event.preventDefault();
+  searchBooks(addBookQuery.value);
+});
+wereadImportForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  syncWereadShelf(wereadApiKey.value);
+});
+wereadManualImportForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  importWereadBooks(wereadImportText.value);
+});
+addBookResults.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-add-book-result]") : null;
+  if (!button) return;
+  const index = Number(button.dataset.addBookResult);
+  const book = lastSearchResults[index];
+  if (Number.isInteger(index) && book) addCustomBook(book);
+});
+authGateClose.addEventListener("click", () => closeAuthGate({ restoreFocus: true }));
+authGateForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  writeAuthSession({ email: authEmail.value.trim(), mode: "email-prototype" });
+  closeAuthGate({ restoreFocus: false, runPending: true });
+});
+authGateGuest.addEventListener("click", () => {
+  writeAuthSession({ email: "", mode: "guest-prototype" });
+  closeAuthGate({ restoreFocus: false, runPending: true });
+});
+myShelfToggle.addEventListener("click", () => requireAuth(() => openMyShelf({ view: "room" })));
 myShelfClose.addEventListener("click", () => closeMyShelf());
 bookIndexList.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-book-index]") : null;
@@ -760,6 +1846,45 @@ myShelfFilters.addEventListener("click", (event) => {
   myShelfFilter = button.dataset.shelfFilter || "all";
   renderMyShelf();
 });
+myShelfSummary.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-summary-filter]") : null;
+  if (!button) return;
+  myShelfFilter = button.dataset.summaryFilter || "all";
+  renderMyShelf();
+});
+myShelfViewToggle.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-view]") : null;
+  if (!button) return;
+  switchMyShelfView(button.dataset.myShelfView || "list");
+});
+myRoomTitle.addEventListener("click", () => {
+  myRoomNameForm.hidden = !myRoomNameForm.hidden;
+  if (!myRoomNameForm.hidden) {
+    myRoomNameInput.value = myRoomName === "Your Reading Room" ? "" : myRoomName;
+    myRoomNameInput.focus({ preventScroll: true });
+  }
+});
+myRoomNameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  myRoomName = myRoomNameInput.value.trim() || "Your Reading Room";
+  writeRoomName(myRoomName);
+  myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  myRoomNameForm.hidden = true;
+  myRoomTitle.focus({ preventScroll: true });
+});
+roomOnlyToggle.addEventListener("click", () => {
+  showMyRoomFirst = !showMyRoomFirst;
+  writeShowMyRoomFirst(showMyRoomFirst);
+  roomOnlyToggle.setAttribute("aria-pressed", String(showMyRoomFirst));
+  if (showMyRoomFirst) requireAuth(() => openMyShelf({ view: "room", restoreFocus: false }));
+  else closeMyShelf({ restoreFocus: false });
+});
+myShelfRoom.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
+  if (!button) return;
+  const index = Number(button.dataset.myShelfIndex);
+  if (Number.isInteger(index) && books[index]) openBookFromMyRoom(index, button);
+});
 
 detailClose.addEventListener("click", closeBookDetail);
 detailReturn.addEventListener("click", closeBookDetail);
@@ -775,12 +1900,19 @@ detailStatus.addEventListener("click", (event) => {
   if (!button) return;
   const book = books[detailIndex];
   const status = button.dataset.detailStatus || "";
-  if (!status) removeBookState(book);
-  else saveBookState(book, status);
+  saveBookState(book, status || DEFAULT_STATUS);
 });
 
 document.addEventListener("keydown", (event) => {
   const isSpace = event.code === "Space" || event.key === " ";
+  if (!authGate.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAuthGate({ restoreFocus: true });
+    }
+    return;
+  }
+
   if (detailIndex !== null) {
     if (isSpace && !(event.target instanceof HTMLButtonElement)) {
       event.preventDefault();
@@ -800,7 +1932,34 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (!addBookPanel.hidden) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAddBookPanel();
+    }
+    return;
+  }
+
   if (!myShelf.hidden) {
+    if (myShelfView === "room" && !myShelfRoomView.hidden) {
+      const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+      const current = myRoomActiveIndex ?? 0;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        if (!event.repeat && roomBooks.length) openMyRoomBook((current + 1) % roomBooks.length, { focus: true });
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        if (!event.repeat && roomBooks.length) openMyRoomBook((current - 1 + roomBooks.length) % roomBooks.length, { focus: true });
+      } else if (isSpace || event.key === "Enter") {
+        event.preventDefault();
+        if (!event.repeat && roomBooks[current]) roomBooks[current].click();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        closeMyShelf();
+      }
+      return;
+    }
+
     if (event.key === "Escape") {
       event.preventDefault();
       closeMyShelf();
@@ -849,7 +2008,15 @@ window.addEventListener("resize", () => {
   if (detailIndex !== null && !detail.classList.contains("is-returning")) positionDetailBook();
 });
 
+if (showMyRoomFirst && hasSavedBooks()) {
+  requestAnimationFrame(() => openMyShelf({ view: "room", restoreFocus: false }));
+}
+
+updateOnboarding();
 notifyParentTheme();
+window.setTimeout(() => {
+  entryScreen?.classList.add("is-done");
+}, 1250);
 }).catch((error) => {
   console.error(error);
   const status = document.querySelector("#activeTitle");

@@ -6,10 +6,18 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A quiet collection of books selected for Brooke's reading room." />
   <title>Brooke's Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20260821-4" />
+  <link rel="stylesheet" href="./styles.css?v=20260822-35" />
+  <script src="./config.local.js"></script>
   <script defer src="./vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
+  <div class="entry-screen" id="entryScreen" aria-label="正在进入 Brooke Reading Room">
+    <div class="entry-screen-inner">
+      <p>正在进入 Reading Room</p>
+      <div class="entry-progress" aria-hidden="true"><span></span></div>
+    </div>
+  </div>
+
   <main class="library">
     <header class="masthead" aria-labelledby="pageTitle">
       <div class="masthead-meta" aria-label="Edition details">
@@ -33,6 +41,14 @@
           <button class="icon-button my-shelf-toggle" id="myShelfToggle" type="button" title="My shelf" aria-expanded="false" aria-controls="myShelf">
             <i data-lucide="bookmark"></i>
             <span class="sr-only">My shelf</span>
+          </button>
+          <button class="icon-button add-book-toggle" id="addBookToggle" type="button" title="增添书籍" aria-expanded="false" aria-controls="addBookPanel">
+            <i data-lucide="plus"></i>
+            <span class="sr-only">增添书籍</span>
+          </button>
+          <button class="icon-button room-only-toggle" id="roomOnlyToggle" type="button" title="只看我的房间" aria-pressed="false">
+            <i data-lucide="eye-off"></i>
+            <span class="sr-only">只看我的房间</span>
           </button>
           <button class="icon-button" id="previousBook" type="button" title="Previous book">
             <i data-lucide="chevron-left"></i>
@@ -70,6 +86,89 @@
       <div class="shelf-rule" aria-hidden="true"></div>
     </section>
 
+    <section class="add-book-panel" id="addBookPanel" role="dialog" aria-labelledby="addBookTitle" aria-hidden="true" hidden>
+      <header class="book-index-header add-book-header">
+        <div>
+          <p>新增书籍</p>
+          <h2 id="addBookTitle">增添书籍</h2>
+        </div>
+        <button class="book-index-close" id="addBookClose" type="button" title="返回书架">
+          <i data-lucide="x"></i>
+          <span class="sr-only">返回书架</span>
+        </button>
+      </header>
+
+      <form class="add-book-search" id="addBookSearch">
+        <label for="addBookQuery">搜索书名、作者或 ISBN</label>
+        <div>
+          <input id="addBookQuery" type="search" autocomplete="off" placeholder="例如：献给阿尔吉侬的花束" />
+          <button type="submit">
+            <i data-lucide="search"></i>
+            <span>搜索</span>
+          </button>
+        </div>
+      </form>
+
+      <p class="add-book-status" id="addBookStatus" aria-live="polite"></p>
+      <ol class="add-book-results" id="addBookResults"></ol>
+
+      <section class="weread-import" aria-labelledby="wereadImportTitle">
+        <div>
+          <p>联动微信读书</p>
+          <h3 id="wereadImportTitle">从微信读书导入</h3>
+        </div>
+        <form id="wereadImportForm">
+          <label for="wereadApiKey">输入你的微信读书 API Key</label>
+          <input id="wereadApiKey" type="password" autocomplete="off" inputmode="text" placeholder="wrk-xxxxxxxx" />
+          <p class="weread-import-hint">API Key 只会发给 Supabase Edge Function 用来同步书架，不会保存到前端代码。</p>
+          <button type="submit">
+            <i data-lucide="refresh-cw"></i>
+            <span>同步微信读书书架</span>
+          </button>
+        </form>
+        <details class="weread-manual-import">
+          <summary>没有 API Key？使用书名列表导入</summary>
+          <form id="wereadManualImportForm">
+            <label for="wereadImportText">粘贴微信读书书架里的书名，每行一本</label>
+            <textarea id="wereadImportText" rows="6" placeholder="例如：&#10;献给阿尔吉侬的花束&#10;可能性的艺术&#10;隐墙"></textarea>
+            <button type="submit">
+              <i data-lucide="import"></i>
+              <span>导入书名列表</span>
+            </button>
+          </form>
+        </details>
+        <p class="weread-import-status" id="wereadImportStatus" aria-live="polite"></p>
+      </section>
+    </section>
+
+    <section class="auth-gate" id="authGate" role="dialog" aria-modal="true" aria-labelledby="authGateTitle" aria-hidden="true" hidden>
+      <div class="auth-gate-card">
+        <button class="auth-gate-close" id="authGateClose" type="button" title="返回">
+          <i data-lucide="x"></i>
+          <span class="sr-only">返回</span>
+        </button>
+        <p class="auth-gate-kicker">创建你的书架</p>
+        <h2 id="authGateTitle">先保存你的 Reading Room</h2>
+        <p class="auth-gate-copy">登录后，你加入的书、微信读书同步和房间设置都会成为你的个人书架。现在可以先用邮箱开始。</p>
+        <form class="auth-gate-form" id="authGateForm">
+          <label for="authEmail">邮箱</label>
+          <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <button type="submit">继续建造我的书架</button>
+        </form>
+        <button class="auth-gate-secondary" id="authGateGuest" type="button">先体验，稍后注册</button>
+      </div>
+    </section>
+
+    <aside class="shelf-onboarding" id="shelfOnboarding" aria-labelledby="shelfOnboardingTitle" hidden>
+      <p class="shelf-onboarding-kicker" id="shelfOnboardingKicker">Build your shelf</p>
+      <h2 id="shelfOnboardingTitle">Start with one book</h2>
+      <p id="shelfOnboardingCopy">Browse Brooke's Reading Room, open a book that catches your eye, then add it to begin assembling your own room.</p>
+      <div class="shelf-onboarding-actions">
+        <button class="shelf-onboarding-primary" id="shelfOnboardingStart" type="button">Choose a book</button>
+        <button class="shelf-onboarding-secondary" id="shelfOnboardingRoom" type="button" hidden>Open my room</button>
+      </div>
+    </aside>
+
     <section class="book-index" id="bookIndex" aria-labelledby="bookIndexTitle" aria-hidden="true" hidden>
       <header class="book-index-header">
         <div>
@@ -97,13 +196,36 @@
       </header>
 
       <div class="my-shelf-filters" role="group" aria-label="Filter my shelf">
-        <button type="button" data-shelf-filter="all" aria-pressed="true">All</button>
-        <button type="button" data-shelf-filter="want_to_read" aria-pressed="false">Want</button>
-        <button type="button" data-shelf-filter="reading" aria-pressed="false">Reading</button>
-        <button type="button" data-shelf-filter="finished" aria-pressed="false">Finished</button>
+        <button type="button" data-shelf-filter="all" aria-pressed="true">全部</button>
+        <button type="button" data-shelf-filter="want_to_read" aria-pressed="false">想读</button>
+        <button type="button" data-shelf-filter="reading" aria-pressed="false">在读</button>
+        <button type="button" data-shelf-filter="finished" aria-pressed="false">读完</button>
       </div>
 
-      <ol class="book-index-list my-shelf-list" id="myShelfList"></ol>
+      <div class="my-shelf-summary" id="myShelfSummary" aria-label="My shelf summary"></div>
+
+      <div class="my-shelf-view-toggle" role="group" aria-label="My shelf view">
+        <button type="button" data-my-shelf-view="list" aria-pressed="true">列表</button>
+        <button type="button" data-my-shelf-view="room" aria-pressed="false">房间</button>
+      </div>
+
+      <div class="my-shelf-view my-shelf-view--list" id="myShelfListView">
+        <ol class="book-index-list my-shelf-list" id="myShelfList"></ol>
+      </div>
+      <div class="my-shelf-view my-shelf-view--room" id="myShelfRoomView" hidden>
+        <div class="my-room-stage">
+          <div class="my-room-heading">
+            <p>Personal reading room</p>
+            <button class="my-room-title-button" id="myRoomTitle" type="button" title="点击修改房间名">Your<br />Reading Room</button>
+            <form class="my-room-name-form" id="myRoomNameForm" hidden>
+              <input id="myRoomNameInput" type="text" maxlength="36" autocomplete="off" placeholder="Your Reading Room" />
+              <button type="submit">Save</button>
+            </form>
+          </div>
+          <div class="my-room-rail" id="myShelfRoom" aria-label="My reading room shelf"></div>
+          <div class="my-room-rule" aria-hidden="true"></div>
+        </div>
+      </div>
       <p class="my-shelf-empty" id="myShelfEmpty" hidden>Your saved books will appear here.</p>
     </section>
 
@@ -134,14 +256,13 @@
                 <i data-lucide="bookmark"></i>
               </span>
             </span>
-            <span id="detailSaveLabel">Add to my shelf</span>
+            <span id="detailSaveLabel">加入我的书架</span>
           </button>
           <div class="detail-status" id="detailStatus" role="group" aria-label="Reading status">
             <div class="detail-status-options">
-              <button type="button" data-detail-status="" aria-pressed="true">Not saved</button>
-              <button type="button" data-detail-status="want_to_read" aria-pressed="false">Want</button>
-              <button type="button" data-detail-status="reading" aria-pressed="false">Reading</button>
-              <button type="button" data-detail-status="finished" aria-pressed="false">Finished</button>
+              <button type="button" data-detail-status="want_to_read" aria-pressed="false">想读</button>
+              <button type="button" data-detail-status="reading" aria-pressed="false">在读</button>
+              <button type="button" data-detail-status="finished" aria-pressed="false">读完</button>
             </div>
           </div>
         </div>
@@ -156,6 +277,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20260821-2"></script>
+  <script defer src="./app.js?v=20260822-35"></script>
 </body>
 </html>
