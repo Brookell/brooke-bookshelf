@@ -2,6 +2,7 @@ window.BROOKE_BOOKS_READY.then((books) => {
 const shelfGaps = window.BROOKE_SHELF_GAPS;
 
 const entryScreen = document.querySelector("#entryScreen");
+const spaceSwitch = document.querySelector(".space-switch");
 const viewport = document.querySelector("#shelfViewport");
 const track = document.querySelector("#booksTrack");
 const activeTitle = document.querySelector("#activeTitle");
@@ -78,6 +79,7 @@ const SHELF_STORAGE_KEY = "brooke-bookshelf:user-books:v1";
 const CUSTOM_BOOKS_STORAGE_KEY = "brooke-bookshelf:custom-books:v1";
 const GOOGLE_BOOKS_API_KEY_STORAGE_KEY = "brooke-bookshelf:google-books-api-key:v1";
 const AUTH_STORAGE_KEY = "brooke-bookshelf:auth-prototype:v1";
+const DEFAULT_SUPABASE_URL = "https://oipsefmckxyojnntiaax.supabase.co";
 const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
@@ -135,10 +137,11 @@ const I18N = {
     saved: "已保存",
     openBook: "打开《{title}》",
     selectedPages: "Selected pages",
-    onboardingBuildKicker: "创建你的书架",
-    onboardingBuildTitle: "从一本书开始",
-    onboardingBuildCopy: "先浏览 Brooke 的 Reading Room，打开一本让你感兴趣的书，再把它加入书架，开始组装自己的房间。",
-    onboardingChoose: "选择一本书",
+    onboardingBuildKicker: "Brooke 的空间是一个范例",
+    onboardingBuildTitle: "看一看，再开始你的",
+    onboardingBuildCopy: "你可以先在这里随意翻看，遇到喜欢的书就加入自己的书架；也可以直接进入我的空间，从空房间开始布置。",
+    onboardingChoose: "继续浏览范例",
+    onboardingStartRoom: "直接打造我的书架",
     onboardingAddKicker: "变成你的",
     onboardingAddTitle: "加入这本书",
     onboardingAddCopy: "《{title}》可以成为你个人 Reading Room 的第一本书。点击加入书架，然后选择阅读状态。",
@@ -211,10 +214,11 @@ const I18N = {
     saved: "Saved",
     openBook: "Open {title}",
     selectedPages: "Selected pages",
-    onboardingBuildKicker: "Build your shelf",
-    onboardingBuildTitle: "Start with one book",
-    onboardingBuildCopy: "Browse Brooke's Reading Room, open a book that catches your eye, then add it to begin assembling your own room.",
-    onboardingChoose: "Choose a book",
+    onboardingBuildKicker: "Brooke's space is the example",
+    onboardingBuildTitle: "Look around, then make yours",
+    onboardingBuildCopy: "Browse first, save a book when one catches your eye, or open your own space and begin from an empty room.",
+    onboardingChoose: "Browse the example",
+    onboardingStartRoom: "Build my shelf",
     onboardingAddKicker: "Make it yours",
     onboardingAddTitle: "Add this book",
     onboardingAddCopy: "{title} can be the first volume in your own reading room. Use Add to my shelf, then choose a status.",
@@ -256,6 +260,7 @@ let pinnedIndex = null;
 let userBooks = readUserBooks();
 let showMyRoomFirst = readShowMyRoomFirst();
 let myRoomName = readRoomName();
+let activeSpace = "brooke";
 let myShelfFilter = "all";
 let myShelfView = "list";
 let myRoomActiveIndex = null;
@@ -279,9 +284,14 @@ let shelfHelpCloseTimer = 0;
 let onboardingCloseTimer = 0;
 let addBookCloseTimer = 0;
 let authGateCloseTimer = 0;
+let myShelfToolsHintTimer = 0;
 let pendingAuthAction = null;
 let addBookAbortController = null;
 let lastSearchResults = [];
+let supabaseClient = null;
+let supabaseSession = null;
+let hasLoadedRemoteShelf = false;
+let isSyncingRemoteShelf = false;
 
 const escapeHtml = (value) => String(value).replace(/[&<>"]/g, (character) => ({
   "&": "&amp;",
@@ -317,6 +327,14 @@ function setButtonLabel(button, label) {
   if (srOnly) srOnly.textContent = label;
 }
 
+function updateSpaceSwitch() {
+  spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
+  });
+  library.classList.toggle("is-user-space", activeSpace === "user");
+  roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
+}
+
 function readRoomName() {
   try {
     const value = window.localStorage.getItem(ROOM_NAME_STORAGE_KEY)?.trim();
@@ -332,6 +350,7 @@ function writeRoomName(value) {
   } catch {
     // Room naming still updates for the current session when storage is unavailable.
   }
+  syncSettingsToSupabase();
 }
 
 function formatRoomTitle(value) {
@@ -427,6 +446,28 @@ function readSupabaseFunctionsUrl() {
   return String(window.BROOKE_SUPABASE_FUNCTIONS_URL || DEFAULT_SUPABASE_FUNCTIONS_URL).replace(/\/+$/, "");
 }
 
+function readSupabaseUrl() {
+  return String(window.BROOKE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
+}
+
+function readSupabaseAnonKey() {
+  return String(window.BROOKE_SUPABASE_ANON_KEY || "").trim();
+}
+
+function getSupabaseClient() {
+  if (supabaseClient) return supabaseClient;
+  const key = readSupabaseAnonKey();
+  if (!key || !window.supabase?.createClient) return null;
+  supabaseClient = window.supabase.createClient(readSupabaseUrl(), key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
+  return supabaseClient;
+}
+
 function readUserBooks() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(SHELF_STORAGE_KEY) || "{}");
@@ -446,9 +487,17 @@ function readShowMyRoomFirst() {
 
 function writeShowMyRoomFirst(value) {
   window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(value));
+  syncSettingsToSupabase();
 }
 
 function readAuthSession() {
+  if (supabaseSession?.user) {
+    return {
+      email: supabaseSession.user.email || "",
+      mode: "supabase",
+      userId: supabaseSession.user.id,
+    };
+  }
   try {
     return JSON.parse(window.localStorage.getItem(AUTH_STORAGE_KEY) || "null");
   } catch {
@@ -468,6 +517,21 @@ function hasAuthSession() {
   return Boolean(readAuthSession());
 }
 
+async function signInWithEmail(email) {
+  const client = getSupabaseClient();
+  if (!client) {
+    writeAuthSession({ email, mode: "email-prototype" });
+    return { mode: "prototype" };
+  }
+  const redirectTo = window.location.href.split("#")[0];
+  const { error } = await client.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo },
+  });
+  if (error) throw error;
+  return { mode: "supabase" };
+}
+
 function getBookState(book) {
   return userBooks[book.id] || null;
 }
@@ -476,13 +540,197 @@ function hasSavedBooks() {
   return books.some((book) => Boolean(getBookState(book)));
 }
 
-function setOnboardingContent({ kicker, title, copy, primary, showRoom = false }) {
+function getBookRemoteSource(book) {
+  if (book.source) return book.source;
+  return book.isCustom ? "manual" : "brooke";
+}
+
+function getBookRemoteSourceId(book) {
+  return String(book.sourceId || book.id);
+}
+
+function rowToBook(row, offset = 0) {
+  const raw = row.raw && typeof row.raw === "object" ? row.raw : {};
+  return normalizeBook({
+    ...raw,
+    id: row.source === "weread"
+      ? `weread-${slugifyText(row.source_id || row.title)}`
+      : raw.id || `custom-${slugifyText(row.source_id || `${row.title}-${row.author || ""}`)}`,
+    title: row.title,
+    author: row.author || "作者未知",
+    image: row.cover_url || raw.image || "",
+    originalCover: Boolean(row.cover_url || raw.image),
+    isCustom: row.source !== "brooke",
+    source: row.source || "manual",
+    sourceId: row.source_id || raw.sourceId || "",
+    deepLink: row.deep_link || raw.deepLink || "",
+  }, books.length + offset);
+}
+
+function findBookForRemoteRow(row, offset = 0) {
+  const source = row.source || "manual";
+  const sourceId = row.source_id || "";
+  const existing = books.find((book) => getBookRemoteSource(book) === source && getBookRemoteSourceId(book) === sourceId)
+    || books.find((book) => book.id === sourceId);
+  if (existing) return existing;
+  const book = rowToBook(row, offset);
+  books.push(book);
+  writeCustomBooks();
+  createBook(book, books.length - 1);
+  return book;
+}
+
+async function getSupabaseAccessToken() {
+  const client = getSupabaseClient();
+  if (!client) return "";
+  const { data } = await client.auth.getSession();
+  supabaseSession = data.session || null;
+  return supabaseSession?.access_token || "";
+}
+
+async function syncBookStateToSupabase(book) {
+  if (isSyncingRemoteShelf) return;
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  const state = getBookState(book);
+  if (!client || !userId || !state) return;
+  const { error } = await client.from("user_books").upsert({
+    user_id: userId,
+    source: getBookRemoteSource(book),
+    source_id: getBookRemoteSourceId(book),
+    title: book.title,
+    author: book.author,
+    cover_url: book.image || null,
+    status: state.status || DEFAULT_STATUS,
+    deep_link: book.deepLink || null,
+    raw: book,
+  }, { onConflict: "user_id,source,source_id" });
+  if (error) console.error("Supabase user_books upsert failed", error);
+}
+
+async function removeBookStateFromSupabase(book) {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (!client || !userId) return;
+  const { error } = await client
+    .from("user_books")
+    .delete()
+    .eq("user_id", userId)
+    .eq("source", getBookRemoteSource(book))
+    .eq("source_id", getBookRemoteSourceId(book));
+  if (error) console.error("Supabase user_books delete failed", error);
+}
+
+async function loadShelfFromSupabase() {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (!client || !userId || hasLoadedRemoteShelf) return;
+  isSyncingRemoteShelf = true;
+  const { data, error } = await client
+    .from("user_books")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+  if (error) {
+    console.error("Supabase user_books load failed", error);
+    isSyncingRemoteShelf = false;
+    return;
+  }
+  (data || []).forEach((row, index) => {
+    const book = findBookForRemoteRow(row, index);
+    userBooks[book.id] = {
+      status: row.status || DEFAULT_STATUS,
+      savedAt: row.created_at || new Date().toISOString(),
+      updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+    };
+  });
+  isSyncingRemoteShelf = false;
+  hasLoadedRemoteShelf = true;
+  writeUserBooks();
+  totalBooks.textContent = String(books.length).padStart(2, "0");
+  renderBookIndex();
+  renderMyShelf();
+  measureShelf();
+  updateDetailShelfControls();
+  updateOnboarding();
+}
+
+async function syncLocalShelfToSupabase() {
+  const client = getSupabaseClient();
+  if (!client || !supabaseSession?.user) return;
+  await Promise.all(books.filter((book) => getBookState(book)).map((book) => syncBookStateToSupabase(book)));
+}
+
+async function loadSettingsFromSupabase() {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (!client || !userId) return;
+  const { data, error } = await client
+    .from("user_settings")
+    .select("room_name, show_my_room_first")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    console.error("Supabase user_settings load failed", error);
+    return;
+  }
+  if (!data) {
+    await syncSettingsToSupabase();
+    return;
+  }
+  myRoomName = data.room_name || "Your Reading Room";
+  showMyRoomFirst = Boolean(data.show_my_room_first);
+  window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, myRoomName);
+  window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(showMyRoomFirst));
+  myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  updateSpaceSwitch();
+}
+
+async function syncSettingsToSupabase() {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (!client || !userId) return;
+  const { error } = await client.from("user_settings").upsert({
+    user_id: userId,
+    room_name: myRoomName || "Your Reading Room",
+    show_my_room_first: Boolean(showMyRoomFirst),
+  }, { onConflict: "user_id" });
+  if (error) console.error("Supabase user_settings upsert failed", error);
+}
+
+async function initializeSupabaseAuth() {
+  const client = getSupabaseClient();
+  if (!client) return;
+  const { data, error } = await client.auth.getSession();
+  if (error) {
+    console.error("Supabase auth session failed", error);
+    return;
+  }
+  supabaseSession = data.session || null;
+  if (supabaseSession?.user) {
+    await loadSettingsFromSupabase();
+    await loadShelfFromSupabase();
+    await syncLocalShelfToSupabase();
+  }
+  client.auth.onAuthStateChange(async (_event, session) => {
+    supabaseSession = session || null;
+    if (supabaseSession?.user) {
+      hasLoadedRemoteShelf = false;
+      await loadSettingsFromSupabase();
+      await loadShelfFromSupabase();
+      await syncLocalShelfToSupabase();
+      if (!authGate.hidden) closeAuthGate({ restoreFocus: false, runPending: true });
+    }
+  });
+}
+
+function setOnboardingContent({ kicker, title, copy, primary, secondary = t("onboardingOpenRoom"), showRoom = false }) {
   shelfOnboardingKicker.textContent = kicker;
   shelfOnboardingTitle.textContent = title;
   shelfOnboardingCopy.textContent = copy;
   shelfOnboardingStart.textContent = primary;
   shelfOnboardingRoom.hidden = !showRoom;
-  shelfOnboardingRoom.textContent = t("onboardingOpenRoom");
+  shelfOnboardingRoom.textContent = secondary;
 }
 
 function updateOnboarding() {
@@ -510,6 +758,8 @@ function updateOnboarding() {
       title: t("onboardingBuildTitle"),
       copy: t("onboardingBuildCopy"),
       primary: t("onboardingChoose"),
+      secondary: t("onboardingStartRoom"),
+      showRoom: true,
     });
   }
 
@@ -534,13 +784,13 @@ function showOnboardingRoomStep(book) {
 function updateStaticLanguage() {
   document.documentElement.lang = "zh-Hans";
 
-  setButtonLabel(shelfHelpToggle, t("helpButton"));
-  setButtonLabel(bookIndexToggle, t("viewAll"));
-  setButtonLabel(myShelfToggle, t("myShelf"));
+  setButtonLabel(shelfHelpToggle, "操作提示");
+  setButtonLabel(bookIndexToggle, "全部书目");
+  setButtonLabel(myShelfToggle, "我的空间");
   setButtonLabel(addBookToggle, t("addBook"));
-  setButtonLabel(roomOnlyToggle, "只看我的房间");
-  setButtonLabel(previousBook, t("previousBook"));
-  setButtonLabel(nextBook, t("nextBook"));
+  setButtonLabel(roomOnlyToggle, "进入我的空间");
+  setButtonLabel(previousBook, "上一本书");
+  setButtonLabel(nextBook, "下一本书");
   setButtonLabel(shelfHelpClose, t("helpClose"));
   setButtonLabel(bookIndexClose, t("returnToShelf"));
   setButtonLabel(myShelfClose, t("returnToShelf"));
@@ -600,12 +850,17 @@ function updateStaticLanguage() {
   myShelfFilters.querySelector('[data-shelf-filter="want_to_read"]').textContent = t("want");
   myShelfFilters.querySelector('[data-shelf-filter="reading"]').textContent = t("reading");
   myShelfFilters.querySelector('[data-shelf-filter="finished"]').textContent = t("finished");
-  myShelfViewToggle.querySelector('[data-my-shelf-view="list"]').textContent = t("list");
-  myShelfViewToggle.querySelector('[data-my-shelf-view="room"]').textContent = t("room");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-view="list"]'), t("list"));
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-view="room"]'), t("room"));
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="info"]'), "查看操作提示");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="add"]'), t("addBook"));
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "回到 Brooke 的空间");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="previous"]'), t("previousBook"));
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="next"]'), t("nextBook"));
   detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
   detailStatus.querySelector('[data-detail-status="reading"]').textContent = t("reading");
   detailStatus.querySelector('[data-detail-status="finished"]').textContent = t("finished");
-  roomOnlyToggle.setAttribute("aria-pressed", String(showMyRoomFirst));
+  updateSpaceSwitch();
   updateDetailShelfControls();
 }
 
@@ -651,6 +906,7 @@ function saveBookState(book, status = DEFAULT_STATUS) {
   writeUserBooks();
   renderMyShelf();
   updateDetailShelfControls();
+  syncBookStateToSupabase(book);
   if (wasEmpty) showOnboardingRoomStep(book);
   else updateOnboarding();
 }
@@ -660,6 +916,7 @@ function removeBookState(book) {
   writeUserBooks();
   renderMyShelf();
   updateDetailShelfControls();
+  removeBookStateFromSupabase(book);
   updateOnboarding();
 }
 
@@ -842,6 +1099,26 @@ function switchMyShelfView(nextView) {
       }
     });
   }, 170);
+}
+
+function navigateMyRoom(delta) {
+  if (myShelfView !== "room") {
+    switchMyShelfView("room");
+    window.setTimeout(() => navigateMyRoom(delta), 360);
+    return;
+  }
+  const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+  if (!roomBooks.length) return;
+  const current = myRoomActiveIndex ?? 0;
+  openMyRoomBook((current + delta + roomBooks.length) % roomBooks.length, { focus: true });
+}
+
+function showMyShelfToolsHint() {
+  window.clearTimeout(myShelfToolsHintTimer);
+  myShelfViewToggle.classList.add("is-hint-visible");
+  myShelfToolsHintTimer = window.setTimeout(() => {
+    myShelfViewToggle.classList.remove("is-hint-visible");
+  }, 2600);
 }
 
 function bookExists(id) {
@@ -1052,9 +1329,13 @@ async function syncWereadShelf(apiKey) {
   wereadImportStatus.textContent = t("wereadSyncLoading");
 
   try {
+    const accessToken = await getSupabaseAccessToken();
     const response = await fetch(`${readSupabaseFunctionsUrl()}/sync-weread-shelf`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
       body: JSON.stringify({ wereadApiKey: trimmed }),
     });
     const data = await response.json().catch(() => ({}));
@@ -1182,6 +1463,8 @@ function toggleShelfHelp() {
 
 function openBookIndex() {
   if (detailIndex !== null) return;
+  activeSpace = "brooke";
+  updateSpaceSwitch();
   closeShelfHelp({ immediate: true });
   closeMyShelf({ restoreFocus: false, immediate: true });
   closeAddBookPanel({ restoreFocus: false, immediate: true });
@@ -1218,6 +1501,8 @@ function closeBookIndex({ restoreFocus = true, immediate = false } = {}) {
 
 function openAddBookPanel() {
   if (detailIndex !== null) return;
+  activeSpace = "user";
+  updateSpaceSwitch();
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
   closeMyShelf({ restoreFocus: false, immediate: true });
@@ -1237,6 +1522,8 @@ function openAddBookPanel() {
 
 function closeAddBookPanel({ restoreFocus = true, immediate = false } = {}) {
   if (addBookPanel.hidden) return;
+  activeSpace = "brooke";
+  updateSpaceSwitch();
   window.clearTimeout(addBookCloseTimer);
   addBookAbortController?.abort();
   addBookAbortController = null;
@@ -1294,8 +1581,30 @@ function requireAuth(action) {
   openAuthGate(action);
 }
 
+function openUserSpace({ restoreFocus = false } = {}) {
+  activeSpace = "user";
+  showMyRoomFirst = true;
+  writeShowMyRoomFirst(showMyRoomFirst);
+  updateSpaceSwitch();
+  openMyShelf({ view: "room", restoreFocus });
+}
+
+function openBrookeSpace({ restoreFocus = false } = {}) {
+  showMyRoomFirst = false;
+  writeShowMyRoomFirst(showMyRoomFirst);
+  closeAddBookPanel({ restoreFocus: false, immediate: true });
+  if (myShelf.hidden) {
+    activeSpace = "brooke";
+    updateSpaceSwitch();
+  } else {
+    closeMyShelf({ restoreFocus, immediate: false, targetSpace: "brooke" });
+  }
+}
+
 function openMyShelf({ view = myShelfView, restoreFocus = true } = {}) {
   if (detailIndex !== null) return;
+  activeSpace = "user";
+  updateSpaceSwitch();
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
   closeAddBookPanel({ restoreFocus: false, immediate: true });
@@ -1317,20 +1626,24 @@ function openMyShelf({ view = myShelfView, restoreFocus = true } = {}) {
   });
 }
 
-function closeMyShelf({ restoreFocus = true, immediate = false } = {}) {
+function closeMyShelf({ restoreFocus = true, immediate = false, targetSpace = "brooke" } = {}) {
   if (myShelf.hidden) return;
   window.clearTimeout(myShelfCloseTimer);
   library.classList.remove("is-my-shelf-open");
   myShelf.classList.remove("is-visible");
-  myShelf.classList.remove("is-room-view");
   myShelf.setAttribute("aria-hidden", "true");
   myShelfToggle.setAttribute("aria-expanded", "false");
   const finish = () => {
-    if (!myShelf.classList.contains("is-visible")) myShelf.hidden = true;
+    if (!myShelf.classList.contains("is-visible")) {
+      myShelf.hidden = true;
+      myShelf.classList.remove("is-room-view");
+      myShelfView = "list";
+      activeSpace = targetSpace;
+      updateSpaceSwitch();
+    }
   };
   if (immediate) finish();
   else myShelfCloseTimer = window.setTimeout(finish, 480);
-  myShelfView = "list";
   if (restoreFocus) myShelfToggle.focus({ preventScroll: true });
   updateOnboarding();
 }
@@ -1778,6 +2091,12 @@ viewport.addEventListener("pointercancel", endDrag);
 
 previousBook.addEventListener("click", () => navigateTo((activeIndex ?? 0) - 1));
 nextBook.addEventListener("click", () => navigateTo((activeIndex ?? -1) + 1));
+spaceSwitch.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-space-target]") : null;
+  if (!button) return;
+  if (button.dataset.spaceTarget === "user") requireAuth(() => openUserSpace({ restoreFocus: false }));
+  else openBrookeSpace({ restoreFocus: false });
+});
 shelfHelpToggle.addEventListener("click", toggleShelfHelp);
 shelfHelpClose.addEventListener("click", () => closeShelfHelp({ restoreFocus: true }));
 shelfOnboardingStart.addEventListener("click", () => {
@@ -1817,10 +2136,25 @@ addBookResults.addEventListener("click", (event) => {
   if (Number.isInteger(index) && book) addCustomBook(book);
 });
 authGateClose.addEventListener("click", () => closeAuthGate({ restoreFocus: true }));
-authGateForm.addEventListener("submit", (event) => {
+authGateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  writeAuthSession({ email: authEmail.value.trim(), mode: "email-prototype" });
-  closeAuthGate({ restoreFocus: false, runPending: true });
+  const button = authGateForm.querySelector("button");
+  const email = authEmail.value.trim();
+  if (!email) return;
+  button.disabled = true;
+  try {
+    const result = await signInWithEmail(email);
+    if (result.mode === "prototype") {
+      closeAuthGate({ restoreFocus: false, runPending: true });
+      return;
+    }
+    authGate.querySelector(".auth-gate-copy").textContent = "登录链接已经发送到你的邮箱。打开邮件里的链接后，你的书架会自动保存到 Supabase。";
+  } catch (error) {
+    console.error(error);
+    authGate.querySelector(".auth-gate-copy").textContent = "登录链接发送失败，请稍后再试，或先体验后注册。";
+  } finally {
+    button.disabled = false;
+  }
 });
 authGateGuest.addEventListener("click", () => {
   writeAuthSession({ email: "", mode: "guest-prototype" });
@@ -1854,8 +2188,18 @@ myShelfSummary.addEventListener("click", (event) => {
 });
 myShelfViewToggle.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-view]") : null;
-  if (!button) return;
-  switchMyShelfView(button.dataset.myShelfView || "list");
+  if (button) {
+    switchMyShelfView(button.dataset.myShelfView || "list");
+    return;
+  }
+  const actionButton = event.target instanceof Element ? event.target.closest("[data-my-shelf-action]") : null;
+  if (!actionButton) return;
+  const action = actionButton.dataset.myShelfAction;
+  if (action === "info") showMyShelfToolsHint();
+  else if (action === "add") openAddBookPanel();
+  else if (action === "brooke") openBrookeSpace({ restoreFocus: false });
+  else if (action === "previous") navigateMyRoom(-1);
+  else if (action === "next") navigateMyRoom(1);
 });
 myRoomTitle.addEventListener("click", () => {
   myRoomNameForm.hidden = !myRoomNameForm.hidden;
@@ -1873,11 +2217,8 @@ myRoomNameForm.addEventListener("submit", (event) => {
   myRoomTitle.focus({ preventScroll: true });
 });
 roomOnlyToggle.addEventListener("click", () => {
-  showMyRoomFirst = !showMyRoomFirst;
-  writeShowMyRoomFirst(showMyRoomFirst);
-  roomOnlyToggle.setAttribute("aria-pressed", String(showMyRoomFirst));
-  if (showMyRoomFirst) requireAuth(() => openMyShelf({ view: "room", restoreFocus: false }));
-  else closeMyShelf({ restoreFocus: false });
+  if (activeSpace === "user") openBrookeSpace({ restoreFocus: false });
+  else requireAuth(() => openUserSpace({ restoreFocus: false }));
 });
 myShelfRoom.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
@@ -2012,6 +2353,7 @@ if (showMyRoomFirst && hasSavedBooks()) {
   requestAnimationFrame(() => openMyShelf({ view: "room", restoreFocus: false }));
 }
 
+initializeSupabaseAuth();
 updateOnboarding();
 notifyParentTheme();
 window.setTimeout(() => {

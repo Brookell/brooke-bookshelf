@@ -300,6 +300,39 @@ button:focus-visible,
   will-change: opacity, transform, filter;
 }
 
+.space-switch {
+  position: fixed;
+  top: max(22px, env(safe-area-inset-top));
+  left: max(24px, env(safe-area-inset-left));
+  z-index: 130;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  max-width: calc(100vw - 48px);
+  padding: 6px 0;
+}
+
+.space-switch button {
+  min-height: 28px;
+  padding: 0 0 4px;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 11px;
+  font-weight: 600;
+  transition: border-color 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+.space-switch button[aria-pressed="true"],
+.space-switch button:hover,
+.space-switch button:focus-visible {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+
 .masthead-meta {
   position: absolute;
   top: 0;
@@ -401,6 +434,7 @@ h1 {
 }
 
 .icon-button {
+  position: relative;
   display: inline-grid;
   width: 28px;
   height: 28px;
@@ -411,6 +445,38 @@ h1 {
   background: rgba(238, 236, 232, 0.78);
   cursor: pointer;
   transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.icon-button::after {
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 9px);
+  z-index: 4;
+  width: max-content;
+  max-width: 168px;
+  padding: 5px 8px;
+  border: 1px solid rgba(21, 21, 21, 0.12);
+  border-radius: 999px;
+  background: rgba(238, 236, 232, 0.96);
+  box-shadow: 0 10px 26px rgba(21, 21, 21, 0.1);
+  color: var(--ink);
+  content: attr(aria-label);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  opacity: 0;
+  pointer-events: none;
+  text-align: center;
+  transform: translate3d(50%, 4px, 0);
+  transition: opacity 160ms ease, transform 200ms ease;
+  white-space: nowrap;
+}
+
+.icon-button:hover::after,
+.icon-button:focus-visible::after {
+  opacity: 1;
+  transform: translate3d(50%, 0, 0);
 }
 
 .icon-button:hover {
@@ -566,26 +632,27 @@ h1 {
 
 .shelf-onboarding {
   position: fixed;
-  bottom: max(84px, calc(env(safe-area-inset-bottom) + 84px));
-  left: max(24px, env(safe-area-inset-left));
+  right: max(28px, env(safe-area-inset-right));
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 92px));
   z-index: 120;
-  width: min(318px, calc(100% - 48px));
-  padding: 18px 18px 17px;
-  border: 1px solid rgba(21, 21, 21, 0.18);
-  border-radius: 6px;
-  background: rgba(238, 236, 232, 0.78);
-  box-shadow: 0 18px 46px rgba(21, 21, 21, 0.12);
+  width: min(360px, calc(100% - 56px));
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(21, 21, 21, 0.1);
+  border-radius: 22px;
+  background: rgba(244, 242, 238, 0.78);
+  box-shadow: 0 20px 60px rgba(21, 21, 21, 0.08);
   color: var(--ink);
   opacity: 0;
-  transform: translate3d(0, 10px, 0);
+  transform: translate3d(0, 12px, 0);
   transition: opacity 320ms ease, transform 460ms cubic-bezier(0.22, 0.8, 0.2, 1);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(18px);
   pointer-events: none;
 }
 
 .library.is-detail-open .shelf-onboarding {
   bottom: max(28px, calc(env(safe-area-inset-bottom) + 28px));
   left: max(28px, env(safe-area-inset-left));
+  right: auto;
   width: min(286px, calc(50vw - 48px));
   background: color-mix(in srgb, var(--detail-bg) 72%, var(--paper));
   color: var(--detail-ink);
@@ -619,30 +686,28 @@ h1 {
 }
 
 .shelf-onboarding-kicker {
-  margin: 0 0 8px;
+  margin: 0 0 7px;
   color: var(--muted);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
 .shelf-onboarding h2 {
   margin: 0;
-  font-family: Didot, "Bodoni 72", "Times New Roman", serif;
-  font-size: 32px;
-  font-weight: 400;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 28px;
+  font-weight: 600;
   letter-spacing: 0;
-  line-height: 0.95;
-  text-transform: uppercase;
+  line-height: 1.12;
 }
 
 .shelf-onboarding p:not(.shelf-onboarding-kicker) {
   margin: 12px 0 0;
   color: rgba(21, 21, 21, 0.72);
   font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
-  font-size: 12px;
-  line-height: 1.48;
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .shelf-onboarding-actions {
@@ -654,14 +719,13 @@ h1 {
 }
 
 .shelf-onboarding-actions button {
-  min-height: 30px;
-  padding: 0 13px;
+  min-height: 36px;
+  padding: 0 15px;
   border-radius: 999px;
   cursor: pointer;
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
-  text-transform: uppercase;
   transition: background 180ms ease, color 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
@@ -1325,31 +1389,42 @@ h1 {
   width: auto;
   margin: 0;
   align-items: center;
-  gap: 18px;
+  gap: 8px;
 }
 
-.my-shelf-view-toggle button {
-  min-height: 24px;
-  padding: 0 0 4px;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  border-radius: 0;
-  background: transparent;
+.my-shelf-view-toggle::before {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  width: max-content;
+  max-width: min(320px, calc(100vw - 56px));
+  padding: 9px 12px;
+  border: 1px solid rgba(21, 21, 21, 0.12);
+  border-radius: 999px;
+  background: rgba(238, 236, 232, 0.9);
+  box-shadow: 0 14px 34px rgba(21, 21, 21, 0.1);
   color: var(--muted);
-  cursor: pointer;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  transition: border-color 180ms ease, color 180ms ease, opacity 180ms ease;
+  content: "左右移动书本，点击书本打开详情";
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 12px;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, 6px, 0);
+  transition: opacity 200ms ease, transform 260ms ease;
 }
 
-.my-shelf-view-toggle button[aria-pressed="true"],
-.my-shelf-view-toggle button:hover,
-.my-shelf-view-toggle button:focus-visible {
-  border-bottom-color: var(--ink);
-  background: transparent;
-  color: var(--ink);
+.my-shelf-view-toggle.is-hint-visible::before {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.my-shelf-view-toggle .icon-button[aria-pressed="true"],
+.my-shelf-view-toggle .icon-button:hover,
+.my-shelf-view-toggle .icon-button:focus-visible {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
 }
 
 .my-shelf-view[hidden] {
@@ -1665,10 +1740,16 @@ h1 {
 }
 
 .my-shelf-empty {
-  margin-top: 34px;
+  margin-top: 92px;
+  padding-top: 26px;
   color: var(--muted);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 15px;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.library.is-my-shelf-open .space-switch {
+  z-index: 98;
 }
 
 .library.is-index-open .masthead,
@@ -2384,6 +2465,16 @@ h1 {
     top: max(16px, env(safe-area-inset-top));
   }
 
+  .space-switch {
+    top: max(14px, env(safe-area-inset-top));
+    left: max(16px, env(safe-area-inset-left));
+    gap: 12px;
+  }
+
+  .space-switch button {
+    font-size: 10px;
+  }
+
   .masthead-meta {
     right: max(16px, env(safe-area-inset-right));
     left: max(16px, env(safe-area-inset-left));
@@ -2541,6 +2632,12 @@ h1 {
 
   .my-room-rule {
     bottom: 50px;
+  }
+
+  .my-shelf-view-toggle {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    gap: 8px;
   }
 
   .my-shelf.is-room-view .my-shelf-filters {

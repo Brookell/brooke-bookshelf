@@ -6,8 +6,9 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A quiet collection of books selected for Brooke's reading room." />
   <title>Brooke's Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20260822-35" />
+  <link rel="stylesheet" href="./styles.css?v=20260822-41" />
   <script src="./config.local.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.0/dist/umd/supabase.min.js"></script>
   <script defer src="./vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
@@ -19,6 +20,11 @@
   </div>
 
   <main class="library">
+    <nav class="space-switch" aria-label="空间切换">
+      <button type="button" data-space-target="brooke" aria-pressed="true">Brooke 的空间</button>
+      <button type="button" data-space-target="user" aria-pressed="false">我的空间</button>
+    </nav>
+
     <header class="masthead" aria-labelledby="pageTitle">
       <div class="masthead-meta" aria-label="Edition details">
         <p><span id="activeNumber">01</span> / <span id="totalBooks">20</span></p>
@@ -46,9 +52,9 @@
             <i data-lucide="plus"></i>
             <span class="sr-only">增添书籍</span>
           </button>
-          <button class="icon-button room-only-toggle" id="roomOnlyToggle" type="button" title="只看我的房间" aria-pressed="false">
-            <i data-lucide="eye-off"></i>
-            <span class="sr-only">只看我的房间</span>
+          <button class="icon-button room-only-toggle" id="roomOnlyToggle" type="button" title="进入我的空间" aria-pressed="false">
+            <i data-lucide="door-open"></i>
+            <span class="sr-only">进入我的空间</span>
           </button>
           <button class="icon-button" id="previousBook" type="button" title="Previous book">
             <i data-lucide="chevron-left"></i>
@@ -205,8 +211,34 @@
       <div class="my-shelf-summary" id="myShelfSummary" aria-label="My shelf summary"></div>
 
       <div class="my-shelf-view-toggle" role="group" aria-label="My shelf view">
-        <button type="button" data-my-shelf-view="list" aria-pressed="true">列表</button>
-        <button type="button" data-my-shelf-view="room" aria-pressed="false">房间</button>
+        <button class="icon-button" type="button" data-my-shelf-action="info" title="查看操作提示">
+          <i data-lucide="info"></i>
+          <span class="sr-only">查看操作提示</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-view="list" aria-pressed="true" title="列表">
+          <i data-lucide="list"></i>
+          <span class="sr-only">列表</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-view="room" aria-pressed="false" title="房间">
+          <i data-lucide="bookmark"></i>
+          <span class="sr-only">房间</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-action="add" title="增添书籍">
+          <i data-lucide="plus"></i>
+          <span class="sr-only">增添书籍</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-action="brooke" title="回到 Brooke 的空间">
+          <i data-lucide="building-2"></i>
+          <span class="sr-only">回到 Brooke 的空间</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-action="previous" title="上一本书">
+          <i data-lucide="chevron-left"></i>
+          <span class="sr-only">上一本书</span>
+        </button>
+        <button class="icon-button" type="button" data-my-shelf-action="next" title="下一本书">
+          <i data-lucide="chevron-right"></i>
+          <span class="sr-only">下一本书</span>
+        </button>
       </div>
 
       <div class="my-shelf-view my-shelf-view--list" id="myShelfListView">
@@ -277,6 +309,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20260822-35"></script>
+  <script defer src="./app.js?v=20260822-42"></script>
 </body>
 </html>
