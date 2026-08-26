@@ -1,5 +1,6 @@
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
+const IMPORT_LIMIT = 20;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -109,6 +110,15 @@ function unixToIso(value: number | null | undefined) {
   return value ? new Date(value * 1000).toISOString() : null;
 }
 
+function sampleItems<T>(items: T[], limit: number) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled.slice(0, limit);
+}
+
 async function getUserIdFromRequest(request: Request) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
@@ -200,17 +210,25 @@ Deno.serve(async (request) => {
 
     const books = Array.isArray(wereadData.books) ? wereadData.books.map(normalizeBook) : [];
     const albums = Array.isArray(wereadData.albums) ? wereadData.albums.map(normalizeAlbum) : [];
-    const syncedToDatabase = await upsertUserBooks(request, [...books, ...albums]);
+    const allItems = [...books, ...albums];
+    const selectedItems = sampleItems(allItems, IMPORT_LIMIT);
+    const selectedBookCount = selectedItems.filter((item) => item.type === "book").length;
+    const selectedAlbumCount = selectedItems.filter((item) => item.type === "album").length;
+    const syncedToDatabase = await upsertUserBooks(request, selectedItems);
     const mpCount = wereadData.mp ? 1 : 0;
 
     return jsonResponse({
-      books: [...books, ...albums],
+      books: selectedItems,
       syncedToDatabase,
       summary: {
-        books: books.length,
-        albums: albums.length,
+        books: selectedBookCount,
+        albums: selectedAlbumCount,
+        availableBooks: books.length,
+        availableAlbums: albums.length,
         mp: mpCount,
-        total: books.length + albums.length + mpCount,
+        total: selectedItems.length,
+        availableTotal: books.length + albums.length + mpCount,
+        limit: IMPORT_LIMIT,
       },
     });
   } catch (error) {
