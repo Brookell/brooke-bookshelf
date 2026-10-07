@@ -160,10 +160,6 @@ const I18N = {
     onboardingBuildCopy: "你可以先在这里随意翻看，遇到喜欢的书就加入自己的书架；也可以直接进入我的空间，从空房间开始布置。",
     onboardingChoose: "继续浏览范例",
     onboardingStartRoom: "直接打造我的书架",
-    onboardingAddKicker: "变成你的",
-    onboardingAddTitle: "加入这本书",
-    onboardingAddCopy: "《{title}》可以成为你个人 Reading Room 的第一本书。点击加入书架，然后选择阅读状态。",
-    onboardingAdd: "加入这本书",
     onboardingSavedKicker: "第一本已保存",
     onboardingSavedTitle: "你的房间准备好了",
     onboardingSavedCopy: "《{title}》已经在你的书架上。打开你的房间看看第一个版本，然后继续添加喜欢的书。",
@@ -203,6 +199,7 @@ const I18N = {
     wereadImportPartial: "已导入 {count} 本，{failed} 本暂时没有匹配到。",
     wereadSyncDone: "已从微信读书随机导入 {count} 本书。后续增添与删除可以由你自己整理。",
     wereadSyncError: "微信读书同步暂时失败，请确认 API Key 或 Edge Function 是否已部署。",
+    wereadFunctionOutdated: "同步服务还是旧版本，需要在 Supabase 重新部署 sync-weread-shelf 后再试。",
   },
   en: {
     languageName: "English",
@@ -253,10 +250,6 @@ const I18N = {
     onboardingBuildCopy: "Browse first, save a book when one catches your eye, or open your own space and begin from an empty room.",
     onboardingChoose: "Browse the example",
     onboardingStartRoom: "Build my shelf",
-    onboardingAddKicker: "Make it yours",
-    onboardingAddTitle: "Add this book",
-    onboardingAddCopy: "{title} can be the first volume in your own reading room. Use Add to my shelf, then choose a status.",
-    onboardingAdd: "Add this book",
     onboardingSavedKicker: "First book saved",
     onboardingSavedTitle: "Your room is ready",
     onboardingSavedCopy: "{title} is on your shelf. Open your room to see the first version, then keep adding books as you browse.",
@@ -296,6 +289,7 @@ const I18N = {
     wereadImportPartial: "Imported {count}; {failed} could not be matched yet.",
     wereadSyncDone: "Randomly imported {count} books from WeRead. You can add or remove books manually afterward.",
     wereadSyncError: "WeRead sync failed. Check the API key or Edge Function deployment.",
+    wereadFunctionOutdated: "The sync service is still the old version. Redeploy sync-weread-shelf in Supabase, then try again.",
   },
 };
 const STATUS_LABEL_KEYS = {
@@ -783,7 +777,8 @@ function setOnboardingContent({ kicker, title, copy, primary, secondary = t("onb
 
 function updateOnboarding() {
   window.clearTimeout(onboardingCloseTimer);
-  const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden;
+  // Only on the shelf itself: the detail page already has its own save control.
+  const shouldShow = !hasSavedBooks() && detailIndex === null && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden;
   if (!shouldShow) {
     shelfOnboarding.classList.remove("is-visible");
     onboardingCloseTimer = window.setTimeout(() => {
@@ -792,24 +787,14 @@ function updateOnboarding() {
     return;
   }
 
-  if (detailIndex !== null) {
-    const book = books[detailIndex];
-    setOnboardingContent({
-      kicker: t("onboardingAddKicker"),
-      title: t("onboardingAddTitle"),
-      copy: t("onboardingAddCopy", { title: book.title }),
-      primary: t("onboardingAdd"),
-    });
-  } else {
-    setOnboardingContent({
-      kicker: t("onboardingBuildKicker"),
-      title: t("onboardingBuildTitle"),
-      copy: t("onboardingBuildCopy"),
-      primary: t("onboardingChoose"),
-      secondary: t("onboardingStartRoom"),
-      showRoom: true,
-    });
-  }
+  setOnboardingContent({
+    kicker: t("onboardingBuildKicker"),
+    title: t("onboardingBuildTitle"),
+    copy: t("onboardingBuildCopy"),
+    primary: t("onboardingChoose"),
+    secondary: t("onboardingStartRoom"),
+    showRoom: true,
+  });
 
   shelfOnboarding.hidden = false;
   requestAnimationFrame(() => shelfOnboarding.classList.add("is-visible"));
@@ -1406,7 +1391,12 @@ async function syncWereadShelf(apiKey) {
 
   try {
     const data = await callSyncWereadFunction({ wereadApiKey: trimmed, mode: "list" });
-    if (!Array.isArray(data.items)) throw new Error("list mode unavailable");
+    if (!Array.isArray(data.items)) {
+      // An older function deployment ignores `mode` and returns `books` instead.
+      const outdated = new Error("sync-weread-shelf does not support list mode");
+      outdated.name = "WereadFunctionOutdated";
+      throw outdated;
+    }
 
     wereadShelfItems = data.items;
     wereadSessionKey = trimmed;
@@ -1420,7 +1410,9 @@ async function syncWereadShelf(apiKey) {
       : t("wereadListEmpty");
   } catch (error) {
     console.error(error);
-    wereadImportStatus.textContent = t("wereadSyncError");
+    wereadImportStatus.textContent = error.name === "WereadFunctionOutdated"
+      ? t("wereadFunctionOutdated")
+      : t("wereadSyncError");
   } finally {
     button.disabled = false;
   }
