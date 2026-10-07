@@ -1159,9 +1159,12 @@ function renderMyShelf() {
     </button>
   `).join("");
   myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
+    // Hovering or focusing a spine opens it like on Brooke's shelf. It does not scroll the rail.
+    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex));
     element.addEventListener("mouseleave", () => {
       if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
     });
+    element.addEventListener("focus", () => openMyRoomBook(roomIndex));
   });
   myShelfFilters.querySelectorAll("[data-shelf-filter]").forEach((button) => {
     const pressed = button.dataset.shelfFilter === myShelfFilter;
