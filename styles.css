@@ -318,6 +318,13 @@ body:has(.add-book-panel:not([hidden])) .space-switch {
   pointer-events: none;
 }
 
+/* The personal list view has its own close button; the shelf toolbar and space switch would sit on top of it. */
+body:has(.my-shelf:not(.is-room-view):not([hidden])) .shelf-actions,
+body:has(.my-shelf:not(.is-room-view):not([hidden])) .space-switch {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .space-switch button {
   min-height: 28px;
   padding: 0 0 4px;
