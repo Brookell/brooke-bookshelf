@@ -1,5 +1,3 @@
-import { Image } from "https://esm.sh/imagescript@1.3.1";
-
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
 const IMPORT_LIMIT = 20;
@@ -156,6 +154,8 @@ function dominantColorFromPixels(pixels: number[][]) {
 async function coverColorFromUrl(value: string): Promise<string | null> {
   if (!isAllowedCoverUrl(value)) return null;
   try {
+    // Loaded only when a cover is sampled, so a problem with the decoder cannot stop the whole function starting.
+    const { Image } = await import("npm:imagescript@1.3.1");
     const response = await fetch(value, { signal: AbortSignal.timeout(COVER_TIMEOUT_MS) });
     if (!response.ok) return null;
     const declaredLength = Number(response.headers.get("content-length") || 0);
