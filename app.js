@@ -2320,10 +2320,14 @@ applyLanguage();
 measureShelf();
 backfillCoverColors();
 
+// Wheel and trackpad deltas are large, so scale them down to move roughly one book at a time.
+const WHEEL_SCROLL_SCALE = 0.3;
 viewport.addEventListener("wheel", (event) => {
   if (Math.abs(event.deltaY) < 0.1 && Math.abs(event.deltaX) < 0.1) return;
   event.preventDefault();
-  viewport.scrollLeft += event.deltaY + event.deltaX;
+  // deltaMode 1 means "lines" (classic mouse wheel), so convert to pixels first.
+  const lineSize = event.deltaMode === 1 ? 16 : 1;
+  viewport.scrollLeft += (event.deltaY + event.deltaX) * lineSize * WHEEL_SCROLL_SCALE;
 }, { passive: false });
 
 viewport.addEventListener("scroll", () => {
