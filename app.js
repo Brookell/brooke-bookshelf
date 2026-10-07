@@ -39,6 +39,7 @@ const myShelfClose = document.querySelector("#myShelfClose");
 const myShelfCount = document.querySelector("#myShelfCount");
 const myShelfList = document.querySelector("#myShelfList");
 const myShelfEmpty = document.querySelector("#myShelfEmpty");
+const myShelfEmptyAdd = document.querySelector("#myShelfEmptyAdd");
 const myShelfFilters = document.querySelector(".my-shelf-filters");
 const myShelfSummary = document.querySelector("#myShelfSummary");
 const myShelfViewToggle = document.querySelector(".my-shelf-view-toggle");
@@ -130,9 +131,11 @@ const I18N = {
     saveRoomName: "保存",
     myRoomShelf: "我的阅读房间书架",
     emptyShelf: "你保存的书会出现在这里。",
+    emptyShelfAction: "搜索并添加第一本书",
     detailKicker: "Brooke Reading Room",
     personalShelfControls: "个人书架操作",
     addToShelf: "加入我的书架",
+    onShelf: "已在我的书架",
     readingStatus: "阅读状态",
     saved: "已保存",
     openBook: "打开《{title}》",
@@ -158,7 +161,7 @@ const I18N = {
     searchBookLoading: "正在搜索...",
     searchBookEmpty: "没有找到合适的结果，试试换一个关键词。",
     searchBookError: "搜索暂时失败，请稍后再试。",
-    searchBookQuotaError: "Google Books 搜索额度暂时受限。正式版需要配置 API key 或通过 Supabase 中转。",
+    searchBookQuotaError: "搜索次数暂时用完了，请过几分钟再试。",
     addSearchResult: "加入书架",
     addedSearchResult: "已加入",
     wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
@@ -207,9 +210,11 @@ const I18N = {
     saveRoomName: "Save",
     myRoomShelf: "My reading room shelf",
     emptyShelf: "Your saved books will appear here.",
+    emptyShelfAction: "Search and add your first book",
     detailKicker: "Brooke Reading Room",
     personalShelfControls: "Personal shelf controls",
     addToShelf: "Add to my shelf",
+    onShelf: "On my shelf",
     readingStatus: "Reading status",
     saved: "Saved",
     openBook: "Open {title}",
@@ -235,7 +240,7 @@ const I18N = {
     searchBookLoading: "Searching...",
     searchBookEmpty: "No matching books yet. Try another keyword.",
     searchBookError: "Search is unavailable right now. Please try again later.",
-    searchBookQuotaError: "Google Books quota is limited right now. Production should use an API key or Supabase proxy.",
+    searchBookQuotaError: "Search is busy right now. Please try again in a few minutes.",
     addSearchResult: "Add to shelf",
     addedSearchResult: "Added",
     wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
@@ -805,7 +810,8 @@ function updateStaticLanguage() {
   setText("#shelfStatus", t("shelfStatus"));
   setText("#bookIndexTitle", t("allBooks"));
   setText("#myShelfTitle", t("myShelf"));
-  setText("#myShelfEmpty", t("emptyShelf"));
+  setText("#myShelfEmptyText", t("emptyShelf"));
+  setText("#myShelfEmptyAdd", t("emptyShelfAction"));
   setText("#addBookTitle", t("addBook"));
   setText(".add-book-header p", "新增书籍");
   setText(".add-book-search label", t("searchBookLabel"));
@@ -818,7 +824,9 @@ function updateStaticLanguage() {
   if (addBookQuery) addBookQuery.placeholder = t("searchBookPlaceholder");
   if (addBookStatus && !addBookStatus.textContent.trim()) addBookStatus.textContent = t("searchBookIdle");
   setText(".detail-kicker", t("detailKicker"));
-  setText("#detailSaveLabel", t("addToShelf"));
+  setText("#myShelfEmptyText", t("emptyShelf"));
+  setText("#myShelfEmptyAdd", t("emptyShelfAction"));
+  updateDetailShelfControls();
   setText("#detailReturn span", t("returnToShelf"));
   setText(".my-room-heading p", t("personalReadingRoom"));
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
@@ -1259,6 +1267,7 @@ async function fetchGoogleBooks(query, { limit = 8, signal = null } = {}) {
   if (apiKey) url.searchParams.set("key", apiKey);
   const response = await fetch(url, { signal });
   if (response.status === 429 || response.status === 403) {
+    console.warn(`Google Books quota limited (${response.status}). Set an API key or a Supabase proxy for production.`);
     const quotaError = new Error(`Google Books quota limited: ${response.status}`);
     quotaError.name = "GoogleBooksQuotaError";
     throw quotaError;
@@ -1422,7 +1431,7 @@ function updateDetailShelfControls() {
   const state = getBookState(book);
   const status = state?.status || "";
   detailSave.classList.toggle("is-saved", Boolean(state));
-  detailSaveLabel.textContent = t("addToShelf");
+  detailSaveLabel.textContent = state ? t("onShelf") : t("addToShelf");
   detailSave.setAttribute("aria-pressed", String(Boolean(state)));
   let activeStatusIndex = -1;
   detailStatus.querySelectorAll("[data-detail-status]").forEach((button, index) => {
@@ -1901,6 +1910,8 @@ function populateBookDetail(index) {
   const book = books[index];
   detail.style.setProperty("--detail-bg", book.detailColor ?? book.color);
   detail.style.setProperty("--detail-ink", readableDetailInk(book));
+  // The space switch sits outside .book-detail, so it reads its own copy of the ink from the root.
+  document.documentElement.style.setProperty("--detail-tab-ink", readableDetailInk(book));
   detail.style.setProperty("--cover", book.color);
   detail.style.setProperty("--cover-ink", book.ink);
   detail.style.setProperty("--spine", book.spine);
@@ -2115,6 +2126,7 @@ shelfOnboardingRoom.addEventListener("click", openMyRoomFromOnboarding);
 bookIndexToggle.addEventListener("click", openBookIndex);
 bookIndexClose.addEventListener("click", () => closeBookIndex());
 addBookToggle.addEventListener("click", () => requireAuth(openAddBookPanel));
+myShelfEmptyAdd.addEventListener("click", () => requireAuth(openAddBookPanel));
 addBookClose.addEventListener("click", () => closeAddBookPanel());
 addBookSearch.addEventListener("submit", (event) => {
   event.preventDefault();

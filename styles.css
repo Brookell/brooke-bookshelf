@@ -378,6 +378,12 @@ h1 {
   will-change: opacity, transform, filter;
 }
 
+/* On the coloured detail page, the space switch takes the book's readable ink instead of the default muted grey. */
+.library.is-detail-open .space-switch {
+  --ink: var(--detail-tab-ink, #161514);
+  --muted: color-mix(in srgb, var(--detail-tab-ink, #161514) 72%, transparent);
+}
+
 .library.is-detail-open .masthead {
   opacity: 0;
   filter: blur(2px);
@@ -1748,6 +1754,31 @@ h1 {
   line-height: 1.6;
 }
 
+.my-shelf-empty p {
+  margin: 0;
+}
+
+.my-shelf-empty-action {
+  min-height: 40px;
+  margin-top: 18px;
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.my-shelf-empty-action:hover,
+.my-shelf-empty-action:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .library.is-my-shelf-open .space-switch {
   z-index: 98;
 }
@@ -2487,9 +2518,14 @@ h1 {
   }
 
   h1 {
-    margin-top: 8px;
+    margin-top: 64px;
     font-size: 44px;
     line-height: 1;
+  }
+
+  .icon-button {
+    width: 32px;
+    height: 32px;
   }
 
   .shelf-viewport {
