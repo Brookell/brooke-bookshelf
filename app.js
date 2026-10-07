@@ -1159,11 +1159,9 @@ function renderMyShelf() {
     </button>
   `).join("");
   myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
-    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex));
     element.addEventListener("mouseleave", () => {
       if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
     });
-    element.addEventListener("focus", () => openMyRoomBook(roomIndex));
   });
   myShelfFilters.querySelectorAll("[data-shelf-filter]").forEach((button) => {
     const pressed = button.dataset.shelfFilter === myShelfFilter;
@@ -1214,7 +1212,7 @@ function navigateMyRoom(delta) {
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   if (!roomBooks.length) return;
   const current = myRoomActiveIndex ?? 0;
-  openMyRoomBook((current + delta + roomBooks.length) % roomBooks.length, { focus: true });
+  openMyRoomBook((current + delta + roomBooks.length) % roomBooks.length, { focus: true, scroll: true });
 }
 
 function showMyShelfToolsHint() {
@@ -1661,7 +1659,7 @@ async function addCustomBook(book) {
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
 }
 
-function openMyRoomBook(roomIndex, { focus = false } = {}) {
+function openMyRoomBook(roomIndex, { focus = false, scroll = false } = {}) {
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   const active = roomBooks[roomIndex];
   if (!active) return;
@@ -1679,7 +1677,8 @@ function openMyRoomBook(roomIndex, { focus = false } = {}) {
     book.style.setProperty("--room-shift", `${Math.round(shift)}px`);
   });
   if (focus) active.focus({ preventScroll: true });
-  active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  // Only keyboard navigation moves the rail; opening or hovering never does.
+  if (scroll) active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
 }
 
 function resetMyRoomBooks() {
@@ -2585,10 +2584,10 @@ document.addEventListener("keydown", (event) => {
       const current = myRoomActiveIndex ?? 0;
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        if (!event.repeat && roomBooks.length) openMyRoomBook((current + 1) % roomBooks.length, { focus: true });
+        if (!event.repeat && roomBooks.length) openMyRoomBook((current + 1) % roomBooks.length, { focus: true, scroll: true });
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        if (!event.repeat && roomBooks.length) openMyRoomBook((current - 1 + roomBooks.length) % roomBooks.length, { focus: true });
+        if (!event.repeat && roomBooks.length) openMyRoomBook((current - 1 + roomBooks.length) % roomBooks.length, { focus: true, scroll: true });
       } else if (isSpace || event.key === "Enter") {
         event.preventDefault();
         if (!event.repeat && roomBooks[current]) roomBooks[current].click();
