@@ -151,24 +151,44 @@ function dominantColorFromPixels(pixels: number[][]) {
   return `#${hex(best.r)}${hex(best.g)}${hex(best.b)}`;
 }
 
+type DecodedImage = { width: number; height: number; data: Uint8Array };
+
+// Pure-JavaScript decoders: the native image library does not run on the edge runtime.
+async function decodeCover(bytes: Uint8Array): Promise<DecodedImage | null> {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8) {
+    const module = await import("npm:jpeg-js@0.4.4");
+    const jpeg = module.default ?? module;
+    const decoded = jpeg.decode(bytes, { useTArray: true, formatAsRGBA: true, maxMemoryUsageInMB: 64 });
+    return { width: decoded.width, height: decoded.height, data: decoded.data };
+  }
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+    const { Buffer } = await import("node:buffer");
+    const pngModule = await import("npm:pngjs@7.0.0");
+    const PNG = pngModule.PNG ?? pngModule.default.PNG;
+    const png = PNG.sync.read(Buffer.from(bytes));
+    return { width: png.width, height: png.height, data: png.data };
+  }
+  return null; // WebP and other formats are not sampled
+}
+
 async function coverColorFromUrl(value: string): Promise<string | null> {
   if (!isAllowedCoverUrl(value)) return null;
   try {
-    // Loaded only when a cover is sampled, so a problem with the decoder cannot stop the whole function starting.
-    const { Image } = await import("npm:imagescript@1.3.1");
     const response = await fetch(value, { signal: AbortSignal.timeout(COVER_TIMEOUT_MS) });
     if (!response.ok) return null;
     const declaredLength = Number(response.headers.get("content-length") || 0);
     if (declaredLength > COVER_MAX_BYTES) return null;
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.byteLength > COVER_MAX_BYTES) return null;
-    const decoded = await Image.decode(bytes);
-    if (!(decoded instanceof Image)) return null; // animated images are skipped
-    const small = decoded.resize(COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE);
+    const image = await decodeCover(bytes);
+    if (!image) return null;
+    const stepX = Math.max(1, Math.floor(image.width / COVER_SAMPLE_SIZE));
+    const stepY = Math.max(1, Math.floor(image.height / COVER_SAMPLE_SIZE));
     const pixels: number[][] = [];
-    for (let y = 1; y <= COVER_SAMPLE_SIZE; y++) {
-      for (let x = 1; x <= COVER_SAMPLE_SIZE; x++) {
-        pixels.push(Image.colorToRGBA(small.getPixelAt(x, y)));
+    for (let y = 0; y < image.height; y += stepY) {
+      for (let x = 0; x < image.width; x += stepX) {
+        const index = (y * image.width + x) * 4;
+        pixels.push([image.data[index], image.data[index + 1], image.data[index + 2], image.data[index + 3]]);
       }
     }
     return dominantColorFromPixels(pixels);
