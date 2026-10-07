@@ -1697,6 +1697,11 @@ h1 {
   text-transform: uppercase;
 }
 
+.my-room-rail.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .my-room-rail {
   position: absolute;
   right: 0;

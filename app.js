@@ -2517,7 +2517,51 @@ myShelfRoom.addEventListener("wheel", (event) => {
   myShelfRoom.scrollLeft += (event.deltaY + event.deltaX) * lineSize * WHEEL_SCROLL_SCALE;
 }, { passive: false });
 
+// Mouse and trackpad dragging for the personal room, matching the shelf. State is separate from the shelf's.
+let roomDragStartX = 0;
+let roomDragStartScroll = 0;
+let roomIsDragging = false;
+let roomHasDragged = false;
+
+myShelfRoom.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  roomDragStartX = event.clientX;
+  roomDragStartScroll = myShelfRoom.scrollLeft;
+  roomIsDragging = true;
+  roomHasDragged = false;
+});
+
+myShelfRoom.addEventListener("pointermove", (event) => {
+  if (!roomIsDragging) return;
+  const distance = event.clientX - roomDragStartX;
+  if (Math.abs(distance) > 5 && !roomHasDragged) {
+    roomHasDragged = true;
+    myShelfRoom.classList.add("is-dragging");
+    myShelfRoom.setPointerCapture(event.pointerId);
+  }
+  if (!roomHasDragged) return;
+  myShelfRoom.scrollLeft = roomDragStartScroll - distance;
+});
+
+function endRoomDrag(event) {
+  if (!roomIsDragging) return;
+  roomIsDragging = false;
+  myShelfRoom.classList.remove("is-dragging");
+  if (myShelfRoom.hasPointerCapture(event.pointerId)) myShelfRoom.releasePointerCapture(event.pointerId);
+  // Clear after the click that ends a drag has been ignored.
+  window.setTimeout(() => {
+    roomHasDragged = false;
+  }, 0);
+}
+
+myShelfRoom.addEventListener("pointerup", endRoomDrag);
+myShelfRoom.addEventListener("pointercancel", endRoomDrag);
+
 myShelfRoom.addEventListener("click", (event) => {
+  if (roomHasDragged) {
+    event.preventDefault();
+    return;
+  }
   const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
   if (!button) return;
   const index = Number(button.dataset.myShelfIndex);
