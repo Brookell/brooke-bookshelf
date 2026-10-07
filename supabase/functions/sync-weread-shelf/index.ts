@@ -1,6 +1,7 @@
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
 const IMPORT_LIMIT = 20;
+const MAX_IMPORT = 60;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -106,6 +107,22 @@ function normalizeAlbum(item: WereadAlbum): NormalizedWereadItem {
   };
 }
 
+function itemId(item: NormalizedWereadItem) {
+  return item.bookId || item.albumId || "";
+}
+
+function toListItem(item: NormalizedWereadItem) {
+  return {
+    id: itemId(item),
+    type: item.type,
+    title: item.title,
+    author: item.author,
+    cover: item.cover,
+    category: item.category,
+    finished: item.finishReading > 0,
+  };
+}
+
 function unixToIso(value: number | null | undefined) {
   return value ? new Date(value * 1000).toISOString() : null;
 }
@@ -178,7 +195,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
 
   try {
-    const { wereadApiKey } = await request.json();
+    const { wereadApiKey, mode, bookIds } = await request.json();
     if (!wereadApiKey || typeof wereadApiKey !== "string") {
       return jsonResponse({ error: "missing_weread_api_key" }, 400);
     }
@@ -211,6 +228,31 @@ Deno.serve(async (request) => {
     const books = Array.isArray(wereadData.books) ? wereadData.books.map(normalizeBook) : [];
     const albums = Array.isArray(wereadData.albums) ? wereadData.albums.map(normalizeAlbum) : [];
     const allItems = [...books, ...albums];
+
+    // List mode: return the whole shelf so the user can choose what to import. Nothing is written.
+    if (mode === "list") {
+      return jsonResponse({
+        items: allItems.map(toListItem),
+        total: allItems.length,
+        limit: MAX_IMPORT,
+      });
+    }
+
+    // Import mode: import only the books the user ticked. IDs are matched against a fresh shelf read,
+    // so the client cannot import anything that is not on the shelf.
+    if (mode === "import") {
+      const wanted = new Set(
+        Array.isArray(bookIds) ? bookIds.filter((id) => typeof id === "string").slice(0, MAX_IMPORT) : [],
+      );
+      const picked = allItems.filter((item) => wanted.has(itemId(item)));
+      if (!picked.length) {
+        return jsonResponse({ error: "no_books_selected" }, 400);
+      }
+      const saved = await upsertUserBooks(request, picked);
+      return jsonResponse({ books: picked, syncedToDatabase: saved });
+    }
+
+    // Legacy mode (no `mode` field): random sample, kept so older clients keep working.
     const selectedItems = sampleItems(allItems, IMPORT_LIMIT);
     const selectedBookCount = selectedItems.filter((item) => item.type === "book").length;
     const selectedAlbumCount = selectedItems.filter((item) => item.type === "album").length;

@@ -29,6 +29,21 @@ const wereadManualImportForm = document.querySelector("#wereadManualImportForm")
 const wereadApiKey = document.querySelector("#wereadApiKey");
 const wereadImportText = document.querySelector("#wereadImportText");
 const wereadImportStatus = document.querySelector("#wereadImportStatus");
+const wereadPicker = document.querySelector("#wereadPicker");
+const wereadPickerSearch = document.querySelector("#wereadPickerSearch");
+const wereadPickerCount = document.querySelector("#wereadPickerCount");
+const wereadPickerAll = document.querySelector("#wereadPickerAll");
+const wereadPickerRandom = document.querySelector("#wereadPickerRandom");
+const wereadPickerNone = document.querySelector("#wereadPickerNone");
+const wereadPickerList = document.querySelector("#wereadPickerList");
+const wereadPickerImport = document.querySelector("#wereadPickerImport");
+const WEREAD_MAX_PICK = 60;
+const WEREAD_RANDOM_PICK = 20;
+// Shelf from the last list request, the ticked IDs, and the key kept only in memory for the import step.
+let wereadShelfItems = [];
+const wereadPickedIds = new Set();
+let wereadSessionKey = "";
+let wereadImporting = false;
 const authGate = document.querySelector("#authGate");
 const authGateClose = document.querySelector("#authGateClose");
 const authGateForm = document.querySelector("#authGateForm");
@@ -165,7 +180,21 @@ const I18N = {
     addSearchResult: "加入书架",
     addedSearchResult: "已加入",
     wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
-    wereadSyncIdle: "输入 WeRead API Key 后，会从微信读书书架随机导入 20 本，先生成你的房间。",
+    wereadSyncIdle: "输入 WeRead API Key 后，读取你的微信读书书架，再勾选想导入的书。",
+    wereadListDone: "微信读书书架里共有 {count} 本，勾选想导入的书。",
+    wereadListEmpty: "微信读书书架里还没有书。",
+    wereadPickCount: "已选 {count} / {max} 本",
+    wereadPickLimit: "一次最多导入 {max} 本，请先取消一些。",
+    wereadPickImport: "导入选中的 {count} 本",
+    wereadPickImportIdle: "导入选中的书",
+    wereadPickOnShelf: "已在书架",
+    wereadPickEmpty: "没有符合搜索的书。",
+    wereadPickNone: "请先勾选至少一本书。",
+    wereadPickSearch: "搜索书名或作者",
+    wereadPickAll: "全选当前结果",
+    wereadPickRandom: "随机选 20 本",
+    wereadPickClear: "清空",
+    wereadImportingSelected: "正在导入选中的书...",
     wereadImportEmpty: "请先粘贴至少一本书名。",
     wereadApiKeyEmpty: "请先输入微信读书 API Key。",
     wereadImportLoading: "正在匹配第 {current} / {total} 本...",
@@ -244,7 +273,21 @@ const I18N = {
     addSearchResult: "Add to shelf",
     addedSearchResult: "Added",
     wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
-    wereadSyncIdle: "Enter a WeRead API Key to randomly import 20 books from your WeRead shelf.",
+    wereadSyncIdle: "Enter a WeRead API Key to load your WeRead shelf, then choose the books you want.",
+    wereadListDone: "Your WeRead shelf has {count} books. Choose the ones you want.",
+    wereadListEmpty: "Your WeRead shelf is empty.",
+    wereadPickCount: "{count} / {max} selected",
+    wereadPickLimit: "You can import up to {max} books at a time. Unselect some first.",
+    wereadPickImport: "Import {count} selected",
+    wereadPickImportIdle: "Import selected books",
+    wereadPickOnShelf: "On shelf",
+    wereadPickEmpty: "No books match your search.",
+    wereadPickNone: "Select at least one book first.",
+    wereadPickSearch: "Search title or author",
+    wereadPickAll: "Select visible",
+    wereadPickRandom: "Pick 20 at random",
+    wereadPickClear: "Clear",
+    wereadImportingSelected: "Importing the selected books...",
     wereadImportEmpty: "Paste at least one title first.",
     wereadApiKeyEmpty: "Enter your WeRead API Key first.",
     wereadImportLoading: "Matching book {current} / {total}...",
@@ -820,6 +863,14 @@ function updateStaticLanguage() {
   setText("#wereadImportForm button span", "同步微信读书书架");
   setText("#wereadManualImportForm label", "粘贴微信读书书架里的书名，每行一本");
   setText("#wereadManualImportForm button span", "导入书名列表");
+  if (wereadPickerSearch) {
+    wereadPickerSearch.placeholder = t("wereadPickSearch");
+    setText("#wereadPickerAll", t("wereadPickAll"));
+    setText("#wereadPickerRandom", t("wereadPickRandom"));
+    setText("#wereadPickerNone", t("wereadPickClear"));
+    if (wereadShelfItems.length) renderWereadPicker();
+    else updateWereadPickerCount();
+  }
   if (wereadImportStatus && !wereadImportStatus.textContent.trim()) wereadImportStatus.textContent = t("wereadSyncIdle");
   if (addBookQuery) addBookQuery.placeholder = t("searchBookPlaceholder");
   if (addBookStatus && !addBookStatus.textContent.trim()) addBookStatus.textContent = t("searchBookIdle");
@@ -1326,6 +1377,22 @@ async function importWereadBooks(text) {
   }
 }
 
+async function callSyncWereadFunction(payload) {
+  const accessToken = await getSupabaseAccessToken();
+  const response = await fetch(`${readSupabaseFunctionsUrl()}/sync-weread-shelf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `sync failed: ${response.status}`);
+  return data;
+}
+
+// Step 1: read the whole WeRead shelf and show it as a list to choose from. Nothing is imported yet.
 async function syncWereadShelf(apiKey) {
   const trimmed = apiKey.trim();
   if (!trimmed) {
@@ -1338,38 +1405,171 @@ async function syncWereadShelf(apiKey) {
   wereadImportStatus.textContent = t("wereadSyncLoading");
 
   try {
-    const accessToken = await getSupabaseAccessToken();
-    const response = await fetch(`${readSupabaseFunctionsUrl()}/sync-weread-shelf`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ wereadApiKey: trimmed }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `sync failed: ${response.status}`);
+    const data = await callSyncWereadFunction({ wereadApiKey: trimmed, mode: "list" });
+    if (!Array.isArray(data.items)) throw new Error("list mode unavailable");
 
-    const items = Array.isArray(data.books) ? data.books : [];
-    let imported = 0;
-    items.forEach((item, index) => {
-      const { book, status } = customBookFromWereadItem(item, index);
-      if (!bookExists(book.id)) {
-        books.push(book);
-        writeCustomBooks();
-        createBook(book, books.length - 1);
-        imported += 1;
-      }
-      saveBookState(book, status || DEFAULT_STATUS);
-    });
-
-    totalBooks.textContent = String(books.length).padStart(2, "0");
-    renderBookIndex();
-    renderMyShelf();
-    measureShelf();
-    wereadImportStatus.textContent = t("wereadSyncDone", { count: items.length });
+    wereadShelfItems = data.items;
+    wereadSessionKey = trimmed;
+    wereadPickedIds.clear();
     wereadApiKey.value = "";
-    if (items.length > 0) {
+    wereadPickerSearch.value = "";
+    wereadPicker.hidden = false;
+    renderWereadPicker();
+    wereadImportStatus.textContent = wereadShelfItems.length
+      ? t("wereadListDone", { count: wereadShelfItems.length })
+      : t("wereadListEmpty");
+  } catch (error) {
+    console.error(error);
+    wereadImportStatus.textContent = t("wereadSyncError");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function wereadBookIdFor(item) {
+  return `weread-${slugifyText(item.id || `${item.title}-${item.author}`)}`;
+}
+
+function wereadItemOnShelf(item) {
+  return bookExists(wereadBookIdFor(item));
+}
+
+function visibleWereadItems() {
+  const query = wereadPickerSearch.value.trim().toLowerCase();
+  if (!query) return wereadShelfItems;
+  return wereadShelfItems.filter((item) => `${item.title} ${item.author}`.toLowerCase().includes(query));
+}
+
+function updateWereadPickerCount() {
+  const count = wereadPickedIds.size;
+  wereadPickerCount.textContent = t("wereadPickCount", { count, max: WEREAD_MAX_PICK });
+  wereadPickerImport.disabled = count === 0 || wereadImporting;
+  wereadPickerImport.textContent = count ? t("wereadPickImport", { count }) : t("wereadPickImportIdle");
+}
+
+function renderWereadPicker() {
+  const rows = visibleWereadItems().map((item) => {
+    const onShelf = wereadItemOnShelf(item);
+    const row = document.createElement("li");
+    row.className = `weread-pick${onShelf ? " is-on-shelf" : ""}`;
+
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = wereadPickedIds.has(item.id);
+    checkbox.disabled = onShelf;
+    checkbox.addEventListener("change", () => {
+      if (!checkbox.checked) {
+        wereadPickedIds.delete(item.id);
+      } else if (wereadPickedIds.size >= WEREAD_MAX_PICK) {
+        checkbox.checked = false;
+        wereadImportStatus.textContent = t("wereadPickLimit", { max: WEREAD_MAX_PICK });
+        return;
+      } else {
+        wereadPickedIds.add(item.id);
+      }
+      updateWereadPickerCount();
+    });
+
+    const title = document.createElement("span");
+    title.className = "weread-pick-title";
+    title.textContent = item.title;
+    const meta = document.createElement("span");
+    meta.className = "weread-pick-meta";
+    meta.textContent = onShelf ? t("wereadPickOnShelf") : [item.author, item.category].filter(Boolean).join(" · ");
+
+    label.append(checkbox, title, meta);
+    row.append(label);
+    return row;
+  });
+
+  if (!rows.length) {
+    const empty = document.createElement("li");
+    empty.className = "weread-pick-empty";
+    empty.textContent = t("wereadPickEmpty");
+    rows.push(empty);
+  }
+  wereadPickerList.replaceChildren(...rows);
+  updateWereadPickerCount();
+}
+
+function selectWereadItems(items) {
+  let capped = false;
+  for (const item of items) {
+    if (wereadItemOnShelf(item)) continue;
+    if (wereadPickedIds.size >= WEREAD_MAX_PICK) {
+      capped = true;
+      break;
+    }
+    wereadPickedIds.add(item.id);
+  }
+  if (capped) wereadImportStatus.textContent = t("wereadPickLimit", { max: WEREAD_MAX_PICK });
+  renderWereadPicker();
+}
+
+function pickRandomWereadItems() {
+  const pool = wereadShelfItems.filter((item) => !wereadItemOnShelf(item));
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swap]] = [pool[swap], pool[index]];
+  }
+  wereadPickedIds.clear();
+  selectWereadItems(pool.slice(0, WEREAD_RANDOM_PICK));
+}
+
+function resetWereadPicker() {
+  wereadShelfItems = [];
+  wereadPickedIds.clear();
+  wereadSessionKey = "";
+  wereadPickerSearch.value = "";
+  wereadPicker.hidden = true;
+  wereadPickerList.replaceChildren();
+}
+
+function addWereadItems(items) {
+  let imported = 0;
+  items.forEach((item, index) => {
+    const { book, status } = customBookFromWereadItem(item, index);
+    if (!bookExists(book.id)) {
+      books.push(book);
+      writeCustomBooks();
+      createBook(book, books.length - 1);
+      imported += 1;
+    }
+    saveBookState(book, status || DEFAULT_STATUS);
+  });
+  totalBooks.textContent = String(books.length).padStart(2, "0");
+  renderBookIndex();
+  renderMyShelf();
+  measureShelf();
+  return imported;
+}
+
+// Step 2: import only the ticked books. The server re-reads the shelf and matches these IDs against it.
+async function importSelectedWereadBooks() {
+  if (!wereadPickedIds.size) {
+    wereadImportStatus.textContent = t("wereadPickNone");
+    return;
+  }
+  if (!wereadSessionKey) {
+    wereadImportStatus.textContent = t("wereadApiKeyEmpty");
+    return;
+  }
+
+  wereadImporting = true;
+  updateWereadPickerCount();
+  wereadImportStatus.textContent = t("wereadImportingSelected");
+  try {
+    const data = await callSyncWereadFunction({
+      wereadApiKey: wereadSessionKey,
+      mode: "import",
+      bookIds: [...wereadPickedIds],
+    });
+    const picked = Array.isArray(data.books) ? data.books : [];
+    const imported = addWereadItems(picked);
+    wereadImportStatus.textContent = t("wereadImportDone", { count: imported });
+    resetWereadPicker();
+    if (imported > 0) {
       closeAddBookPanel({ restoreFocus: false });
       window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
     }
@@ -1377,7 +1577,8 @@ async function syncWereadShelf(apiKey) {
     console.error(error);
     wereadImportStatus.textContent = t("wereadSyncError");
   } finally {
-    button.disabled = false;
+    wereadImporting = false;
+    updateWereadPickerCount();
   }
 }
 
@@ -2140,6 +2341,14 @@ wereadManualImportForm.addEventListener("submit", (event) => {
   event.preventDefault();
   importWereadBooks(wereadImportText.value);
 });
+wereadPickerSearch.addEventListener("input", renderWereadPicker);
+wereadPickerAll.addEventListener("click", () => selectWereadItems(visibleWereadItems()));
+wereadPickerRandom.addEventListener("click", pickRandomWereadItems);
+wereadPickerNone.addEventListener("click", () => {
+  wereadPickedIds.clear();
+  renderWereadPicker();
+});
+wereadPickerImport.addEventListener("click", importSelectedWereadBooks);
 addBookResults.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-add-book-result]") : null;
   if (!button) return;

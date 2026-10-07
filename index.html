@@ -126,12 +126,25 @@
         <form id="wereadImportForm">
           <label for="wereadApiKey">输入你的微信读书 API Key</label>
           <input id="wereadApiKey" type="password" autocomplete="off" inputmode="text" placeholder="wrk-xxxxxxxx" />
-          <p class="weread-import-hint">API Key 只会发给 Supabase Edge Function。系统会随机导入 20 本书，后续增添与删除由你自己整理。</p>
+          <p class="weread-import-hint">API Key 只会发给 Supabase Edge Function，并只在本页面内暂存，用于完成导入。读取书架后，你可以勾选想要的书。</p>
           <button type="submit">
             <i data-lucide="refresh-cw"></i>
-            <span>随机导入 20 本</span>
+            <span>读取我的微信读书书架</span>
           </button>
         </form>
+        <div class="weread-picker" id="wereadPicker" hidden>
+          <div class="weread-picker-tools">
+            <input id="wereadPickerSearch" type="search" autocomplete="off" placeholder="搜索书名或作者" />
+            <p class="weread-picker-count" id="wereadPickerCount" aria-live="polite"></p>
+          </div>
+          <div class="weread-picker-actions">
+            <button type="button" id="wereadPickerAll">全选当前结果</button>
+            <button type="button" id="wereadPickerRandom">随机选 20 本</button>
+            <button type="button" id="wereadPickerNone">清空</button>
+          </div>
+          <ol class="weread-picker-list" id="wereadPickerList"></ol>
+          <button class="weread-picker-import" type="button" id="wereadPickerImport" disabled>导入选中的书</button>
+        </div>
         <details class="weread-manual-import">
           <summary>没有 API Key？使用书名列表导入</summary>
           <form id="wereadManualImportForm">

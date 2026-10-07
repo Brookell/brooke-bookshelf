@@ -1162,6 +1162,108 @@ h1 {
   height: 14px;
 }
 
+.weread-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.weread-picker[hidden] {
+  display: none;
+}
+
+.weread-picker-tools {
+  display: grid;
+  gap: 6px;
+}
+
+.weread-picker-count {
+  margin: 0;
+  color: var(--muted);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 11px;
+}
+
+.weread-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weread-picker-list {
+  display: grid;
+  gap: 2px;
+  max-height: 380px;
+  margin: 0;
+  padding: 6px 0 0;
+  overflow-y: auto;
+  border-top: 1px solid rgba(21, 21, 21, 0.08);
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.weread-import .weread-pick label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 12px;
+  align-items: center;
+  padding: 10px 8px;
+  border-radius: 12px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 160ms ease;
+}
+
+.weread-pick label:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.weread-import .weread-pick input[type="checkbox"] {
+  grid-row: span 2;
+  width: 16px;
+  height: 16px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ink);
+}
+
+.weread-pick-title {
+  overflow: hidden;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weread-pick-meta {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weread-pick.is-on-shelf label {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.weread-pick.is-on-shelf label:hover {
+  background: transparent;
+}
+
+.weread-pick-empty {
+  padding: 12px 8px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 12px;
+}
+
+.weread-picker-import {
+  width: 100%;
+}
+
 .add-book-results {
   display: grid;
   margin-top: 16px;
