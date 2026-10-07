@@ -2510,6 +2510,14 @@ roomOnlyToggle.addEventListener("click", () => {
   if (activeSpace === "user") openBrookeSpace({ restoreFocus: false });
   else requireAuth(() => openUserSpace({ restoreFocus: false }));
 });
+// The personal room rail scrolls sideways, so map wheel and trackpad input onto it with the same slow-down.
+myShelfRoom.addEventListener("wheel", (event) => {
+  if (Math.abs(event.deltaY) < 0.1 && Math.abs(event.deltaX) < 0.1) return;
+  event.preventDefault();
+  const lineSize = event.deltaMode === 1 ? 16 : 1;
+  myShelfRoom.scrollLeft += (event.deltaY + event.deltaX) * lineSize * WHEEL_SCROLL_SCALE;
+}, { passive: false });
+
 myShelfRoom.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
   if (!button) return;
