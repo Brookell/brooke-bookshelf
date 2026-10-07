@@ -312,6 +312,12 @@ button:focus-visible,
   padding: 6px 0;
 }
 
+/* The add-book panel has its own close button, and the fixed switch would sit on top of its scrolled content. */
+body:has(.add-book-panel:not([hidden])) .space-switch {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .space-switch button {
   min-height: 28px;
   padding: 0 0 4px;

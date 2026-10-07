@@ -200,6 +200,7 @@ const I18N = {
     wereadSyncDone: "已从微信读书随机导入 {count} 本书。后续增添与删除可以由你自己整理。",
     wereadSyncError: "微信读书同步暂时失败，请确认 API Key 或 Edge Function 是否已部署。",
     wereadFunctionOutdated: "同步服务还是旧版本，需要在 Supabase 重新部署 sync-weread-shelf 后再试。",
+    wereadReason: "原因",
   },
   en: {
     languageName: "English",
@@ -290,6 +291,7 @@ const I18N = {
     wereadSyncDone: "Randomly imported {count} books from WeRead. You can add or remove books manually afterward.",
     wereadSyncError: "WeRead sync failed. Check the API key or Edge Function deployment.",
     wereadFunctionOutdated: "The sync service is still the old version. Redeploy sync-weread-shelf in Supabase, then try again.",
+    wereadReason: "Reason",
   },
 };
 const STATUS_LABEL_KEYS = {
@@ -1373,7 +1375,12 @@ async function callSyncWereadFunction(payload) {
     body: JSON.stringify(payload),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `sync failed: ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `sync failed: ${response.status}`);
+    // Server-side reason (for example an invalid key), shown to the user so they can act on it.
+    error.serverMessage = data.message || data.error || "";
+    throw error;
+  }
   return data;
 }
 
@@ -1410,9 +1417,10 @@ async function syncWereadShelf(apiKey) {
       : t("wereadListEmpty");
   } catch (error) {
     console.error(error);
+    const detail = error.serverMessage ? ` ${t("wereadReason")}: ${error.serverMessage}` : "";
     wereadImportStatus.textContent = error.name === "WereadFunctionOutdated"
       ? t("wereadFunctionOutdated")
-      : t("wereadSyncError");
+      : `${t("wereadSyncError")}${detail}`;
   } finally {
     button.disabled = false;
   }
