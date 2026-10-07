@@ -1417,7 +1417,9 @@ async function syncWereadShelf(apiKey) {
       : t("wereadListEmpty");
   } catch (error) {
     console.error(error);
-    const detail = error.serverMessage ? ` ${t("wereadReason")}: ${error.serverMessage}` : "";
+    // Without a server reply (blocked or unreachable request), fall back to the browser's own error text.
+    const reason = error.serverMessage || error.message;
+    const detail = reason ? ` ${t("wereadReason")}: ${reason}` : "";
     wereadImportStatus.textContent = error.name === "WereadFunctionOutdated"
       ? t("wereadFunctionOutdated")
       : `${t("wereadSyncError")}${detail}`;
