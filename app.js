@@ -1426,8 +1426,10 @@ async function callSyncWereadFunction(payload) {
   const accessToken = await getSupabaseAccessToken();
   const response = await fetch(`${readSupabaseFunctionsUrl()}/sync-weread-shelf`, {
     method: "POST",
+    // text/plain is a "simple" request type, so the browser sends no CORS preflight. The function parses
+    // the body as JSON regardless of the header.
     headers: {
-      "Content-Type": "application/json",
+      "Content-Type": "text/plain;charset=UTF-8",
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify(payload),

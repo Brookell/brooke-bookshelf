@@ -1,4 +1,4 @@
-import { Image } from "npm:imagescript@1.3.1";
+import { Image } from "https://esm.sh/imagescript@1.3.1";
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
@@ -10,6 +10,8 @@ const COVER_TIMEOUT_MS = 6000;
 const MAX_COVER_REQUEST = 40;
 // Only fetch covers from known image hosts, so this function cannot be used to request arbitrary URLs.
 const COVER_HOST_SUFFIXES = [".qq.com", ".qpic.cn", ".google.com", ".googleusercontent.com", ".ggpht.com"];
+// Exact hosts for cover storage buckets that WeRead uses.
+const COVER_HOSTS_EXACT = ["wfqqreader-1252317822.image.myqcloud.com", "weread-1258476243.file.myqcloud.com"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -119,7 +121,7 @@ function isAllowedCoverUrl(value: string) {
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") return false;
-    return COVER_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix));
+    return COVER_HOSTS_EXACT.includes(url.hostname) || COVER_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix));
   } catch {
     return false;
   }
