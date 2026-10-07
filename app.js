@@ -472,68 +472,10 @@ function readCustomBooks() {
   }
 }
 
-const COVER_SAMPLE_SIZE = 40;
-
-// Reads the cover's pixels and returns its most common non-paper colour. Browsers only allow this when the
-// image host sends CORS headers; otherwise the canvas is tainted and this resolves to null.
-function sampleCoverColor(src) {
-  return new Promise((resolve) => {
-    if (!src) {
-      resolve(null);
-      return;
-    }
-    const image = new Image();
-    image.crossOrigin = "anonymous";
-    const timer = window.setTimeout(() => resolve(null), 4000);
-    image.onload = () => {
-      window.clearTimeout(timer);
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = COVER_SAMPLE_SIZE;
-        canvas.height = COVER_SAMPLE_SIZE;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        context.drawImage(image, 0, 0, COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE);
-        const { data } = context.getImageData(0, 0, COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE);
-        resolve(dominantColorFromPixels(data));
-      } catch (error) {
-        resolve(null);
-      }
-    };
-    image.onerror = () => {
-      window.clearTimeout(timer);
-      resolve(null);
-    };
-    image.src = src;
-  });
-}
-
-function dominantColorFromPixels(data) {
-  const buckets = new Map();
-  for (let index = 0; index < data.length; index += 4) {
-    const r = data[index];
-    const g = data[index + 1];
-    const b = data[index + 2];
-    const alpha = data[index + 3];
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    if (alpha < 200) continue;
-    if (max > 245 && min > 230) continue; // paper-white margins
-    if (max < 25) continue; // near-black outlines
-    const key = `${r >> 4},${g >> 4},${b >> 4}`;
-    const bucket = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
-    bucket.count += 1;
-    bucket.r += r;
-    bucket.g += g;
-    bucket.b += b;
-    buckets.set(key, bucket);
-  }
-  let best = null;
-  for (const bucket of buckets.values()) {
-    if (!best || bucket.count > best.count) best = bucket;
-  }
-  if (!best) return null;
-  const toHex = (value) => Math.round(value / best.count).toString(16).padStart(2, "0");
-  return `#${toHex(best.r)}${toHex(best.g)}${toHex(best.b)}`;
+// Cover colours are computed by the sync function, because browsers cannot read pixels from most cover hosts.
+async function fetchCoverColors(covers) {
+  const data = await callSyncWereadFunction({ mode: "covers", covers });
+  return data.colors || {};
 }
 
 function shadeHex(hex, percent) {
@@ -552,28 +494,41 @@ function readableInkFor(hex) {
 }
 
 // Gives a cover-based book the cover's own colour as its detail background and spine colour.
-async function applyCoverColor(book) {
-  if (!book?.image || book.coverColor) return book;
-  const color = await sampleCoverColor(book.image);
-  if (!color) return book;
+function paintCoverColor(book, color) {
+  if (!color) return;
   book.coverColor = color;
   book.color = color;
   book.detailColor = color;
   book.spine = shadeHex(color, -16);
   book.spineInk = readableInkFor(book.spine);
   book.ink = readableInkFor(color);
+}
+
+async function applyCoverColor(book) {
+  if (!book?.image || book.coverColor) return book;
+  try {
+    const colors = await fetchCoverColors([{ id: book.id, cover: book.image }]);
+    paintCoverColor(book, colors[book.id]);
+  } catch (error) {
+    console.error(error);
+  }
   return book;
 }
 
-// Books imported before this change keep their palette colours until their cover has been sampled.
+// Books imported before this change keep their palette colours until the server has sampled their cover.
 async function backfillCoverColors() {
   const pending = books.filter((book) => book.isCustom && book.image && !book.coverColor);
-  let changed = false;
-  for (const book of pending) {
-    await applyCoverColor(book);
-    if (book.coverColor) changed = true;
+  if (!pending.length) return;
+  try {
+    for (let start = 0; start < pending.length; start += 40) {
+      const batch = pending.slice(start, start + 40);
+      const colors = await fetchCoverColors(batch.map((book) => ({ id: book.id, cover: book.image })));
+      batch.forEach((book) => paintCoverColor(book, colors[book.id]));
+    }
+    writeCustomBooks();
+  } catch (error) {
+    console.error(error);
   }
-  if (changed) writeCustomBooks();
 }
 
 function writeCustomBooks() {
@@ -1636,7 +1591,7 @@ async function addWereadItems(items) {
   for (const [index, item] of items.entries()) {
     const { book, status } = customBookFromWereadItem(item, index);
     if (!bookExists(book.id)) {
-      await applyCoverColor(book);
+      paintCoverColor(book, item.coverColor);
       books.push(book);
       writeCustomBooks();
       createBook(book, books.length - 1);

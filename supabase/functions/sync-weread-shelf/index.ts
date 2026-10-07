@@ -1,7 +1,15 @@
+import { Image } from "npm:imagescript@1.3.1";
+
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 const SKILL_VERSION = "1.0.4";
 const IMPORT_LIMIT = 20;
 const MAX_IMPORT = 60;
+const COVER_SAMPLE_SIZE = 40;
+const COVER_MAX_BYTES = 3_000_000;
+const COVER_TIMEOUT_MS = 6000;
+const MAX_COVER_REQUEST = 40;
+// Only fetch covers from known image hosts, so this function cannot be used to request arbitrary URLs.
+const COVER_HOST_SUFFIXES = [".qq.com", ".qpic.cn", ".google.com", ".googleusercontent.com", ".ggpht.com"];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,6 +115,67 @@ function normalizeAlbum(item: WereadAlbum): NormalizedWereadItem {
   };
 }
 
+function isAllowedCoverUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    return COVER_HOST_SUFFIXES.some((suffix) => url.hostname.endsWith(suffix));
+  } catch {
+    return false;
+  }
+}
+
+// The most common non-paper colour, as a hex string. Same rules as the front end used before.
+function dominantColorFromPixels(pixels: number[][]) {
+  const buckets = new Map<string, { count: number; r: number; g: number; b: number }>();
+  for (const [r, g, b, alpha] of pixels) {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (alpha < 200) continue;
+    if (max > 245 && min > 230) continue; // paper-white margins
+    if (max < 25) continue; // near-black outlines
+    const key = `${r >> 4},${g >> 4},${b >> 4}`;
+    const bucket = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+    bucket.count += 1;
+    bucket.r += r;
+    bucket.g += g;
+    bucket.b += b;
+    buckets.set(key, bucket);
+  }
+  let best: { count: number; r: number; g: number; b: number } | null = null;
+  for (const bucket of buckets.values()) {
+    if (!best || bucket.count > best.count) best = bucket;
+  }
+  if (!best) return null;
+  const hex = (value: number) => Math.round(value / best!.count).toString(16).padStart(2, "0");
+  return `#${hex(best.r)}${hex(best.g)}${hex(best.b)}`;
+}
+
+async function coverColorFromUrl(value: string): Promise<string | null> {
+  if (!isAllowedCoverUrl(value)) return null;
+  try {
+    const response = await fetch(value, { signal: AbortSignal.timeout(COVER_TIMEOUT_MS) });
+    if (!response.ok) return null;
+    const declaredLength = Number(response.headers.get("content-length") || 0);
+    if (declaredLength > COVER_MAX_BYTES) return null;
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > COVER_MAX_BYTES) return null;
+    const decoded = await Image.decode(bytes);
+    if (!(decoded instanceof Image)) return null; // animated images are skipped
+    const small = decoded.resize(COVER_SAMPLE_SIZE, COVER_SAMPLE_SIZE);
+    const pixels: number[][] = [];
+    for (let y = 1; y <= COVER_SAMPLE_SIZE; y++) {
+      for (let x = 1; x <= COVER_SAMPLE_SIZE; x++) {
+        pixels.push(Image.colorToRGBA(small.getPixelAt(x, y)));
+      }
+    }
+    return dominantColorFromPixels(pixels);
+  } catch (error) {
+    console.error("cover colour failed", error);
+    return null;
+  }
+}
+
 function itemId(item: NormalizedWereadItem) {
   return item.bookId || item.albumId || "";
 }
@@ -195,7 +264,20 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
 
   try {
-    const { wereadApiKey, mode, bookIds } = await request.json();
+    const { wereadApiKey, mode, bookIds, covers } = await request.json();
+
+    // Cover mode needs no WeRead key: it only samples the colours of cover images that were sent in.
+    if (mode === "covers") {
+      const requested = Array.isArray(covers) ? covers.slice(0, MAX_COVER_REQUEST) : [];
+      const colors: Record<string, string | null> = {};
+      await Promise.all(requested.map(async (entry) => {
+        if (entry && typeof entry.id === "string" && typeof entry.cover === "string") {
+          colors[entry.id] = await coverColorFromUrl(entry.cover);
+        }
+      }));
+      return jsonResponse({ colors });
+    }
+
     if (!wereadApiKey || typeof wereadApiKey !== "string") {
       return jsonResponse({ error: "missing_weread_api_key" }, 400);
     }
@@ -248,8 +330,10 @@ Deno.serve(async (request) => {
       if (!picked.length) {
         return jsonResponse({ error: "no_books_selected" }, 400);
       }
-      const saved = await upsertUserBooks(request, picked);
-      return jsonResponse({ books: picked, syncedToDatabase: saved });
+      const colors = await Promise.all(picked.map((item) => coverColorFromUrl(item.cover)));
+      const withColors = picked.map((item, index) => ({ ...item, coverColor: colors[index] || "" }));
+      const saved = await upsertUserBooks(request, withColors);
+      return jsonResponse({ books: withColors, syncedToDatabase: saved });
     }
 
     // Legacy mode (no `mode` field): random sample, kept so older clients keep working.
