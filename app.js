@@ -1092,7 +1092,9 @@ function renderMyShelf() {
     </button>
   `).join("");
   myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
-    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex));
+    // Hover only opens the book; scrolling on hover made the room keep
+    // sliding as each newly centred book came under the mouse.
+    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex, { scroll: false }));
     element.addEventListener("mouseleave", () => {
       if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
     });
@@ -1474,7 +1476,7 @@ function addCustomBook(book) {
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
 }
 
-function openMyRoomBook(roomIndex, { focus = false } = {}) {
+function openMyRoomBook(roomIndex, { focus = false, scroll = true } = {}) {
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   const active = roomBooks[roomIndex];
   if (!active) return;
@@ -1492,7 +1494,7 @@ function openMyRoomBook(roomIndex, { focus = false } = {}) {
     book.style.setProperty("--room-shift", `${Math.round(shift)}px`);
   });
   if (focus) active.focus({ preventScroll: true });
-  active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  if (scroll) active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
 }
 
 function resetMyRoomBooks() {
@@ -2166,6 +2168,13 @@ viewport.addEventListener("wheel", (event) => {
 viewport.addEventListener("scroll", () => {
   if (viewport.scrollTop !== 0) viewport.scrollTop = 0;
 });
+
+// Let a normal mouse wheel move the personal room sideways, like the shelf.
+myShelfRoom.addEventListener("wheel", (event) => {
+  if (Math.abs(event.deltaY) < 0.1 && Math.abs(event.deltaX) < 0.1) return;
+  event.preventDefault();
+  myShelfRoom.scrollLeft += event.deltaY + event.deltaX;
+}, { passive: false });
 
 viewport.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
