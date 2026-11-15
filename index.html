@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-12" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-13" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -161,12 +161,16 @@
         </button>
         <p class="auth-gate-kicker">创建你的书架</p>
         <h2 id="authGateTitle">先保存你的 Reading Room</h2>
-        <p class="auth-gate-copy">登录后，你加入的书、微信读书同步和房间设置都会成为你的个人书架。现在可以先用邮箱开始。</p>
+        <p class="auth-gate-copy">输入邮箱和密码：第一次用会直接注册，之后用同样的邮箱和密码登录。你加入的书和房间设置都会保存到你的账号。</p>
         <form class="auth-gate-form" id="authGateForm">
           <label for="authEmail">邮箱</label>
           <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
-          <button type="submit">继续建造我的书架</button>
+          <label for="authPassword">密码（至少 6 位）</label>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
+          <button type="submit">登录 / 注册</button>
         </form>
+        <p class="auth-gate-status" id="authGateStatus" role="status" aria-live="polite"></p>
+        <button class="auth-gate-link" id="authGateMagicLink" type="button">忘记密码？发送登录链接到邮箱</button>
         <button class="auth-gate-secondary" id="authGateGuest" type="button">先体验，稍后注册</button>
       </div>
     </section>
@@ -352,6 +356,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261116-11"></script>
+  <script defer src="./app.js?v=20261116-13"></script>
 </body>
 </html>

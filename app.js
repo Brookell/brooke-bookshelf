@@ -34,6 +34,9 @@ const authGate = document.querySelector("#authGate");
 const authGateClose = document.querySelector("#authGateClose");
 const authGateForm = document.querySelector("#authGateForm");
 const authEmail = document.querySelector("#authEmail");
+const authPassword = document.querySelector("#authPassword");
+const authGateStatus = document.querySelector("#authGateStatus");
+const authGateMagicLink = document.querySelector("#authGateMagicLink");
 const authGateGuest = document.querySelector("#authGateGuest");
 const myShelf = document.querySelector("#myShelf");
 const myShelfClose = document.querySelector("#myShelfClose");
@@ -627,6 +630,36 @@ function writeAuthSession(session) {
 
 function hasAuthSession() {
   return Boolean(readAuthSession());
+}
+
+// Email + password. Signing in with an unknown email creates the account
+// right away (email confirmation is off in Supabase), so one button does
+// both. Returns { mode } describing what happened.
+async function signInOrSignUp(email, password) {
+  const client = getSupabaseClient();
+  if (!client) {
+    writeAuthSession({ email, mode: "email-prototype" });
+    return { mode: "prototype" };
+  }
+  const signIn = await client.auth.signInWithPassword({ email, password });
+  if (!signIn.error) return { mode: "signed-in" };
+  if (!/invalid login credentials/i.test(signIn.error.message)) throw signIn.error;
+  const signUp = await client.auth.signUp({ email, password });
+  if (signUp.error && /already registered/i.test(signUp.error.message)) return { mode: "wrong-password" };
+  if (signUp.error) throw signUp.error;
+  if (signUp.data.session) return { mode: "signed-up" };
+  // Supabase answers a sign-up for an existing email without a session:
+  // the account exists and the password did not match.
+  return { mode: "wrong-password" };
+}
+
+function authErrorMessage(error) {
+  const message = String(error?.message || "");
+  if (/password should be at least|weak password/i.test(message)) return "密码太简单了，请至少用 6 位，最好包含字母和数字。";
+  if (/email not confirmed/i.test(message)) return "这个邮箱之前注册时还没确认。请点下面的链接，用邮箱链接登录一次。";
+  if (/invalid.*email|unable to validate email/i.test(message)) return "邮箱格式不太对，请检查一下。";
+  if (/rate limit|too many/i.test(message)) return "尝试次数太多了，请稍等几分钟再试。";
+  return "登录失败，请稍后再试。";
 }
 
 async function signInWithEmail(email) {
@@ -2680,22 +2713,44 @@ addBookResults.addEventListener("click", (event) => {
 authGateClose.addEventListener("click", () => closeAuthGate({ restoreFocus: true }));
 authGateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const button = authGateForm.querySelector("button");
+  const button = authGateForm.querySelector("button[type='submit']");
   const email = authEmail.value.trim();
-  if (!email) return;
+  const password = authPassword.value;
+  if (!email || !password) return;
   button.disabled = true;
+  authGateStatus.textContent = "正在登录…";
   try {
-    const result = await signInWithEmail(email);
-    if (result.mode === "prototype") {
-      closeAuthGate({ restoreFocus: false, runPending: true });
+    const result = await signInOrSignUp(email, password);
+    if (result.mode === "wrong-password") {
+      authGateStatus.textContent = "这个邮箱已经注册过，密码不对。忘记密码可以用下面的邮箱链接登录。";
       return;
     }
-    authGate.querySelector(".auth-gate-copy").textContent = "登录链接已经发送到你的邮箱。打开邮件里的链接后，你的书架会自动保存到 Supabase。";
+    authGateStatus.textContent = result.mode === "signed-up" ? "注册成功，正在进入你的书架…" : "";
+    authPassword.value = "";
+    closeAuthGate({ restoreFocus: false, runPending: true });
   } catch (error) {
     console.error(error);
-    authGate.querySelector(".auth-gate-copy").textContent = "登录链接发送失败，请稍后再试，或先体验后注册。";
+    authGateStatus.textContent = authErrorMessage(error);
   } finally {
     button.disabled = false;
+  }
+});
+authGateMagicLink.addEventListener("click", async () => {
+  const email = authEmail.value.trim();
+  if (!email || !authEmail.checkValidity()) {
+    authGateStatus.textContent = "请先在上面填好邮箱。";
+    authEmail.focus();
+    return;
+  }
+  authGateMagicLink.disabled = true;
+  try {
+    await signInWithEmail(email);
+    authGateStatus.textContent = "登录链接已发送到你的邮箱，打开邮件里的链接就会登录。";
+  } catch (error) {
+    console.error(error);
+    authGateStatus.textContent = authErrorMessage(error);
+  } finally {
+    authGateMagicLink.disabled = false;
   }
 });
 authGateGuest.addEventListener("click", () => {
