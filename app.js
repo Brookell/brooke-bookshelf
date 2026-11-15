@@ -1202,7 +1202,7 @@ function switchMyShelfView(nextView) {
     renderMyShelf();
     if (myShelfView === "room") {
       requestAnimationFrame(() => {
-        if (!myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+        if (!myShelfRoomView.hidden) centerMyRoom();
       });
     }
     return;
@@ -1216,11 +1216,37 @@ function switchMyShelfView(nextView) {
       myShelf.classList.remove("is-view-switching");
       if (myShelfView === "room") {
         requestAnimationFrame(() => {
-          if (!myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+          if (!myShelfRoomView.hidden) centerMyRoom();
         });
       }
     });
   }, 170);
+}
+
+// Open the room scrolled to its middle with no book pulled out, the same way
+// the reference shelf starts.
+function centerMyRoom() {
+  resetMyRoomBooks();
+  myShelfRoom.scrollLeft = Math.max(0, (myShelfRoom.scrollWidth - myShelfRoom.clientWidth) / 2);
+}
+
+// The room book closest to the middle of the screen, used when the arrow
+// keys are pressed before any book is open.
+function centerMyRoomIndex() {
+  const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+  const railBounds = myShelfRoom.getBoundingClientRect();
+  const middle = railBounds.left + railBounds.width / 2;
+  let best = 0;
+  let bestDistance = Infinity;
+  roomBooks.forEach((book, index) => {
+    const bounds = book.getBoundingClientRect();
+    const distance = Math.abs(bounds.left + bounds.width / 2 - middle);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  });
+  return best;
 }
 
 function navigateMyRoom(delta) {
@@ -1231,8 +1257,11 @@ function navigateMyRoom(delta) {
   }
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   if (!roomBooks.length) return;
-  const current = myRoomActiveIndex ?? 0;
-  openMyRoomBook((current + delta + roomBooks.length) % roomBooks.length, { focus: true });
+  if (myRoomActiveIndex === null) {
+    openMyRoomBook(centerMyRoomIndex(), { focus: true });
+    return;
+  }
+  openMyRoomBook((myRoomActiveIndex + delta + roomBooks.length) % roomBooks.length, { focus: true });
 }
 
 function showMyShelfToolsHint() {
@@ -1958,7 +1987,7 @@ function openMyShelf({ view = myShelfView, restoreFocus = true } = {}) {
   requestAnimationFrame(() => {
     library.classList.add("is-my-shelf-open");
     myShelf.classList.add("is-visible");
-    if (myShelfView === "room" && !myShelfRoomView.hidden) openMyRoomBook(0, { focus: true });
+    if (myShelfView === "room" && !myShelfRoomView.hidden) centerMyRoom();
     else if (restoreFocus) myShelfClose.focus({ preventScroll: true });
   });
 }
@@ -2765,13 +2794,14 @@ document.addEventListener("keydown", (event) => {
   if (!myShelf.hidden) {
     if (myShelfView === "room" && !myShelfRoomView.hidden) {
       const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
-      const current = myRoomActiveIndex ?? 0;
+      const hasActive = myRoomActiveIndex !== null;
+      const current = hasActive ? myRoomActiveIndex : centerMyRoomIndex();
       if (event.key === "ArrowRight") {
         event.preventDefault();
-        if (!event.repeat && roomBooks.length) openMyRoomBook((current + 1) % roomBooks.length, { focus: true });
+        if (!event.repeat && roomBooks.length) openMyRoomBook(hasActive ? (current + 1) % roomBooks.length : current, { focus: true });
       } else if (event.key === "ArrowLeft") {
         event.preventDefault();
-        if (!event.repeat && roomBooks.length) openMyRoomBook((current - 1 + roomBooks.length) % roomBooks.length, { focus: true });
+        if (!event.repeat && roomBooks.length) openMyRoomBook(hasActive ? (current - 1 + roomBooks.length) % roomBooks.length : current, { focus: true });
       } else if (isSpace || event.key === "Enter") {
         event.preventDefault();
         if (!event.repeat && roomBooks[current]) roomBooks[current].click();
