@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-2" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-3" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -266,6 +266,40 @@
       <p class="my-shelf-empty" id="myShelfEmpty" hidden>Your saved books will appear here.</p>
     </section>
 
+    <section class="cover-picker" id="coverPicker" role="dialog" aria-modal="true" aria-labelledby="coverPickerTitle" hidden>
+      <div class="cover-picker-card">
+        <header class="cover-picker-header">
+          <div>
+            <p id="coverPickerKicker">选择封面</p>
+            <h2 id="coverPickerTitle"></h2>
+          </div>
+          <button class="book-index-close" id="coverPickerClose" type="button" title="关闭">
+            <i data-lucide="x"></i>
+            <span class="sr-only">关闭</span>
+          </button>
+        </header>
+        <div class="cover-picker-body">
+          <div class="cover-picker-preview add-book-cover" id="coverPickerPreview" aria-hidden="true"></div>
+          <div class="cover-picker-options">
+            <p class="cover-picker-label" id="coverPickerAlternatives">其他版本的封面</p>
+            <div class="cover-picker-grid" id="coverPickerGrid"></div>
+            <p class="cover-picker-status" id="coverPickerStatus" aria-live="polite"></p>
+            <div class="cover-picker-tools">
+              <label class="cover-picker-upload">
+                <input type="file" id="coverPickerFile" accept="image/jpeg,image/png,image/webp" />
+                <span id="coverPickerUploadLabel">上传图片</span>
+              </label>
+              <button type="button" id="coverPickerText" aria-pressed="false">使用文字封面</button>
+            </div>
+          </div>
+        </div>
+        <footer class="cover-picker-footer">
+          <button type="button" id="coverPickerCancel">取消</button>
+          <button type="button" id="coverPickerSave" class="is-primary">保存封面</button>
+        </footer>
+      </div>
+    </section>
+
     <section class="book-detail" id="bookDetail" role="dialog" aria-modal="true" aria-labelledby="detailTitle" aria-hidden="true" hidden>
       <button class="detail-close" id="detailClose" type="button" title="Return to shelf">
         <i data-lucide="x"></i>
@@ -314,6 +348,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261116-4"></script>
+  <script defer src="./app.js?v=20261116-5"></script>
 </body>
 </html>

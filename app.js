@@ -38,6 +38,19 @@ const myShelf = document.querySelector("#myShelf");
 const myShelfClose = document.querySelector("#myShelfClose");
 const myShelfCount = document.querySelector("#myShelfCount");
 const myShelfList = document.querySelector("#myShelfList");
+const coverPicker = document.querySelector("#coverPicker");
+const coverPickerKicker = document.querySelector("#coverPickerKicker");
+const coverPickerTitle = document.querySelector("#coverPickerTitle");
+const coverPickerClose = document.querySelector("#coverPickerClose");
+const coverPickerPreview = document.querySelector("#coverPickerPreview");
+const coverPickerAlternativesLabel = document.querySelector("#coverPickerAlternatives");
+const coverPickerGrid = document.querySelector("#coverPickerGrid");
+const coverPickerStatus = document.querySelector("#coverPickerStatus");
+const coverPickerFile = document.querySelector("#coverPickerFile");
+const coverPickerUploadLabel = document.querySelector("#coverPickerUploadLabel");
+const coverPickerTextButton = document.querySelector("#coverPickerText");
+const coverPickerSave = document.querySelector("#coverPickerSave");
+const coverPickerCancel = document.querySelector("#coverPickerCancel");
 const myShelfEmpty = document.querySelector("#myShelfEmpty");
 const myShelfFilters = document.querySelector(".my-shelf-filters");
 const myShelfSummary = document.querySelector("#myShelfSummary");
@@ -160,6 +173,22 @@ const I18N = {
     searchBookError: "搜索暂时失败，请稍后再试。",
     searchBookQuotaError: "Google Books 搜索额度暂时受限。登录后可以使用站内搜索。",
     searchBookRateLimited: "搜索有点频繁了，请过一会儿再试。",
+    changeCover: "换封面",
+    chooseCover: "选封面",
+    removeFromShelf: "移出书架",
+    confirmRemove: "确认移出",
+    coverPickerKicker: "选择封面",
+    coverPickerAlternatives: "其他版本的封面",
+    coverPickerLoading: "正在找其他封面…",
+    coverPickerNone: "没有找到其他封面，可以上传自己的图片。",
+    coverPickerUpload: "上传图片",
+    coverPickerText: "使用文字封面",
+    coverPickerSave: "保存封面",
+    coverPickerCancel: "取消",
+    coverPickerSaving: "正在保存…",
+    coverPickerTooLarge: "图片太大了，请选择 8MB 以内的图片。",
+    coverPickerBadType: "只支持 JPG、PNG 或 WebP 图片。",
+    coverPickerFailed: "封面保存失败，请稍后再试。",
     addSearchResult: "加入书架",
     addedSearchResult: "已加入",
     wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
@@ -238,6 +267,22 @@ const I18N = {
     searchBookError: "Search is unavailable right now. Please try again later.",
     searchBookQuotaError: "Google Books search is temporarily limited. Sign in to use the built-in search.",
     searchBookRateLimited: "Too many searches for now. Please try again in a little while.",
+    changeCover: "Change cover",
+    chooseCover: "Choose cover",
+    removeFromShelf: "Remove",
+    confirmRemove: "Confirm remove",
+    coverPickerKicker: "Choose a cover",
+    coverPickerAlternatives: "Covers from other editions",
+    coverPickerLoading: "Looking for other covers…",
+    coverPickerNone: "No other covers found. You can upload your own image.",
+    coverPickerUpload: "Upload image",
+    coverPickerText: "Use a text cover",
+    coverPickerSave: "Save cover",
+    coverPickerCancel: "Cancel",
+    coverPickerSaving: "Saving…",
+    coverPickerTooLarge: "That image is too large. Please choose one under 8MB.",
+    coverPickerBadType: "Only JPG, PNG or WebP images are supported.",
+    coverPickerFailed: "Could not save the cover. Please try again.",
     addSearchResult: "Add to shelf",
     addedSearchResult: "Added",
     wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
@@ -1060,11 +1105,11 @@ function renderMyShelf() {
       <small>${label}</small>
     </button>
   `).join("");
-  myShelfList.innerHTML = savedEntries.map(({ book, index, state }) => `
+  myShelfList.innerHTML = savedEntries.map(({ book, index, state }, listIndex) => `
     <li>
       <div class="my-shelf-item">
       <button class="my-shelf-open" type="button" data-my-shelf-index="${index}" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
-        <span class="book-index-number">${String(index + 1).padStart(2, "0")}</span>
+        <span class="book-index-number">${String(listIndex + 1).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
           <strong>${escapeHtml(book.title)}</strong>
@@ -1072,6 +1117,10 @@ function renderMyShelf() {
         </span>
         <i data-lucide="arrow-up-right" aria-hidden="true"></i>
       </button>
+      <div class="my-shelf-item-actions">
+        ${book.isCustom ? `<button type="button" data-cover-book="${index}">${escapeHtml(t("changeCover"))}</button>` : ""}
+        <button type="button" data-remove-book="${index}">${escapeHtml(t("removeFromShelf"))}</button>
+      </div>
       </div>
     </li>
   `).join("");
@@ -1262,9 +1311,12 @@ function renderAddBookResults(results = lastSearchResults) {
             <p>${escapeHtml(book.author)}</p>
             <small>${escapeHtml(book.description[0] || "")}</small>
           </div>
-          <button type="button" data-add-book-result="${index}" ${saved ? "disabled" : ""}>
-            ${saved ? t("addedSearchResult") : t("addSearchResult")}
-          </button>
+          <div class="add-book-result-actions">
+            ${saved ? "" : `<button type="button" class="add-book-cover-choice" data-cover-result="${index}">${escapeHtml(t("chooseCover"))}</button>`}
+            <button type="button" data-add-book-result="${index}" ${saved ? "disabled" : ""}>
+              ${saved ? t("addedSearchResult") : t("addSearchResult")}
+            </button>
+          </div>
         </article>
       </li>
     `;
@@ -1477,6 +1529,164 @@ function addCustomBook(book) {
   renderAddBookResults();
   closeAddBookPanel({ restoreFocus: false });
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
+}
+
+// ---- Shelf management: remove books, choose covers ----
+
+function confirmRemoveFromShelf(button) {
+  const book = books[Number(button.dataset.removeBook)];
+  if (!book) return;
+  if (!button.classList.contains("is-confirming")) {
+    button.classList.add("is-confirming");
+    button.textContent = t("confirmRemove");
+    window.setTimeout(() => {
+      if (!button.isConnected) return;
+      button.classList.remove("is-confirming");
+      button.textContent = t("removeFromShelf");
+    }, 3000);
+    return;
+  }
+  removeBookState(book);
+}
+
+function applyCoverToBook(book, url) {
+  book.image = url || "";
+  book.originalCover = Boolean(url);
+  if (book.isCustom && bookExists(book.id)) writeCustomBooks();
+  const index = books.indexOf(book);
+  const cover = index >= 0 ? bookElements[index]?.querySelector(".book-cover") : null;
+  if (cover) {
+    cover.classList.toggle("has-original-cover", book.originalCover);
+    cover.innerHTML = coverMarkup(book, index);
+  }
+  renderMyShelf();
+  if (index >= 0 && detailIndex === index) populateBookDetail(index);
+  if (getBookState(book)) syncBookStateToSupabase(book);
+}
+
+let coverPickerState = null;
+
+function coverPickerPreviewMarkup(url, book) {
+  return url
+    ? `<img src="${escapeHtml(url)}" alt="" />`
+    : `<span>${escapeHtml(book.title.slice(0, 4))}</span>`;
+}
+
+function renderCoverPicker() {
+  const state = coverPickerState;
+  if (!state) return;
+  const previewUrl = state.uploadPreview || state.selected;
+  coverPickerPreview.style.setProperty("--book-index-color", state.book.spine);
+  coverPickerPreview.innerHTML = coverPickerPreviewMarkup(previewUrl, state.book);
+  coverPickerGrid.innerHTML = state.options.map((url, index) => `
+    <button type="button" data-cover-option="${index}" aria-pressed="${String(!state.uploadBlob && state.selected === url)}">
+      <img src="${escapeHtml(url)}" alt="" loading="lazy" />
+    </button>
+  `).join("");
+  coverPickerTextButton.setAttribute("aria-pressed", String(!state.uploadBlob && !state.selected));
+}
+
+async function openCoverPicker(book, onSaved = null) {
+  coverPickerState = {
+    book,
+    onSaved,
+    selected: book.image || "",
+    options: book.image ? [book.image] : [],
+    uploadBlob: null,
+    uploadPreview: "",
+  };
+  coverPickerKicker.textContent = t("coverPickerKicker");
+  coverPickerTitle.textContent = book.title;
+  coverPickerAlternativesLabel.textContent = t("coverPickerAlternatives");
+  coverPickerUploadLabel.textContent = t("coverPickerUpload");
+  coverPickerTextButton.textContent = t("coverPickerText");
+  coverPickerSave.textContent = t("coverPickerSave");
+  coverPickerCancel.textContent = t("coverPickerCancel");
+  coverPickerSave.disabled = false;
+  coverPickerFile.value = "";
+  coverPickerStatus.textContent = t("coverPickerLoading");
+  renderCoverPicker();
+  coverPicker.hidden = false;
+  requestAnimationFrame(() => coverPicker.classList.add("is-visible"));
+  coverPickerClose.focus({ preventScroll: true });
+
+  const state = coverPickerState;
+  try {
+    const results = await fetchBookSearch(book.title, { limit: 12 });
+    if (coverPickerState !== state) return;
+    const covers = results.map(coverUrlFromSearchResult).filter(Boolean);
+    state.options = [...new Set([...state.options, ...covers])];
+    coverPickerStatus.textContent = state.options.length > (book.image ? 1 : 0) ? "" : t("coverPickerNone");
+  } catch (error) {
+    if (coverPickerState !== state) return;
+    console.warn(error);
+    coverPickerStatus.textContent = error.name === "SearchRateLimitError" ? t("searchBookRateLimited") : t("coverPickerNone");
+  }
+  renderCoverPicker();
+}
+
+function closeCoverPicker() {
+  if (!coverPickerState) return;
+  if (coverPickerState.uploadPreview) URL.revokeObjectURL(coverPickerState.uploadPreview);
+  coverPickerState = null;
+  coverPicker.classList.remove("is-visible");
+  window.setTimeout(() => {
+    if (!coverPickerState) coverPicker.hidden = true;
+  }, 240);
+}
+
+async function resizeCoverImage(file, maxWidth) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("encode failed"))), "image/jpeg", 0.86);
+  });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Signed-in users get the image stored in Supabase Storage (covers/<user id>/…);
+// guests keep a small copy in this browser.
+async function uploadCoverImage(file, book) {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (client && userId) {
+    const blob = await resizeCoverImage(file, 600);
+    const path = `${userId}/${slugifyText(book.id).slice(0, 60) || "cover"}-${Date.now()}.jpg`;
+    const { error } = await client.storage.from("covers").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+    if (error) throw error;
+    return client.storage.from("covers").getPublicUrl(path).data.publicUrl;
+  }
+  return blobToDataUrl(await resizeCoverImage(file, 360));
+}
+
+async function saveCoverPicker() {
+  const state = coverPickerState;
+  if (!state) return;
+  coverPickerSave.disabled = true;
+  coverPickerStatus.textContent = t("coverPickerSaving");
+  try {
+    const url = state.uploadBlob ? await uploadCoverImage(state.uploadBlob, state.book) : state.selected;
+    applyCoverToBook(state.book, url);
+    state.onSaved?.(url);
+    closeCoverPicker();
+  } catch (error) {
+    console.error(error);
+    coverPickerStatus.textContent = t("coverPickerFailed");
+    coverPickerSave.disabled = false;
+  }
 }
 
 function openMyRoomBook(roomIndex, { focus = false, scroll = true } = {}) {
@@ -2292,6 +2502,12 @@ wereadManualImportForm.addEventListener("submit", (event) => {
   importWereadBooks(wereadImportText.value);
 });
 addBookResults.addEventListener("click", (event) => {
+  const coverButton = event.target instanceof Element ? event.target.closest("[data-cover-result]") : null;
+  if (coverButton) {
+    const result = lastSearchResults[Number(coverButton.dataset.coverResult)];
+    if (result) openCoverPicker(result, () => renderAddBookResults());
+    return;
+  }
   const button = event.target instanceof Element ? event.target.closest("[data-add-book-result]") : null;
   if (!button) return;
   const index = Number(button.dataset.addBookResult);
@@ -2332,7 +2548,19 @@ bookIndexList.addEventListener("click", (event) => {
   if (Number.isInteger(index) && books[index]) openBookFromIndex(index);
 });
 myShelfList.addEventListener("click", (event) => {
-  const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
+  const target = event.target instanceof Element ? event.target : null;
+  const coverButton = target?.closest("[data-cover-book]");
+  if (coverButton) {
+    const book = books[Number(coverButton.dataset.coverBook)];
+    if (book) openCoverPicker(book);
+    return;
+  }
+  const removeButton = target?.closest("[data-remove-book]");
+  if (removeButton) {
+    confirmRemoveFromShelf(removeButton);
+    return;
+  }
+  const button = target?.closest("[data-my-shelf-index]");
   if (!button) return;
   const index = Number(button.dataset.myShelfIndex);
   if (Number.isInteger(index) && books[index]) openBookFromMyShelf(index);
@@ -2394,6 +2622,56 @@ myShelfRoom.addEventListener("click", (event) => {
   const index = Number(button.dataset.myShelfIndex);
   if (Number.isInteger(index) && books[index]) openBookFromMyRoom(index, button);
 });
+
+coverPickerGrid.addEventListener("click", (event) => {
+  const option = event.target instanceof Element ? event.target.closest("[data-cover-option]") : null;
+  if (!option || !coverPickerState) return;
+  const state = coverPickerState;
+  if (state.uploadPreview) URL.revokeObjectURL(state.uploadPreview);
+  state.uploadBlob = null;
+  state.uploadPreview = "";
+  state.selected = state.options[Number(option.dataset.coverOption)] || "";
+  renderCoverPicker();
+});
+coverPickerTextButton.addEventListener("click", () => {
+  if (!coverPickerState) return;
+  const state = coverPickerState;
+  if (state.uploadPreview) URL.revokeObjectURL(state.uploadPreview);
+  state.uploadBlob = null;
+  state.uploadPreview = "";
+  state.selected = "";
+  renderCoverPicker();
+});
+coverPickerFile.addEventListener("change", () => {
+  const file = coverPickerFile.files?.[0];
+  const state = coverPickerState;
+  if (!file || !state) return;
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+    coverPickerStatus.textContent = t("coverPickerBadType");
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    coverPickerStatus.textContent = t("coverPickerTooLarge");
+    return;
+  }
+  if (state.uploadPreview) URL.revokeObjectURL(state.uploadPreview);
+  state.uploadBlob = file;
+  state.uploadPreview = URL.createObjectURL(file);
+  coverPickerStatus.textContent = "";
+  renderCoverPicker();
+});
+coverPickerSave.addEventListener("click", saveCoverPicker);
+coverPickerCancel.addEventListener("click", closeCoverPicker);
+coverPickerClose.addEventListener("click", closeCoverPicker);
+coverPicker.addEventListener("click", (event) => {
+  if (event.target === coverPicker) closeCoverPicker();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && coverPickerState) {
+    event.stopImmediatePropagation();
+    closeCoverPicker();
+  }
+}, true);
 
 detailClose.addEventListener("click", closeBookDetail);
 detailReturn.addEventListener("click", closeBookDetail);
