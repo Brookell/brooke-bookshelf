@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-5" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-12" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -28,6 +28,7 @@
     <nav class="space-switch" aria-label="空间切换">
       <button type="button" data-space-target="brooke" aria-pressed="true">参考空间</button>
       <button type="button" data-space-target="user" aria-pressed="false">我的空间</button>
+      <button type="button" class="account-button" id="accountButton">登录</button>
     </nav>
 
     <header class="masthead" aria-labelledby="pageTitle">
@@ -351,6 +352,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261116-10"></script>
+  <script defer src="./app.js?v=20261116-11"></script>
 </body>
 </html>

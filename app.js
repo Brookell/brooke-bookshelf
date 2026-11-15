@@ -3,6 +3,7 @@ const shelfGaps = window.BROOKE_SHELF_GAPS;
 
 const entryScreen = document.querySelector("#entryScreen");
 const spaceSwitch = document.querySelector(".space-switch");
+const accountButton = document.querySelector("#accountButton");
 const viewport = document.querySelector("#shelfViewport");
 const track = document.querySelector("#booksTrack");
 const activeTitle = document.querySelector("#activeTitle");
@@ -173,6 +174,9 @@ const I18N = {
     searchBookError: "搜索暂时失败，请稍后再试。",
     searchBookQuotaError: "Google Books 搜索额度暂时受限。登录后可以使用站内搜索。",
     searchBookRateLimited: "搜索有点频繁了，请过一会儿再试。",
+    signIn: "登录",
+    signOut: "退出登录",
+    signedInAs: "已登录：{email}",
     changeCover: "换封面",
     chooseCover: "选封面",
     removeFromShelf: "移出书架",
@@ -267,6 +271,9 @@ const I18N = {
     searchBookError: "Search is unavailable right now. Please try again later.",
     searchBookQuotaError: "Google Books search is temporarily limited. Sign in to use the built-in search.",
     searchBookRateLimited: "Too many searches for now. Please try again in a little while.",
+    signIn: "Sign in",
+    signOut: "Sign out",
+    signedInAs: "Signed in as {email}",
     changeCover: "Change cover",
     chooseCover: "Choose cover",
     removeFromShelf: "Remove",
@@ -804,8 +811,36 @@ async function syncSettingsToSupabase() {
   if (error) console.error("Supabase user_settings upsert failed", error);
 }
 
+// Sign in / sign out in the top bar. Only a real Supabase session counts as
+// signed in; the local "try first" mode still shows 登录 so people can
+// upgrade to a real account at any time.
+function updateAccountButton() {
+  if (!accountButton) return;
+  const user = supabaseSession?.user;
+  accountButton.hidden = !getSupabaseClient();
+  accountButton.textContent = user ? t("signOut") : t("signIn");
+  accountButton.title = user ? t("signedInAs", { email: user.email || "" }) : t("signIn");
+  accountButton.classList.toggle("is-signed-in", Boolean(user));
+}
+
+async function signOutEverywhere() {
+  const client = getSupabaseClient();
+  accountButton.disabled = true;
+  try {
+    await client?.auth.signOut();
+  } catch (error) {
+    console.warn("Sign out failed", error);
+  }
+  // Everything a signed-in user has is already in Supabase, so clear this
+  // browser's copy to keep the next person on a shared computer out of it.
+  [AUTH_STORAGE_KEY, SHELF_STORAGE_KEY, CUSTOM_BOOKS_STORAGE_KEY, ROOM_NAME_STORAGE_KEY, ROOM_DEFAULT_STORAGE_KEY]
+    .forEach((key) => window.localStorage.removeItem(key));
+  window.location.reload();
+}
+
 async function initializeSupabaseAuth() {
   const client = getSupabaseClient();
+  updateAccountButton();
   if (!client) return;
   const { data, error } = await client.auth.getSession();
   if (error) {
@@ -813,6 +848,7 @@ async function initializeSupabaseAuth() {
     return;
   }
   supabaseSession = data.session || null;
+  updateAccountButton();
   if (supabaseSession?.user) {
     await loadSettingsFromSupabase();
     await loadShelfFromSupabase();
@@ -820,6 +856,7 @@ async function initializeSupabaseAuth() {
   }
   client.auth.onAuthStateChange(async (_event, session) => {
     supabaseSession = session || null;
+    updateAccountButton();
     if (supabaseSession?.user) {
       hasLoadedRemoteShelf = false;
       await loadSettingsFromSupabase();
@@ -1077,6 +1114,7 @@ function notifyParentTheme(book = null) {
 
 function applyLanguage() {
   updateStaticLanguage();
+  updateAccountButton();
   renderBookIndex();
   renderMyShelf();
   updateOnboarding();
@@ -2585,6 +2623,10 @@ viewport.addEventListener("pointercancel", endDrag);
 
 previousBook.addEventListener("click", () => navigateTo((activeIndex ?? 0) - 1, -1));
 nextBook.addEventListener("click", () => navigateTo((activeIndex ?? -1) + 1));
+accountButton?.addEventListener("click", () => {
+  if (supabaseSession?.user) signOutEverywhere();
+  else openAuthGate(null);
+});
 spaceSwitch.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-space-target]") : null;
   if (!button) return;

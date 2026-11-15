@@ -3230,3 +3230,34 @@ h1 {
     padding: 8px 16px 20px;
   }
 }
+
+/* ---- Account (sign in / sign out) in the top bar ---- */
+.space-switch .account-button {
+  margin-left: 4px;
+  padding-left: 16px;
+  border-left: 1px solid var(--hairline);
+  border-bottom-color: transparent;
+}
+
+.space-switch .account-button:hover,
+.space-switch .account-button:focus-visible {
+  border-bottom-color: transparent;
+  color: var(--ink);
+}
+
+.space-switch .account-button[hidden] {
+  display: none;
+}
+
+.library.is-detail-open .space-switch .account-button {
+  border-left-color: color-mix(in srgb, var(--detail-ink) 30%, transparent);
+}
+
+/* On narrower screens the centred title would run into the top-left
+   参考空间 / 我的空间 / 登录 bar, so start it below that bar. */
+@media (max-width: 720px) {
+  .masthead h1,
+  .my-room-title-button {
+    margin-top: 52px;
+  }
+}
