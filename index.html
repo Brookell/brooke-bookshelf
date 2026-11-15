@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#eeece8" />
-  <meta name="description" content="A quiet collection of books selected for Brooke's reading room." />
-  <title>Brooke's Reading Room</title>
+  <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
+  <title>Reading Room</title>
   <link rel="stylesheet" href="./styles.css?v=20260822-41" />
   <script src="./config.js"></script>
   <script>
@@ -17,7 +17,7 @@
   <script defer src="./vendor/lucide/lucide.min.js"></script>
 </head>
 <body>
-  <div class="entry-screen" id="entryScreen" aria-label="正在进入 Brooke Reading Room">
+  <div class="entry-screen" id="entryScreen" aria-label="正在进入 Reading Room">
     <div class="entry-screen-inner">
       <p>正在进入 Reading Room</p>
       <div class="entry-progress" aria-hidden="true"><span></span></div>
@@ -34,10 +34,10 @@
       <div class="masthead-meta" aria-label="Edition details">
         <p><span id="activeNumber">01</span> / <span id="totalBooks">20</span></p>
       </div>
-      <h1 id="pageTitle">Brooke's<br />Reading Room</h1>
+      <h1 id="pageTitle">Reference<br />Room</h1>
     </header>
 
-    <section class="shelf-region" aria-label="Brooke's reading room shelf">
+    <section class="shelf-region" aria-label="Reference room shelf">
       <div class="shelf-toolbar">
         <p id="activeTitle" aria-live="polite">记忆的性别</p>
         <div class="shelf-actions" role="group" aria-label="Shelf navigation">
@@ -173,7 +173,7 @@
     <aside class="shelf-onboarding" id="shelfOnboarding" aria-labelledby="shelfOnboardingTitle" hidden>
       <p class="shelf-onboarding-kicker" id="shelfOnboardingKicker">Build your shelf</p>
       <h2 id="shelfOnboardingTitle">Start with one book</h2>
-      <p id="shelfOnboardingCopy">Browse Brooke's Reading Room, open a book that catches your eye, then add it to begin assembling your own room.</p>
+      <p id="shelfOnboardingCopy">Browse the reference room, open a book that catches your eye, then add it to begin assembling your own room.</p>
       <div class="shelf-onboarding-actions">
         <button class="shelf-onboarding-primary" id="shelfOnboardingStart" type="button">Choose a book</button>
         <button class="shelf-onboarding-secondary" id="shelfOnboardingRoom" type="button" hidden>Open my room</button>
@@ -282,7 +282,7 @@
         <div class="detail-copy-meta">
           <span id="detailNumber">01 / 10</span>
         </div>
-        <p class="detail-kicker">Brooke Reading Room</p>
+        <p class="detail-kicker">Reading Room</p>
         <h2 id="detailTitle"></h2>
         <p class="detail-author" id="detailAuthor"></p>
         <div class="detail-description" id="detailDescription"></div>
@@ -314,6 +314,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261115-1"></script>
+  <script defer src="./app.js?v=20261115-2"></script>
 </body>
 </html>

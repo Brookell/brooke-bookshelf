@@ -130,7 +130,7 @@ const I18N = {
     saveRoomName: "保存",
     myRoomShelf: "我的阅读房间书架",
     emptyShelf: "你保存的书会出现在这里。",
-    detailKicker: "Brooke Reading Room",
+    detailKicker: "Reading Room",
     personalShelfControls: "个人书架操作",
     addToShelf: "加入我的书架",
     readingStatus: "阅读状态",
@@ -207,7 +207,7 @@ const I18N = {
     saveRoomName: "Save",
     myRoomShelf: "My reading room shelf",
     emptyShelf: "Your saved books will appear here.",
-    detailKicker: "Brooke Reading Room",
+    detailKicker: "Reading Room",
     personalShelfControls: "Personal shelf controls",
     addToShelf: "Add to my shelf",
     readingStatus: "Reading status",
@@ -327,7 +327,16 @@ function setButtonLabel(button, label) {
   if (srOnly) srOnly.textContent = label;
 }
 
+const REFERENCE_ROOM_TITLE = "Reference<br />Room";
+
+function updatePageTitle() {
+  const pageTitle = document.getElementById("pageTitle");
+  if (!pageTitle) return;
+  pageTitle.innerHTML = activeSpace === "user" ? formatRoomTitle(myRoomName) : REFERENCE_ROOM_TITLE;
+}
+
 function updateSpaceSwitch() {
+  updatePageTitle();
   spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
   });
@@ -683,6 +692,7 @@ async function loadSettingsFromSupabase() {
   window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, myRoomName);
   window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(showMyRoomFirst));
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  updatePageTitle();
   updateSpaceSwitch();
 }
 
@@ -822,6 +832,7 @@ function updateStaticLanguage() {
   setText("#detailReturn span", t("returnToShelf"));
   setText(".my-room-heading p", t("personalReadingRoom"));
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  updatePageTitle();
   myRoomTitle.title = "点击修改房间名";
   myRoomTitle.setAttribute("aria-label", "点击修改房间名");
   myRoomNameInput.placeholder = t("roomNamePlaceholder");
@@ -2213,6 +2224,7 @@ myRoomNameForm.addEventListener("submit", (event) => {
   myRoomName = myRoomNameInput.value.trim() || "Your Reading Room";
   writeRoomName(myRoomName);
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
+  updatePageTitle();
   myRoomNameForm.hidden = true;
   myRoomTitle.focus({ preventScroll: true });
 });
