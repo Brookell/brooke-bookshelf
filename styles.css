@@ -1604,6 +1604,19 @@ h1 {
   display: none;
 }
 
+.my-room-empty {
+  position: absolute;
+  right: 16px;
+  bottom: 40%;
+  left: 16px;
+  margin: 0;
+  color: var(--muted);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: center;
+}
+
 .my-room-book {
   --room-shift: 0px;
   position: relative;
@@ -2616,7 +2629,7 @@ h1 {
     height: calc(72% - 51px);
     min-height: 220px;
     margin: 0;
-    padding: 0 58px;
+    padding: 0 50%;
     gap: 0;
   }
 

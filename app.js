@@ -1021,9 +1021,9 @@ function renderMyShelf() {
   }, {});
   myShelfCount.textContent = String(totalSaved).padStart(2, "0");
   myShelf.classList.toggle("is-room-view", myShelfView === "room");
-  myShelfEmpty.hidden = savedEntries.length > 0;
+  myShelfEmpty.hidden = savedEntries.length > 0 || myShelfView === "room";
   myShelfListView.hidden = savedEntries.length === 0 || myShelfView !== "list";
-  myShelfRoomView.hidden = savedEntries.length === 0 || myShelfView !== "room";
+  myShelfRoomView.hidden = myShelfView !== "room";
   myShelfSummary.hidden = totalSaved === 0 || myShelfView !== "list";
   myShelfSummary.innerHTML = [
     [t("saved"), totalSaved, "all"],
@@ -1051,7 +1051,9 @@ function renderMyShelf() {
       </div>
     </li>
   `).join("");
-  myShelfRoom.innerHTML = savedEntries.map(({ book, index, state }, roomIndex) => `
+  myShelfRoom.innerHTML = savedEntries.length === 0
+    ? `<p class="my-room-empty">${escapeHtml(t("emptyShelf"))}</p>`
+    : savedEntries.map(({ book, index, state }, roomIndex) => `
     <button class="my-room-book" type="button" data-my-shelf-index="${index}" style="--room-spine: ${book.spine}; --room-ink: ${book.spineInk}; --room-width: ${book.spineWidth}px; --room-cover-width: ${book.width}px; --room-height: ${Math.round(430 * book.height)}px; --room-gap: ${Math.max(book.shelfGap, 18)}px; --room-cover: ${book.color}; --room-cover-ink: ${book.ink}; --art-opacity: ${book.opacity ?? 1}; --art-filter: ${book.filter ?? "none"}; --room-delay: ${roomIndex * 22}ms;" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
       <span class="my-room-book-cover${book.originalCover ? " has-original-cover" : ""}" aria-hidden="true">
         ${coverMarkup(book, index)}
