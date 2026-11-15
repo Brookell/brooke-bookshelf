@@ -1914,6 +1914,10 @@ function populateBookDetail(index) {
   const book = books[index];
   detail.style.setProperty("--detail-bg", book.detailColor ?? book.color);
   detail.style.setProperty("--detail-ink", readableDetailInk(book));
+  // The onboarding card and space switch sit outside #bookDetail, so expose
+  // the detail palette on .library too.
+  library.style.setProperty("--detail-bg", book.detailColor ?? book.color);
+  library.style.setProperty("--detail-ink", readableDetailInk(book));
   detail.style.setProperty("--cover", book.color);
   detail.style.setProperty("--cover-ink", book.ink);
   detail.style.setProperty("--spine", book.spine);

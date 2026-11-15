@@ -333,6 +333,17 @@ button:focus-visible,
   color: var(--ink);
 }
 
+.library.is-detail-open .space-switch button {
+  color: color-mix(in srgb, var(--detail-ink) 62%, transparent);
+}
+
+.library.is-detail-open .space-switch button[aria-pressed="true"],
+.library.is-detail-open .space-switch button:hover,
+.library.is-detail-open .space-switch button:focus-visible {
+  border-bottom-color: var(--detail-ink);
+  color: var(--detail-ink);
+}
+
 .masthead-meta {
   position: absolute;
   top: 0;
