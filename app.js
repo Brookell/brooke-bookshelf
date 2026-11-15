@@ -1094,7 +1094,10 @@ function renderMyShelf() {
   myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
     // Hover only opens the book; scrolling on hover made the room keep
     // sliding as each newly centred book came under the mouse.
-    element.addEventListener("mouseenter", () => openMyRoomBook(roomIndex, { scroll: false }));
+    element.addEventListener("mouseenter", () => {
+      if (roomHasDragged) return;
+      openMyRoomBook(roomIndex, { scroll: false });
+    });
     element.addEventListener("mouseleave", () => {
       if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
     });
@@ -2176,6 +2179,41 @@ myShelfRoom.addEventListener("wheel", (event) => {
   myShelfRoom.scrollLeft += event.deltaY + event.deltaX;
 }, { passive: false });
 
+// Drag the personal room sideways, the same way as the reference shelf.
+let roomDrag = null;
+let roomHasDragged = false;
+
+myShelfRoom.addEventListener("pointerdown", (event) => {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  roomDrag = { startX: event.clientX, startScroll: myShelfRoom.scrollLeft };
+  roomHasDragged = false;
+});
+
+myShelfRoom.addEventListener("pointermove", (event) => {
+  if (!roomDrag) return;
+  const distance = event.clientX - roomDrag.startX;
+  if (Math.abs(distance) > 5 && !roomHasDragged) {
+    roomHasDragged = true;
+    myShelfRoom.classList.add("is-dragging");
+    myShelfRoom.setPointerCapture(event.pointerId);
+  }
+  if (!roomHasDragged) return;
+  myShelfRoom.scrollLeft = roomDrag.startScroll - distance;
+});
+
+function endRoomDrag(event) {
+  if (!roomDrag) return;
+  roomDrag = null;
+  myShelfRoom.classList.remove("is-dragging");
+  if (myShelfRoom.hasPointerCapture(event.pointerId)) myShelfRoom.releasePointerCapture(event.pointerId);
+  window.setTimeout(() => {
+    roomHasDragged = false;
+  }, 0);
+}
+
+myShelfRoom.addEventListener("pointerup", endRoomDrag);
+myShelfRoom.addEventListener("pointercancel", endRoomDrag);
+
 viewport.addEventListener("pointerdown", (event) => {
   if (event.pointerType === "mouse" && event.button !== 0) return;
   dragStartX = event.clientX;
@@ -2347,6 +2385,10 @@ roomOnlyToggle.addEventListener("click", () => {
   else requireAuth(() => openUserSpace({ restoreFocus: false }));
 });
 myShelfRoom.addEventListener("click", (event) => {
+  if (roomHasDragged) {
+    event.preventDefault();
+    return;
+  }
   const button = event.target instanceof Element ? event.target.closest("[data-my-shelf-index]") : null;
   if (!button) return;
   const index = Number(button.dataset.myShelfIndex);

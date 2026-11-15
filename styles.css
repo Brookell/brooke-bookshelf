@@ -1677,6 +1677,20 @@ h1 {
   display: none;
 }
 
+.my-room-rail {
+  cursor: grab;
+  touch-action: pan-x;
+}
+
+.my-room-rail.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.my-room-rail.is-dragging .my-room-book {
+  cursor: grabbing;
+}
+
 .my-room-empty {
   position: absolute;
   right: 16px;
