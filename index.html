@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-4" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-5" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -195,6 +195,7 @@
     </section>
 
     <section class="my-shelf" id="myShelf" aria-labelledby="myShelfTitle" aria-hidden="true" hidden>
+      <div class="panel-scroll" id="myShelfScroll">
       <header class="book-index-header">
         <div>
           <p>Personal shelf / <span id="myShelfCount">00</span> saved</p>
@@ -214,6 +215,27 @@
       </div>
 
       <div class="my-shelf-summary" id="myShelfSummary" aria-label="My shelf summary"></div>
+
+
+      <div class="my-shelf-view my-shelf-view--list" id="myShelfListView">
+        <ol class="book-index-list my-shelf-list" id="myShelfList"></ol>
+      </div>
+      <div class="my-shelf-view my-shelf-view--room" id="myShelfRoomView" hidden>
+        <div class="my-room-stage">
+          <div class="my-room-heading">
+            <p>Personal reading room</p>
+            <button class="my-room-title-button" id="myRoomTitle" type="button" title="点击修改房间名">Your<br />Reading Room</button>
+            <form class="my-room-name-form" id="myRoomNameForm" hidden>
+              <input id="myRoomNameInput" type="text" maxlength="36" autocomplete="off" placeholder="Your Reading Room" />
+              <button type="submit">Save</button>
+            </form>
+          </div>
+          <div class="my-room-rail" id="myShelfRoom" aria-label="My reading room shelf"></div>
+          <div class="my-room-rule" aria-hidden="true"></div>
+        </div>
+      </div>
+      <p class="my-shelf-empty" id="myShelfEmpty" hidden>Your saved books will appear here.</p>
+      </div>
 
       <div class="my-shelf-view-toggle" role="group" aria-label="My shelf view">
         <button class="icon-button" type="button" data-my-shelf-action="info" title="查看操作提示">
@@ -245,25 +267,6 @@
           <span class="sr-only">下一本书</span>
         </button>
       </div>
-
-      <div class="my-shelf-view my-shelf-view--list" id="myShelfListView">
-        <ol class="book-index-list my-shelf-list" id="myShelfList"></ol>
-      </div>
-      <div class="my-shelf-view my-shelf-view--room" id="myShelfRoomView" hidden>
-        <div class="my-room-stage">
-          <div class="my-room-heading">
-            <p>Personal reading room</p>
-            <button class="my-room-title-button" id="myRoomTitle" type="button" title="点击修改房间名">Your<br />Reading Room</button>
-            <form class="my-room-name-form" id="myRoomNameForm" hidden>
-              <input id="myRoomNameInput" type="text" maxlength="36" autocomplete="off" placeholder="Your Reading Room" />
-              <button type="submit">Save</button>
-            </form>
-          </div>
-          <div class="my-room-rail" id="myShelfRoom" aria-label="My reading room shelf"></div>
-          <div class="my-room-rule" aria-hidden="true"></div>
-        </div>
-      </div>
-      <p class="my-shelf-empty" id="myShelfEmpty" hidden>Your saved books will appear here.</p>
     </section>
 
     <section class="cover-picker" id="coverPicker" role="dialog" aria-modal="true" aria-labelledby="coverPickerTitle" hidden>

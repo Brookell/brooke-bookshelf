@@ -3181,3 +3181,52 @@ h1 {
   }
 
 }
+
+/* ---- Fixed chrome around full-screen panels ----
+   The 参考空间 / 我的空间 switch stays pinned at the top and the my-shelf
+   toolbar at the bottom; only the area between them scrolls, so content
+   never slides underneath either of them. */
+
+.book-index,
+.add-book-panel {
+  top: max(72px, calc(env(safe-area-inset-top) + 56px));
+  padding-top: 12px;
+}
+
+.my-shelf {
+  padding: 0;
+  overflow: hidden;
+}
+
+.my-shelf > .panel-scroll {
+  position: absolute;
+  inset: max(72px, calc(env(safe-area-inset-top) + 56px)) 0 calc(max(22px, env(safe-area-inset-bottom)) + 66px);
+  padding: 12px clamp(24px, 6vw, 92px) 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 21, 21, 0.22) transparent;
+}
+
+.my-shelf.is-room-view > .panel-scroll {
+  inset: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.my-shelf .my-shelf-list {
+  padding-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+  .book-index,
+  .add-book-panel {
+    top: max(64px, calc(env(safe-area-inset-top) + 48px));
+    padding-top: 8px;
+  }
+
+  .my-shelf > .panel-scroll {
+    inset: max(64px, calc(env(safe-area-inset-top) + 48px)) 0 calc(max(12px, env(safe-area-inset-bottom)) + 58px);
+    padding: 8px 16px 20px;
+  }
+}
