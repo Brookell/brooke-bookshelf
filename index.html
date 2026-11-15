@@ -7,7 +7,12 @@
   <meta name="description" content="A quiet collection of books selected for Brooke's reading room." />
   <title>Brooke's Reading Room</title>
   <link rel="stylesheet" href="./styles.css?v=20260822-41" />
-  <script src="./config.local.js"></script>
+  <script src="./config.js"></script>
+  <script>
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      document.write('<script src="./config.local.js"><\/script>');
+    }
+  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.0/dist/umd/supabase.min.js"></script>
   <script defer src="./vendor/lucide/lucide.min.js"></script>
 </head>

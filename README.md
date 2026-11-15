@@ -101,7 +101,7 @@ own rows through `auth.uid() = user_id`.
 
 ### 06 / Local Setup
 
-Create a local config file:
+Optionally create a local config file for overrides:
 
 ```js
 // config.local.js
@@ -123,8 +123,11 @@ Open:
 http://127.0.0.1:5173/
 ```
 
-`config.local.js` is intentionally ignored by Git. Do not commit private API
-keys or Supabase service role secrets.
+The public Supabase URL and anon key live in `config.js`, which is committed so
+the live site can sign users in. The anon key is safe to ship because Row Level
+Security guards every table. `config.local.js` is optional, ignored by Git, and
+only loaded on `localhost` / `127.0.0.1`; use it for local overrides such as a
+Google Books API key. Never commit Supabase service role secrets.
 
 ### 07 / Supabase Setup
 
@@ -236,7 +239,7 @@ Brooke's Reading Room 最初是一座个人互动书架：它收藏了一些持�
 
 ### 06 / 本地运行
 
-先创建本地配置：
+如需本地覆盖配置，可以创建：
 
 ```js
 // config.local.js
@@ -258,7 +261,10 @@ python3 -m http.server 5173
 http://127.0.0.1:5173/
 ```
 
-`config.local.js` 已经被 Git 忽略。不要提交私人 API Key 或 Supabase
+公开的 Supabase 地址和 anon key 放在 `config.js` 里，并提交到仓库，这样线上
+网站才能让用户登录。anon key 可以公开，因为每张表都由 Row Level Security 保护。
+`config.local.js` 是可选的，已被 Git 忽略，只会在 `localhost` / `127.0.0.1`
+上加载，适合放 Google Books API Key 等本地覆盖配置。不要提交 Supabase
 `service_role` 密钥。
 
 ### 07 / Supabase 设置
