@@ -1,4 +1,7 @@
-// Book search for signed-in users.
+// Book search and book details for signed-in users.
+//
+// POST { query, limit }  -> { results: SearchResult[] }
+// POST { bookId }        -> { info: BookInfo | null }   (WeRead /book/info)
 //
 // Tries WeRead's /store/search first (good Chinese coverage and covers), then
 // falls back to Google Books. Both upstream keys live in Supabase secrets:
@@ -68,7 +71,8 @@ async function rest(path: string, init: RequestInit = {}) {
   });
 }
 
-async function readCache(cacheKey: string): Promise<SearchResult[] | null> {
+// deno-lint-ignore no-explicit-any
+async function readCache(cacheKey: string): Promise<any | null> {
   const since = new Date(Date.now() - CACHE_TTL_HOURS * 3600_000).toISOString();
   const response = await rest(
     `book_search_cache?select=results&query_key=eq.${encodeURIComponent(cacheKey)}&created_at=gte.${encodeURIComponent(since)}`,
@@ -78,7 +82,8 @@ async function readCache(cacheKey: string): Promise<SearchResult[] | null> {
   return rows[0]?.results ?? null;
 }
 
-async function writeCache(cacheKey: string, results: SearchResult[]) {
+// deno-lint-ignore no-explicit-any
+async function writeCache(cacheKey: string, results: any) {
   await rest("book_search_cache?on_conflict=query_key", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates" },
@@ -151,6 +156,47 @@ async function searchWeread(query: string, limit: number): Promise<SearchResult[
   return results;
 }
 
+type BookInfo = {
+  bookId: string;
+  intro: string;
+  publisher: string;
+  publishTime: string;
+  category: string;
+  isbn: string;
+  rating: number | null;
+};
+
+async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
+  const apiKey = env("WEREAD_API_KEY");
+  if (!apiKey) return null;
+  const response = await fetch(WEREAD_GATEWAY_URL, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_name: "/book/info",
+      skill_version: env("WEREAD_SKILL_VERSION") || SKILL_VERSION,
+      bookId,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.errcode || data.upgrade_info) {
+    console.error("weread book info failed", response.status, data.errcode, data.errmsg || data.upgrade_info?.message);
+    return null;
+  }
+  const info = data.bookInfo && typeof data.bookInfo === "object" ? data.bookInfo : data;
+  const rating = Number(info.newRating);
+  return {
+    bookId,
+    intro: String(info.intro || "").replace(/\r/g, "").trim(),
+    publisher: String(info.publisher || "").trim(),
+    publishTime: String(info.publishTime || "").slice(0, 10),
+    category: String(info.category || "").trim(),
+    isbn: String(info.isbn || "").trim(),
+    // WeRead reports ratings out of 1000.
+    rating: Number.isFinite(rating) && rating > 0 ? Math.round(rating / 10) : null,
+  };
+}
+
 async function searchGoogle(query: string, limit: number): Promise<SearchResult[]> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", query);
@@ -192,6 +238,21 @@ Deno.serve(async (request) => {
     if (!userId) return jsonResponse({ error: "sign_in_required" }, 401);
 
     const body = await request.json().catch(() => ({}));
+
+    if (body.bookId !== undefined) {
+      const bookId = String(body.bookId || "").trim().slice(0, 40);
+      if (!/^[\w-]+$/.test(bookId)) return jsonResponse({ error: "invalid_book_id" }, 400);
+      const cacheKey = `info|${bookId}`;
+      const cached = await readCache(cacheKey);
+      if (cached) return jsonResponse({ info: cached, cached: true });
+      if (await overRateLimit(userId)) return jsonResponse({ error: "rate_limited" }, 429);
+      const info = await wereadBookInfo(bookId);
+      await logSearch(userId, `info:${bookId}`, info ? "weread-info" : "none");
+      // deno-lint-ignore no-explicit-any
+      if (info) await writeCache(cacheKey, info as any);
+      return jsonResponse({ info, cached: false });
+    }
+
     const query = String(body.query || "").trim().slice(0, 80);
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(body.limit) || 8));
     if (!query) return jsonResponse({ error: "missing_query" }, 400);

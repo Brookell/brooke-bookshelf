@@ -520,6 +520,7 @@ function normalizeBook(book, index = books.length) {
     source: book.source || "",
     sourceId: book.sourceId || "",
     deepLink: book.deepLink || "",
+    introFetched: Boolean(book.introFetched),
   };
 }
 
@@ -2298,10 +2299,66 @@ function populateBookDetail(index) {
     : "";
   detailTitle.textContent = book.title;
   detailAuthor.textContent = book.author;
+  renderDetailDescription(book);
+  updateDetailShelfControls();
+  loadRealIntro(book);
+}
+
+function renderDetailDescription(book) {
   detailDescription.innerHTML = book.description
     .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
     .join("");
-  updateDetailShelfControls();
+}
+
+// Keep the detail page tidy: first paragraph of the intro, cut near 180
+// characters at a sentence end where possible.
+function shortenIntro(text) {
+  const first = String(text || "").split(/\n+/).map((line) => line.trim()).find(Boolean) || "";
+  const characters = [...first];
+  if (characters.length <= 180) return first;
+  const head = characters.slice(0, 180).join("");
+  const stop = Math.max(head.lastIndexOf("。"), head.lastIndexOf("！"), head.lastIndexOf("？"));
+  return stop > 80 ? head.slice(0, stop + 1) : `${head}…`;
+}
+
+// Books imported from the WeRead shelf only come with a title, author and
+// category, so their description starts as a placeholder. When a signed-in
+// user opens one, fetch the real intro once via WeRead /book/info (through
+// the search-books Edge Function) and keep it with the book.
+const introRequests = new Set();
+
+async function loadRealIntro(book) {
+  if (book.source !== "weread" || !book.sourceId || book.introFetched || introRequests.has(book.id)) return;
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) return;
+  introRequests.add(book.id);
+  try {
+    const response = await fetch(`${readSupabaseFunctionsUrl()}/search-books`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        apikey: readSupabaseAnonKey(),
+      },
+      body: JSON.stringify({ bookId: book.sourceId }),
+    });
+    if (!response.ok) return;
+    const { info } = await response.json().catch(() => ({}));
+    book.introFetched = true;
+    if (info) {
+      const intro = shortenIntro(info.intro);
+      const meta = [info.publisher, String(info.publishTime || "").slice(0, 7)].filter(Boolean).join(" · ");
+      const description = [intro, meta].filter(Boolean);
+      if (description.length) book.description = description;
+    }
+    if (book.isCustom) writeCustomBooks();
+    if (getBookState(book)) syncBookStateToSupabase(book);
+    if (detailIndex === books.indexOf(book)) renderDetailDescription(book);
+  } catch (error) {
+    console.warn("WeRead book info failed", error);
+  } finally {
+    introRequests.delete(book.id);
+  }
 }
 
 function positionDetailBook(index = detailIndex ?? activeIndex ?? 0) {
