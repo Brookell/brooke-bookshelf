@@ -267,6 +267,10 @@ let myRoomActiveIndex = null;
 let dragStartX = 0;
 let dragStartScroll = 0;
 let isDragging = false;
+// Last known mouse X, and where the mouse was when a book was pinned by
+// keyboard/arrow navigation. Hover takes over again once the mouse moves.
+let lastPointerX = null;
+let pinPointerX = null;
 let hasDragged = false;
 let didSetInitialScroll = false;
 let detailIndex = null;
@@ -1750,9 +1754,17 @@ function createBook(book, index) {
   `;
 
   const hitArea = element.querySelector(".book-hit-area");
-  hitArea.addEventListener("mouseenter", () => {
+  hitArea.addEventListener("mouseenter", (event) => {
     if (isDragging) return;
-    if (pinnedIndex !== null && pinnedIndex !== index) return;
+    if (pinnedIndex !== null && pinnedIndex !== index) {
+      // A click is about to open the detail page: keep that book.
+      if (detailOpenTimer || detailIndex !== null) return;
+      // Pinned by arrow keys: ignore hover caused by scrolling under a
+      // still mouse, but let a real mouse move take over again.
+      if (pinPointerX !== null && Math.abs(event.clientX - pinPointerX) < 6) return;
+      pinnedIndex = null;
+      pinPointerX = null;
+    }
     element.classList.add("is-hovered");
     if (pinnedIndex === null) openBook(index, false);
   });
@@ -1789,7 +1801,14 @@ function measureShelf() {
     const element = bookElements[index];
     element.style.setProperty("--book-height", `${Math.round(maximumHeight * book.height)}px`);
     element.style.setProperty("--x", `${cursor}px`);
-    cursor += book.spineWidth + (shelfGaps[index] ?? book.shelfGap ?? 24);
+    const gap = shelfGaps[index] ?? book.shelfGap ?? 24;
+    // Stretch each hover zone across the gap to the next spine, so moving the
+    // mouse along the shelf never falls into a dead zone between books.
+    const isLast = index === books.length - 1;
+    const hitGap = isLast ? 0 : gap;
+    element.style.setProperty("--hit-gap", `${hitGap}px`);
+    element.style.setProperty("--hit-width", `${book.spineWidth + hitGap}px`);
+    cursor += book.spineWidth + gap;
   });
   const sidePadding = Math.max(190, viewport.clientWidth * 0.38);
   track.style.setProperty("--track-pad", `${Math.ceil(sidePadding)}px`);
@@ -1827,7 +1846,6 @@ function applyBookShifts(index) {
   bookElements.forEach((element, itemIndex) => {
     const shift = itemIndex < index ? beforeShift : itemIndex > index ? afterShift : activeShift;
     element.style.setProperty("--shift", `${Math.round(shift)}px`);
-    element.style.setProperty("--hit-shift", `${Math.round(-shift)}px`);
   });
 }
 
@@ -1869,7 +1887,6 @@ function openBook(index, pin = false) {
 function resetBookShifts() {
   bookElements.forEach((element) => {
     element.style.setProperty("--shift", "0px");
-    element.style.setProperty("--hit-shift", "0px");
   });
 }
 
@@ -2045,6 +2062,7 @@ function closeBookDetail() {
 function navigateTo(index) {
   const normalized = (index + books.length) % books.length;
   pinnedIndex = normalized;
+  pinPointerX = lastPointerX;
   openBook(normalized, true);
   const element = bookElements[normalized];
   const viewBounds = viewport.getBoundingClientRect();
@@ -2079,6 +2097,10 @@ viewport.addEventListener("pointerdown", (event) => {
   isDragging = true;
   hasDragged = false;
 });
+
+document.addEventListener("pointermove", (event) => {
+  if (event.pointerType === "mouse") lastPointerX = event.clientX;
+}, { passive: true });
 
 viewport.addEventListener("pointermove", (event) => {
   if (!isDragging) return;

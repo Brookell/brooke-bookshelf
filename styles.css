@@ -1885,7 +1885,7 @@ h1 {
 .book-slot {
   --x: 0px;
   --shift: 0px;
-  --hit-shift: 0px;
+  --hit-gap: 0px;
   --lift: 0px;
   --hit-lift: 0px;
   --book-width: 210px;
@@ -1919,9 +1919,9 @@ h1 {
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 80;
-  width: var(--spine-width);
+  width: var(--hit-width, var(--spine-width));
   pointer-events: auto;
-  transform: translate3d(var(--hit-shift), var(--hit-lift), 0);
+  transform: translate3d(0, var(--hit-lift), 0);
   transition: transform 480ms cubic-bezier(0.22, 0.8, 0.2, 1);
 }
 
@@ -1948,6 +1948,18 @@ h1 {
 
 .book-slot.is-open {
   --layer: 50;
+}
+
+/* Hover zones follow what is on screen: each closed book owns its spine plus
+   the gap after it, and the open book owns its whole cover plus that gap.
+   Neighbouring spines stay reachable and there are no dead zones. */
+.book-slot.is-open .book-hit-area {
+  width: calc(var(--book-width) + var(--hit-gap));
+}
+
+.book-slot.is-open[data-open-side="left"] .book-hit-area {
+  right: calc(var(--hit-gap) * -1);
+  left: auto;
 }
 
 .book-slot.is-open .book-object {
