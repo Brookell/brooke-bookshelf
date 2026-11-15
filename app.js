@@ -1118,8 +1118,13 @@ function renderMyShelf() {
         <i data-lucide="arrow-up-right" aria-hidden="true"></i>
       </button>
       <div class="my-shelf-item-actions">
-        ${book.isCustom ? `<button type="button" data-cover-book="${index}">${escapeHtml(t("changeCover"))}</button>` : ""}
-        <button type="button" data-remove-book="${index}">${escapeHtml(t("removeFromShelf"))}</button>
+        ${book.isCustom ? `
+        <button type="button" data-cover-book="${index}" title="${escapeHtml(t("changeCover"))}" aria-label="${escapeHtml(t("changeCover"))}：${escapeHtml(book.title)}">
+          <i data-lucide="image-plus" aria-hidden="true"></i>
+        </button>` : ""}
+        <button type="button" data-remove-book="${index}" title="${escapeHtml(t("removeFromShelf"))}" aria-label="${escapeHtml(t("removeFromShelf"))}：${escapeHtml(book.title)}">
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+        </button>
       </div>
       </div>
     </li>
@@ -1536,13 +1541,17 @@ function addCustomBook(book) {
 function confirmRemoveFromShelf(button) {
   const book = books[Number(button.dataset.removeBook)];
   if (!book) return;
+  const setLabel = (label) => {
+    button.title = label;
+    button.setAttribute("aria-label", `${label}：${book.title}`);
+  };
   if (!button.classList.contains("is-confirming")) {
     button.classList.add("is-confirming");
-    button.textContent = t("confirmRemove");
+    setLabel(t("confirmRemove"));
     window.setTimeout(() => {
       if (!button.isConnected) return;
       button.classList.remove("is-confirming");
-      button.textContent = t("removeFromShelf");
+      setLabel(t("removeFromShelf"));
     }, 3000);
     return;
   }

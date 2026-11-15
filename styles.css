@@ -2942,6 +2942,21 @@ h1 {
   transform: none;
 }
 
+.book-index-list .my-shelf-item-actions button {
+  display: inline-grid;
+  width: 32px;
+  min-height: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  grid-template-columns: none;
+}
+
+.book-index-list .my-shelf-item-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
 .book-index-list .my-shelf-item-actions button.is-confirming {
   border-color: #9b2c2c;
   background: #9b2c2c;
@@ -3165,12 +3180,4 @@ h1 {
     width: 100%;
   }
 
-  .my-shelf-item {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
-
-  .my-shelf-item-actions {
-    padding: 0 0 12px 47px;
-  }
 }
