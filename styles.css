@@ -1909,6 +1909,10 @@ h1 {
   pointer-events: none;
 }
 
+.book-slot.is-personal {
+  display: none;
+}
+
 .book-slot.is-hovered {
   --lift: -34px;
   --hit-lift: 34px;

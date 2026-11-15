@@ -158,7 +158,8 @@ const I18N = {
     searchBookLoading: "正在搜索...",
     searchBookEmpty: "没有找到合适的结果，试试换一个关键词。",
     searchBookError: "搜索暂时失败，请稍后再试。",
-    searchBookQuotaError: "Google Books 搜索额度暂时受限。正式版需要配置 API key 或通过 Supabase 中转。",
+    searchBookQuotaError: "Google Books 搜索额度暂时受限。登录后可以使用站内搜索。",
+    searchBookRateLimited: "搜索有点频繁了，请过一会儿再试。",
     addSearchResult: "加入书架",
     addedSearchResult: "已加入",
     wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
@@ -235,7 +236,8 @@ const I18N = {
     searchBookLoading: "Searching...",
     searchBookEmpty: "No matching books yet. Try another keyword.",
     searchBookError: "Search is unavailable right now. Please try again later.",
-    searchBookQuotaError: "Google Books quota is limited right now. Production should use an API key or Supabase proxy.",
+    searchBookQuotaError: "Google Books search is temporarily limited. Sign in to use the built-in search.",
+    searchBookRateLimited: "Too many searches for now. Please try again in a little while.",
     addSearchResult: "Add to shelf",
     addedSearchResult: "Added",
     wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
@@ -396,6 +398,24 @@ books.forEach((book, index) => {
   book.id = book.id || slugifyBook(book, index);
 });
 books.push(...readCustomBooks());
+
+// The reference shelf shows only the curated books from books.tsv. Books a
+// user searched for or imported (isCustom) live in their own room instead.
+function isReferenceBook(book) {
+  return Boolean(book) && !book.isCustom;
+}
+
+function referenceCount() {
+  return books.filter(isReferenceBook).length;
+}
+
+function referencePosition(index) {
+  return books.slice(0, index + 1).filter(isReferenceBook).length;
+}
+
+function formatReferenceCount() {
+  return String(referenceCount()).padStart(2, "0");
+}
 window.BROOKE_BOOKS = books;
 
 function normalizeBook(book, index = books.length) {
@@ -660,7 +680,7 @@ async function loadShelfFromSupabase() {
   isSyncingRemoteShelf = false;
   hasLoadedRemoteShelf = true;
   writeUserBooks();
-  totalBooks.textContent = String(books.length).padStart(2, "0");
+  totalBooks.textContent = formatReferenceCount();
   renderBookIndex();
   renderMyShelf();
   measureShelf();
@@ -995,11 +1015,11 @@ function applyLanguage() {
 }
 
 function renderBookIndex() {
-  bookIndexCount.textContent = String(books.length).padStart(2, "0");
-  bookIndexList.innerHTML = books.map((book, index) => `
+  bookIndexCount.textContent = formatReferenceCount();
+  bookIndexList.innerHTML = books.map((book, index) => !isReferenceBook(book) ? "" : `
     <li>
       <button type="button" data-book-index="${index}" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
-        <span class="book-index-number">${String(index + 1).padStart(2, "0")}</span>
+        <span class="book-index-number">${String(referencePosition(index)).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
           <strong>${escapeHtml(book.title)}</strong>
@@ -1152,7 +1172,8 @@ function customBookFromSearchResult(result, offset = 0) {
   const info = result.volumeInfo || {};
   const title = info.title || "未命名书籍";
   const author = info.authors?.slice(0, 2).join(" / ") || "作者未知";
-  const publishYear = info.publishedDate ? `出版时间：${info.publishedDate}` : "来自 Google Books 搜索。";
+  const sourceLabel = result.source === "weread" ? "来自微信读书搜索。" : "来自 Google Books 搜索。";
+  const publishYear = info.publishedDate ? `出版时间：${info.publishedDate}` : sourceLabel;
   const description = String(info.description || "")
     .replace(/<[^>]+>/g, "")
     .replace(/\s+/g, " ")
@@ -1253,17 +1274,66 @@ async function searchBooks(query) {
   addBookStatus.textContent = t("searchBookLoading");
   addBookResults.innerHTML = "";
   try {
-    const results = (await fetchGoogleBooks(trimmed, { limit: 8, signal: addBookAbortController.signal }))
+    const results = (await fetchBookSearch(trimmed, { limit: 8, signal: addBookAbortController.signal }))
       .map((result, index) => customBookFromSearchResult(result, index));
     addBookStatus.textContent = results.length ? `找到 ${results.length} 本相关书籍` : t("searchBookEmpty");
     renderAddBookResults(results);
   } catch (error) {
     if (error.name === "AbortError") return;
     console.error(error);
-    addBookStatus.textContent = error.name === "GoogleBooksQuotaError" ? t("searchBookQuotaError") : t("searchBookError");
+    addBookStatus.textContent = error.name === "GoogleBooksQuotaError"
+      ? t("searchBookQuotaError")
+      : error.name === "SearchRateLimitError" ? t("searchBookRateLimited") : t("searchBookError");
   } finally {
     addBookAbortController = null;
   }
+}
+
+// Signed-in users search through the search-books Edge Function (WeRead first,
+// then Google Books, with server-side keys, caching and rate limiting).
+// Guests, or any failure other than a rate limit, fall back to keyless Google.
+async function fetchBookSearch(query, { limit = 8, signal = null } = {}) {
+  const accessToken = await getSupabaseAccessToken();
+  if (accessToken) {
+    try {
+      const response = await fetch(`${readSupabaseFunctionsUrl()}/search-books`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          apikey: readSupabaseAnonKey(),
+        },
+        body: JSON.stringify({ query: query.trim(), limit }),
+        signal,
+      });
+      if (response.status === 429) {
+        const rateError = new Error("Book search rate limited");
+        rateError.name = "SearchRateLimitError";
+        throw rateError;
+      }
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) return (data.results || []).map(searchResultToVolume);
+      console.warn("search-books failed", response.status, data.error);
+    } catch (error) {
+      if (error.name === "AbortError" || error.name === "SearchRateLimitError") throw error;
+      console.warn(error);
+    }
+  }
+  return fetchGoogleBooks(query, { limit, signal });
+}
+
+function searchResultToVolume(result) {
+  return {
+    id: result.id,
+    source: result.source,
+    volumeInfo: {
+      title: result.title,
+      authors: result.author ? [result.author] : [],
+      description: result.description || "",
+      publishedDate: result.publishedDate || "",
+      imageLinks: result.cover ? { thumbnail: result.cover } : {},
+    },
+  };
 }
 
 async function fetchGoogleBooks(query, { limit = 8, signal = null } = {}) {
@@ -1301,7 +1371,7 @@ async function importWereadBooks(text) {
   for (const [index, title] of titles.entries()) {
     wereadImportStatus.textContent = t("wereadImportLoading", { current: index + 1, total: titles.length });
     try {
-      const [result] = await fetchGoogleBooks(title, { limit: 1 });
+      const [result] = await fetchBookSearch(title, { limit: 1 });
       if (!result) {
         failed += 1;
         continue;
@@ -1317,10 +1387,10 @@ async function importWereadBooks(text) {
     } catch (error) {
       console.error(error);
       failed += 1;
-      if (error.name === "GoogleBooksQuotaError") break;
+      if (error.name === "GoogleBooksQuotaError" || error.name === "SearchRateLimitError") break;
     }
   }
-  totalBooks.textContent = String(books.length).padStart(2, "0");
+  totalBooks.textContent = formatReferenceCount();
   renderBookIndex();
   renderMyShelf();
   measureShelf();
@@ -1371,7 +1441,7 @@ async function syncWereadShelf(apiKey) {
       saveBookState(book, status || DEFAULT_STATUS);
     });
 
-    totalBooks.textContent = String(books.length).padStart(2, "0");
+    totalBooks.textContent = formatReferenceCount();
     renderBookIndex();
     renderMyShelf();
     measureShelf();
@@ -1394,7 +1464,7 @@ function addCustomBook(book) {
     books.push(book);
     writeCustomBooks();
     createBook(book, books.length - 1);
-    totalBooks.textContent = String(books.length).padStart(2, "0");
+    totalBooks.textContent = formatReferenceCount();
     renderBookIndex();
     measureShelf();
   }
@@ -1725,7 +1795,7 @@ function coverMarkup(book, index) {
 
 function createBook(book, index) {
   const element = document.createElement("button");
-  element.className = "book-slot";
+  element.className = isReferenceBook(book) ? "book-slot" : "book-slot is-personal";
   element.type = "button";
   element.dataset.index = String(index);
   element.dataset.openSide = "right";
@@ -1797,14 +1867,16 @@ function measureShelf() {
   const availableHeight = viewport.clientHeight;
   const maximumHeight = Math.max(260, Math.min(430, availableHeight - 8));
   let cursor = 0;
+  const lastReferenceIndex = books.map(isReferenceBook).lastIndexOf(true);
   books.forEach((book, index) => {
+    if (!isReferenceBook(book)) return;
     const element = bookElements[index];
     element.style.setProperty("--book-height", `${Math.round(maximumHeight * book.height)}px`);
     element.style.setProperty("--x", `${cursor}px`);
     const gap = shelfGaps[index] ?? book.shelfGap ?? 24;
     // Stretch each hover zone across the gap to the next spine, so moving the
     // mouse along the shelf never falls into a dead zone between books.
-    const isLast = index === books.length - 1;
+    const isLast = index === lastReferenceIndex;
     const hitGap = isLast ? 0 : gap;
     element.style.setProperty("--hit-gap", `${hitGap}px`);
     element.style.setProperty("--hit-width", `${book.spineWidth + hitGap}px`);
@@ -1880,7 +1952,7 @@ function openBook(index, pin = false) {
   element.setAttribute("aria-expanded", "true");
   applyBookShifts(index);
   activeTitle.textContent = `${books[index].title} / ${books[index].author}`;
-  activeNumber.textContent = String(index + 1).padStart(2, "0");
+  activeNumber.textContent = String(referencePosition(index)).padStart(2, "0");
   keepCoverInView(index);
 }
 
@@ -1942,7 +2014,9 @@ function populateBookDetail(index) {
   detail.style.setProperty("--art-opacity", String(book.opacity ?? 1));
   detail.style.setProperty("--art-filter", book.filter ?? "none");
   detailFront.innerHTML = coverMarkup(book, index);
-  detailNumber.textContent = `${String(index + 1).padStart(2, "0")} / ${String(books.length).padStart(2, "0")}`;
+  detailNumber.textContent = isReferenceBook(book)
+    ? `${String(referencePosition(index)).padStart(2, "0")} / ${formatReferenceCount()}`
+    : "";
   detailTitle.textContent = book.title;
   detailAuthor.textContent = book.author;
   detailDescription.innerHTML = book.description
@@ -2059,8 +2133,11 @@ function closeBookDetail() {
   }, prefersReducedMotion ? 20 : 1040);
 }
 
-function navigateTo(index) {
-  const normalized = (index + books.length) % books.length;
+function navigateTo(index, step = 1) {
+  let normalized = ((index % books.length) + books.length) % books.length;
+  for (let tries = 0; tries < books.length && !isReferenceBook(books[normalized]); tries += 1) {
+    normalized = (normalized + step + books.length) % books.length;
+  }
   pinnedIndex = normalized;
   pinPointerX = lastPointerX;
   openBook(normalized, true);
@@ -2075,7 +2152,7 @@ function navigateTo(index) {
 }
 
 books.forEach(createBook);
-totalBooks.textContent = String(books.length).padStart(2, "0");
+totalBooks.textContent = formatReferenceCount();
 activeTitle.textContent = books[0].title;
 applyLanguage();
 measureShelf();
@@ -2128,7 +2205,7 @@ function endDrag(event) {
 viewport.addEventListener("pointerup", endDrag);
 viewport.addEventListener("pointercancel", endDrag);
 
-previousBook.addEventListener("click", () => navigateTo((activeIndex ?? 0) - 1));
+previousBook.addEventListener("click", () => navigateTo((activeIndex ?? 0) - 1, -1));
 nextBook.addEventListener("click", () => navigateTo((activeIndex ?? -1) + 1));
 spaceSwitch.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-space-target]") : null;
@@ -2367,7 +2444,7 @@ document.addEventListener("keydown", (event) => {
     if (!event.repeat) navigateTo(current + 1);
   } else if (event.key === "ArrowLeft") {
     event.preventDefault();
-    if (!event.repeat) navigateTo(current - 1);
+    if (!event.repeat) navigateTo(current - 1, -1);
   } else if (isSpace) {
     event.preventDefault();
     if (!event.repeat) bookElements[current]?.click();
