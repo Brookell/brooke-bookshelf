@@ -137,7 +137,7 @@ const I18N = {
     saved: "已保存",
     openBook: "打开《{title}》",
     selectedPages: "Selected pages",
-    onboardingBuildKicker: "Brooke 的空间是一个范例",
+    onboardingBuildKicker: "这里是参考空间",
     onboardingBuildTitle: "看一看，再开始你的",
     onboardingBuildCopy: "你可以先在这里随意翻看，遇到喜欢的书就加入自己的书架；也可以直接进入我的空间，从空房间开始布置。",
     onboardingChoose: "继续浏览范例",
@@ -214,7 +214,7 @@ const I18N = {
     saved: "Saved",
     openBook: "Open {title}",
     selectedPages: "Selected pages",
-    onboardingBuildKicker: "Brooke's space is the example",
+    onboardingBuildKicker: "This is the reference space",
     onboardingBuildTitle: "Look around, then make yours",
     onboardingBuildCopy: "Browse first, save a book when one catches your eye, or open your own space and begin from an empty room.",
     onboardingChoose: "Browse the example",
@@ -854,7 +854,7 @@ function updateStaticLanguage() {
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-view="room"]'), t("room"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="info"]'), "查看操作提示");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="add"]'), t("addBook"));
-  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "回到 Brooke 的空间");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "回到参考空间");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="previous"]'), t("previousBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="next"]'), t("nextBook"));
   detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
