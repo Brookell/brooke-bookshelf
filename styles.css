@@ -8,14 +8,12 @@
 
 :root {
   color-scheme: light;
-  --paper: #ebe3d8;
-  /* Paper texture modelled on cold-pressed watercolour paper: an embossed
-     relief (SVG noise lit from the top left: soft shadows + highlights),
-     faint warm mottling, and a little fine grain. No image files. */
-  --paper-relief: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='256' height='256'%3E%3Cfilter id='p' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.14' numOctaves='4' seed='3' stitchTiles='stitch' result='n'/%3E%3CfeDiffuseLighting in='n' lighting-color='%23fff' surfaceScale='1.1' result='l'%3E%3CfeDistantLight azimuth='225' elevation='52'/%3E%3C/feDiffuseLighting%3E%3CfeColorMatrix in='l' result='shade' values='0 0 0 0 0.42 0 0 0 0 0.36 0 0 0 0 0.28 -0.8 0 0 0 0.74'/%3E%3CfeColorMatrix in='l' result='light' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 0.98 1.1 0 0 0 -0.96'/%3E%3CfeMerge%3E%3CfeMergeNode in='shade'/%3E%3CfeMergeNode in='light'/%3E%3C/feMerge%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
-  --paper-mottle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='720' height='720'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.86 0 0 0 0 0.76 0 0 0 0 0.62 0 0 0 0.22 -0.07'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E");
-  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.35 0 0 0 0 0.3 0 0 0 0 0.24 0 0 0 0.1 -0.02'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
-  --paper-light: radial-gradient(130% 95% at 45% 15%, rgba(255, 252, 246, 0.32), rgba(255, 252, 246, 0) 62%);
+  --paper: #eeece8;
+  /* Paper texture: fine grain + long soft fibres, drawn with SVG noise so
+     no image file is needed. Layered over --paper. */
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.28 0 0 0 0 0.22 0 0 0 0.16 -0.02'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --paper-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='640'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.035' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.4 0 0 0 0 0.33 0 0 0 0.2 -0.06'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  --paper-light: radial-gradient(120% 90% at 50% 20%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%);
   --ink: #151515;
   --muted: #77736d;
   --hairline: rgba(21, 21, 21, 0.22);
@@ -142,7 +140,7 @@ button:focus-visible,
   display: grid;
   padding: 24px;
   place-items: center;
-  background: rgba(235, 227, 216, 0.78);
+  background: rgba(238, 236, 232, 0.78);
   backdrop-filter: blur(18px);
   opacity: 0;
   visibility: hidden;
@@ -460,7 +458,7 @@ h1 {
   place-items: center;
   border: 1px solid rgba(21, 21, 21, 0.54);
   border-radius: 50%;
-  background: rgba(235, 227, 216, 0.78);
+  background: rgba(238, 236, 232, 0.78);
   cursor: pointer;
   transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
@@ -475,7 +473,7 @@ h1 {
   padding: 5px 8px;
   border: 1px solid rgba(21, 21, 21, 0.12);
   border-radius: 999px;
-  background: rgba(235, 227, 216, 0.96);
+  background: rgba(238, 236, 232, 0.96);
   box-shadow: 0 10px 26px rgba(21, 21, 21, 0.1);
   color: var(--ink);
   content: attr(aria-label);
@@ -534,7 +532,7 @@ h1 {
   padding: 13px 14px 14px;
   border: 1px solid rgba(21, 21, 21, 0.2);
   border-radius: 6px;
-  background: rgba(235, 227, 216, 0.96);
+  background: rgba(238, 236, 232, 0.96);
   box-shadow: 0 14px 34px rgba(24, 22, 20, 0.12);
   opacity: 0;
   pointer-events: none;
@@ -657,7 +655,7 @@ h1 {
   padding: 18px 18px 16px;
   border: 1px solid rgba(21, 21, 21, 0.1);
   border-radius: 22px;
-  background: rgba(242, 236, 228, 0.78);
+  background: rgba(244, 242, 238, 0.78);
   box-shadow: 0 20px 60px rgba(21, 21, 21, 0.08);
   color: var(--ink);
   opacity: 0;
@@ -1482,7 +1480,7 @@ h1 {
   padding: 9px 12px;
   border: 1px solid rgba(21, 21, 21, 0.12);
   border-radius: 999px;
-  background: rgba(235, 227, 216, 0.9);
+  background: rgba(238, 236, 232, 0.9);
   box-shadow: 0 14px 34px rgba(21, 21, 21, 0.1);
   color: var(--muted);
   content: "左右移动书本，点击书本打开详情";
@@ -1644,7 +1642,7 @@ h1 {
   padding: 0 11px;
   border: 1px solid rgba(21, 21, 21, 0.22);
   border-radius: 999px;
-  background: rgba(235, 227, 216, 0.72);
+  background: rgba(238, 236, 232, 0.72);
   color: var(--ink);
   font-family: Arial, Helvetica, sans-serif;
   font-size: 12px;
@@ -3250,8 +3248,8 @@ body,
 .add-book-panel,
 .cover-picker-card {
   background-color: var(--paper);
-  background-image: var(--paper-light), var(--paper-relief), var(--paper-mottle), var(--paper-grain);
-  background-size: 100% 100%, 256px 256px, 720px 720px, 200px 200px;
+  background-image: var(--paper-light), var(--paper-fibre), var(--paper-grain);
+  background-size: 100% 100%, 640px 640px, 220px 220px;
   background-attachment: fixed;
 }
 
