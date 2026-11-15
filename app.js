@@ -463,14 +463,40 @@ function formatReferenceCount() {
 }
 window.BROOKE_BOOKS = books;
 
+// Books a user adds get the same proportions as the curated reference shelf
+// (books.tsv: spine 32–48px, cover 240–288px, height 0.84–0.96, gap 0–30px).
+// Values are derived from a hash of the id so each book keeps its look.
+function hashText(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function customBookDimensions(seed, title) {
+  const hash = hashText(seed);
+  const pick = (shift, min, max) => min + ((hash >>> shift) % (max - min + 1));
+  const titleLength = [...String(title)].length;
+  return {
+    spineWidth: Math.min(48, 34 + Math.round(Math.min(titleLength, 14) * 0.7) + pick(0, 0, 4)),
+    width: pick(4, 245, 288),
+    height: pick(10, 84, 96) / 100,
+    shelfGap: pick(16, 6, 24),
+  };
+}
+
 function normalizeBook(book, index = books.length) {
   const palette = CUSTOM_BOOK_PALETTE[index % CUSTOM_BOOK_PALETTE.length];
   const safeTitle = String(book.title || "未命名书籍").trim();
   const safeAuthor = String(book.author || "作者未知").trim();
-  const width = Number(book.width) || 280;
-  const spineWidth = Number(book.spineWidth) || Math.min(84, Math.max(56, Math.round(34 + safeTitle.length * 1.8)));
+  const id = book.id || `custom-${slugifyText(`${safeTitle}-${safeAuthor}`) || Date.now()}`;
+  const customSize = book.isCustom ? customBookDimensions(id, safeTitle) : null;
+  const width = customSize?.width || Number(book.width) || 280;
+  const spineWidth = customSize?.spineWidth || Number(book.spineWidth) || 42;
   return {
-    id: book.id || `custom-${slugifyText(`${safeTitle}-${safeAuthor}`) || Date.now()}`,
+    id,
     title: safeTitle,
     author: safeAuthor,
     description: Array.isArray(book.description) && book.description.length
@@ -483,8 +509,8 @@ function normalizeBook(book, index = books.length) {
     detailColor: book.detailColor || book.color || palette[0],
     width,
     spineWidth,
-    height: Number(book.height) || 1,
-    shelfGap: Number(book.shelfGap) || 28,
+    height: customSize?.height || Number(book.height) || 1,
+    shelfGap: customSize ? customSize.shelfGap : (Number(book.shelfGap) || 28),
     image: book.image || "",
     originalCover: Boolean(book.originalCover || book.image),
     opacity: Number(book.opacity) || 1,
@@ -1132,7 +1158,7 @@ function renderMyShelf() {
   myShelfRoom.innerHTML = savedEntries.length === 0
     ? `<p class="my-room-empty">${escapeHtml(t("emptyShelf"))}</p>`
     : savedEntries.map(({ book, index, state }, roomIndex) => `
-    <button class="my-room-book" type="button" data-my-shelf-index="${index}" style="--room-spine: ${book.spine}; --room-ink: ${book.spineInk}; --room-width: ${book.spineWidth}px; --room-cover-width: ${book.width}px; --room-height: ${Math.round(430 * book.height)}px; --room-gap: ${Math.max(book.shelfGap, 18)}px; --room-cover: ${book.color}; --room-cover-ink: ${book.ink}; --art-opacity: ${book.opacity ?? 1}; --art-filter: ${book.filter ?? "none"}; --room-delay: ${roomIndex * 22}ms;" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
+    <button class="my-room-book" type="button" data-my-shelf-index="${index}" style="--room-spine: ${book.spine}; --room-ink: ${book.spineInk}; --room-width: ${book.spineWidth}px; --room-cover-width: ${book.width}px; --room-height: ${Math.round(430 * book.height)}px; --room-gap: ${book.shelfGap}px; --room-cover: ${book.color}; --room-cover-ink: ${book.ink}; --art-opacity: ${book.opacity ?? 1}; --art-filter: ${book.filter ?? "none"}; --room-delay: ${roomIndex * 22}ms;" aria-label="${escapeHtml(t("openBook", { title: book.title }))}">
       <span class="my-room-book-cover${book.originalCover ? " has-original-cover" : ""}" aria-hidden="true">
         ${coverMarkup(book, index)}
       </span>
