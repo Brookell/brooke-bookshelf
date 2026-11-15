@@ -145,6 +145,25 @@ supabase functions deploy sync-weread-shelf --project-ref YOUR_PROJECT_REF --no-
 
 For more detail, see [`SUPABASE_WEREAD_SETUP.md`](SUPABASE_WEREAD_SETUP.md).
 
+### 08 / Admin Dashboard
+
+`admin.html` shows user counts, sign-up trends, every user's email and shelf
+stats, the most saved books, and CSV export. It is only usable by accounts
+listed in `public.admins`.
+
+1. Run [`supabase/admin.sql`](supabase/admin.sql) in the Supabase SQL editor.
+2. Sign in once on the main site with your email.
+3. In the SQL editor, make that account an admin:
+
+```sql
+insert into public.admins (user_id)
+select id from auth.users where email = 'YOUR_EMAIL'
+on conflict do nothing;
+```
+
+Then open `/admin.html`. The page is public, but the data comes from the
+`admin_overview()` function, which refuses anyone not in `public.admins`.
+
 <br>
 
 <div align="center">
@@ -282,6 +301,24 @@ supabase functions deploy sync-weread-shelf --project-ref YOUR_PROJECT_REF --no-
 ```
 
 更多说明见 [`SUPABASE_WEREAD_SETUP.md`](SUPABASE_WEREAD_SETUP.md)。
+
+### 08 / 管理后台
+
+`admin.html` 可以查看用户总数、注册趋势、每个用户的邮箱和书架统计、最常被收藏的书，
+并导出 CSV。只有 `public.admins` 表里的账号能看到数据。
+
+1. 在 Supabase SQL 编辑器里运行 [`supabase/admin.sql`](supabase/admin.sql)。
+2. 用你的邮箱在主页登录一次。
+3. 在 SQL 编辑器里把这个账号设为管理员：
+
+```sql
+insert into public.admins (user_id)
+select id from auth.users where email = 'YOUR_EMAIL'
+on conflict do nothing;
+```
+
+之后打开 `/admin.html` 即可。页面本身是公开的，但数据来自 `admin_overview()`
+函数，它会拒绝不在 `public.admins` 里的账号。
 
 <br>
 

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#eeece8" />
+  <title>Reading Room Admin</title>
+  <link rel="stylesheet" href="./admin.css?v=20261115-1" />
+  <script src="./config.js"></script>
+  <script>
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
+      document.write('<script src="./config.local.js"><\/script>');
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.0/dist/umd/supabase.min.js"></script>
+  <script defer src="./admin.js?v=20261115-1"></script>
+</head>
+<body>
+  <header class="admin-header">
+    <div>
+      <p class="eyebrow">Brooke's Reading Room</p>
+      <h1>后台数据</h1>
+    </div>
+    <div class="header-actions" id="headerActions" hidden>
+      <span class="signed-in" id="signedInAs"></span>
+      <button type="button" id="refreshButton">刷新</button>
+      <button type="button" id="signOutButton">退出登录</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section class="panel state-panel" id="loadingPanel">
+      <p>正在加载…</p>
+    </section>
+
+    <section class="panel state-panel" id="signInPanel" hidden>
+      <h2>管理员登录</h2>
+      <p class="muted">输入管理员邮箱，打开邮件里的登录链接后会回到这个页面。</p>
+      <form id="signInForm" class="sign-in-form">
+        <label for="signInEmail" class="sr-only">邮箱</label>
+        <input id="signInEmail" type="email" required autocomplete="email" placeholder="you@example.com" />
+        <button type="submit">发送登录链接</button>
+      </form>
+      <p class="form-note" id="signInNote" role="status"></p>
+    </section>
+
+    <section class="panel state-panel" id="deniedPanel" hidden>
+      <h2>没有访问权限</h2>
+      <p class="muted" id="deniedText">当前账号不是管理员。</p>
+    </section>
+
+    <div id="dashboard" hidden>
+      <section class="stats" id="stats" aria-label="总览"></section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>注册趋势 <span class="muted">最近 90 天</span></h2>
+          <div class="legend" id="trendSummary"></div>
+        </div>
+        <div class="chart" id="signupChart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>用户 <span class="muted" id="userCount"></span></h2>
+          <div class="panel-tools">
+            <input type="search" id="userFilter" placeholder="搜索邮箱或房间名" aria-label="搜索用户" />
+            <button type="button" id="exportUsers">导出用户 CSV</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="userTable">
+            <thead>
+              <tr>
+                <th data-sort="email">邮箱</th>
+                <th data-sort="room_name">房间名</th>
+                <th data-sort="created_at">注册时间</th>
+                <th data-sort="last_sign_in_at">最后登录</th>
+                <th data-sort="books" class="num">书</th>
+                <th data-sort="want_to_read" class="num">想读</th>
+                <th data-sort="reading" class="num">在读</th>
+                <th data-sort="finished" class="num">读完</th>
+                <th data-sort="from_weread" class="num">微信读书</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="two-col">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>最常被收藏的书</h2>
+            <button type="button" id="exportBooks">导出 CSV</button>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="bookTable">
+              <thead>
+                <tr><th>书名</th><th>作者</th><th class="num">收藏人数</th><th class="num">读完</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2>书籍来源</h2></div>
+          <div id="sourceList" class="bars"></div>
+          <div class="panel-head spaced"><h2>阅读状态</h2></div>
+          <div id="statusList" class="bars"></div>
+        </section>
+      </div>
+
+      <p class="generated muted" id="generatedAt"></p>
+    </div>
+  </main>
+</body>
+</html>
