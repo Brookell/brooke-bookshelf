@@ -2614,11 +2614,12 @@ function readingDurationMarkup(seconds) {
   return parts.map(([value, unit]) => `${value}<small>${unit}</small>`).join(" ");
 }
 
-function readingSectionHead(title, number, note = "") {
+// Section heading: serif title, a quiet note, and optionally a tool button
+// right beside the title.
+function readingSectionHead(title, _number, note = "", tool = "") {
   return `
     <header class="rd-sec-head">
-      <h4>${title}${note ? ` <small>${note}</small>` : ""}</h4>
-      <span>NO. ${String(number).padStart(2, "0")}</span>
+      <h4>${title}${tool}${note ? ` <small>${note}</small>` : ""}</h4>
     </header>`;
 }
 
@@ -2661,13 +2662,11 @@ function readingQuoteMarkup(number) {
   if (!quote) return "";
   return `
     <section class="rd-section rd-span-3">
-      ${readingSectionHead("摘录", number, "随机一条你划过的句子")}
+      ${readingSectionHead("摘录", number, "随机一条你划过的句子", `
+        <button type="button" class="rd-quote-shuffle" data-quote-shuffle title="换一条" aria-label="换一条">
+          <i data-lucide="shuffle" aria-hidden="true"></i>
+        </button>`)}
       <div class="rd-quote-card${quote.cover ? " has-cover" : ""}" style="${quoteColorStyle(quote)}" aria-live="polite">${readingQuoteCardInner(quote)}</div>
-      <div class="rd-quote-actions">
-        <button type="button" class="rd-quote-shuffle" data-quote-shuffle>
-          <i data-lucide="shuffle" aria-hidden="true"></i><span>换一条</span>
-        </button>
-      </div>
     </section>`;
 }
 

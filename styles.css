@@ -5335,51 +5335,40 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   transition: border-color 400ms ease;
 }
 
-.rd-quote-actions {
+/* 换一条: a round icon button right beside the 摘录 title. */
+.rd-sec-head h4 {
   display: flex;
-  gap: 10px;
-  margin-top: 18px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 10px;
 }
 
-.rd-quote-card.has-cover + .rd-quote-actions {
-  padding-left: calc(clamp(78px, 9vw, 112px) + 26px);
-}
-
-@media (max-width: 640px) {
-  .rd-quote-card.has-cover {
-    grid-template-columns: 64px minmax(0, 1fr);
-    gap: 16px;
-  }
-
-  .rd-quote-card.has-cover + .rd-quote-actions {
-    padding-left: 80px;
-  }
+.rd-sec-head h4 small {
+  margin-left: 0;
 }
 
 .rd-quote-shuffle {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  padding: 0 16px;
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
   border: 1px solid rgba(21, 21, 21, 0.2);
-  border-radius: 999px;
+  border-radius: 50%;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
-  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
-  font-size: 12px;
-  font-weight: 600;
   transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
 }
 
 .rd-quote-shuffle svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   transition: transform 400ms ease;
 }
 
-.rd-quote-shuffle:hover:not(:disabled) {
+.rd-quote-shuffle:hover:not(:disabled),
+.rd-quote-shuffle:focus-visible {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--paper);
@@ -5389,8 +5378,11 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   transform: rotate(180deg);
 }
 
+.rd-quote-shuffle:disabled svg {
+  animation: add-book-spin 0.8s linear infinite;
+}
+
 .rd-quote-shuffle:disabled {
-  opacity: 0.55;
   cursor: progress;
 }
 
@@ -5407,8 +5399,8 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   margin: 0;
   color: var(--ink);
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-  font-size: clamp(20px, 2.4vw, 30px);
-  line-height: 1.6;
+  font-size: clamp(16px, 1.6vw, 21px);
+  line-height: 1.75;
 }
 
 .rd-quote p::before { content: "“"; }
