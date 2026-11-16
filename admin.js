@@ -351,15 +351,24 @@
     // Highlight the sidebar link for the section in view.
     const links = [...document.querySelectorAll(".nav a")];
     const sections = ["overview", "traffic", "users", "content"];
+    // The right-hand pane scrolls on wide screens, the page on phones.
+    const main = document.querySelector(".main");
     const highlight = () => {
       let current = sections[0];
-      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
-      sections.forEach((id) => { if ($(id).getBoundingClientRect().top < 140) current = id; });
+      const paneScrolls = main.scrollHeight > main.clientHeight + 1 && getComputedStyle(main).overflowY !== "visible";
+      const atBottom = paneScrolls
+        ? main.scrollTop + main.clientHeight >= main.scrollHeight - 4
+        : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      const top = paneScrolls ? main.getBoundingClientRect().top : 0;
+      const line = top + (paneScrolls ? main.clientHeight : window.innerHeight) * 0.35;
+      sections.forEach((id) => { if ($(id).getBoundingClientRect().top < line) current = id; });
+      if ((paneScrolls ? main.scrollTop : window.scrollY) < 40) current = sections[0];
       if (atBottom) current = sections[sections.length - 1];
       if ($("dashboard").hidden) current = sections[0];
       links.forEach((link) => link.classList.toggle("is-active", link.getAttribute("href") === `#${current}`));
     };
     window.addEventListener("scroll", highlight, { passive: true });
+    main.addEventListener("scroll", highlight, { passive: true });
     window.addEventListener("resize", highlight);
     let resizeTimer = 0;
     window.addEventListener("resize", () => {
