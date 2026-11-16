@@ -14,6 +14,8 @@
 // POST { action: "progress", bookIds }          -> reading progress per book (max 40)
 // POST { action: "shelf" }                      -> the user's WeRead shelf
 // POST { action: "recommend" }                  -> WeRead's 为你推荐 for this user
+// POST { action: "shelfProgress" }              -> progress for the 40 most recently
+//                                                  read books on the WeRead shelf
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // Must match the `version` in tencent/wechatreading skills/SKILL.md.
@@ -317,6 +319,28 @@ Deno.serve(async (request) => {
         .filter((id: string) => /^[\w-]{1,40}$/.test(id))
         .slice(0, 40);
       return jsonResponse({ progress: await progress(saved.key, bookIds) });
+    }
+    if (action === "shelfProgress") {
+      const shelf = await weread(saved.key, "/shelf/sync");
+      // deno-lint-ignore no-explicit-any
+      const recent = (Array.isArray(shelf.books) ? shelf.books : [] as any[])
+        // deno-lint-ignore no-explicit-any
+        .filter((book: any) => book.bookId)
+        // deno-lint-ignore no-explicit-any
+        .sort((a: any, b: any) => (b.readUpdateTime || b.updateTime || 0) - (a.readUpdateTime || a.updateTime || 0))
+        .slice(0, 40);
+      // deno-lint-ignore no-explicit-any
+      const byId = await progress(saved.key, recent.map((book: any) => String(book.bookId))) as Record<string, any>;
+      // deno-lint-ignore no-explicit-any
+      const books = recent.map((book: any) => ({
+        bookId: String(book.bookId),
+        title: String(book.title || ""),
+        author: String(book.author || ""),
+        cover: String(book.cover || ""),
+        finished: Boolean(book.finishReading),
+        ...(byId[String(book.bookId)] || { progress: book.finishReading ? 100 : 0, readingTime: 0 }),
+      }));
+      return jsonResponse({ books });
     }
     if (action === "recommend") {
       const data = await weread(saved.key, "/book/recommend", { count: 12 });

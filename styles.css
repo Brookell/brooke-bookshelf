@@ -4509,3 +4509,57 @@ h1 {
   outline: 1px solid var(--ink);
   outline-offset: 1px;
 }
+
+/* ---- Reading panel: WeRead-only layout ---- */
+.rd-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rd-wall-card .rd-wall {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.rd-wall figure small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.rd-card .rd-progress-list li {
+  grid-template-columns: 34px minmax(0, 1fr) 70px 38px;
+}
+
+.rd-progress-list li > span:not(.rd-cover) {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.rd-progress-list .rd-cover {
+  width: 34px;
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .rd-wall-card .rd-wall {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .rd-card .rd-progress-list li {
+    grid-template-columns: 30px minmax(0, 1fr) 54px 34px;
+    gap: 10px;
+  }
+}
+
+/* The room is for books someone wants to show, not a reading tracker:
+   no 想读 / 在读 / 读完 choices, filters or per-status counts. Status is
+   still stored (default 想读) only to keep the database shape. */
+.detail-status,
+.my-shelf-filters,
+.my-shelf-summary,
+.my-room-book-meta small {
+  display: none !important;
+}
