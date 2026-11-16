@@ -32,6 +32,8 @@ const wereadPickList = document.querySelector("#wereadPickList");
 const wereadPickCount = document.querySelector("#wereadPickCount");
 const wereadPickAll = document.querySelector("#wereadPickAll");
 const wereadPickImport = document.querySelector("#wereadPickImport");
+const wereadProgress = document.querySelector("#wereadProgress");
+const wereadProgressText = document.querySelector("#wereadProgressText");
 const wereadImportStatus = document.querySelector("#wereadImportStatus");
 const authGate = document.querySelector("#authGate");
 const authGateClose = document.querySelector("#authGateClose");
@@ -1648,10 +1650,52 @@ function renderWereadPick() {
   }).join("");
 }
 
-function importPickedWereadBooks() {
+function setWereadProgress(done, total) {
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  wereadProgress.hidden = false;
+  wereadProgress.querySelector(".weread-progress-bar").setAttribute("aria-valuenow", String(percent));
+  wereadProgress.style.setProperty("--progress", `${percent}%`);
+  wereadProgressText.textContent = `正在准备你的书：${done} / ${total}`;
+}
+
+function preloadImage(url) {
+  if (!url) return Promise.resolve();
+  return new Promise((resolve) => {
+    const image = new Image();
+    const finish = () => resolve();
+    image.onload = finish;
+    image.onerror = finish;
+    window.setTimeout(finish, 8000);
+    image.src = url;
+  });
+}
+
+// Get one imported book fully ready (cover downloaded, colours taken from
+// the cover, real intro fetched) before it is shown in the room.
+async function prepareImportedBook(book) {
+  await preloadImage(book.image);
+  if (book.isCustom && book.image && book.coverPalette !== `${COVER_PALETTE_VERSION}|${book.image}`) {
+    try {
+      const color = await fetchCoverColor(book.image);
+      if (color) applyCoverPalette(book, color);
+    } catch (error) {
+      console.warn("Cover colour failed", error);
+    }
+  }
+  await loadRealIntro(book);
+}
+
+async function importPickedWereadBooks() {
   const picked = [...wereadPicked].map((index) => wereadPickItems[index]).filter(Boolean);
   if (!picked.length) return;
-  picked.forEach(({ item, book: draft }, offset) => {
+  wereadPickImport.disabled = true;
+  wereadPickAll.disabled = true;
+  wereadPickList.querySelectorAll("input").forEach((box) => { box.disabled = true; });
+  wereadImportStatus.textContent = "";
+
+  // Add the books (the add-book panel stays on top, so nothing half-ready is
+  // visible yet), then prepare them a few at a time while the bar fills up.
+  const prepared = picked.map(({ item, book: draft }, offset) => {
     const existing = books.find((book) => book.id === draft.id);
     const book = existing || draft;
     if (!existing) {
@@ -1660,18 +1704,32 @@ function importPickedWereadBooks() {
     }
     const { status } = customBookFromWereadItem(item, offset);
     saveBookState(book, status || DEFAULT_STATUS);
+    return book;
   });
   writeCustomBooks();
   totalBooks.textContent = formatReferenceCount();
   renderBookIndex();
-  renderMyShelf();
   measureShelf();
-  wereadImportStatus.textContent = t("wereadSyncDone", { count: picked.length });
+
+  let done = 0;
+  setWereadProgress(done, prepared.length);
+  const queue = [...prepared];
+  const worker = async () => {
+    while (queue.length) {
+      await prepareImportedBook(queue.shift());
+      done += 1;
+      setWereadProgress(done, prepared.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, prepared.length) }, worker));
+
+  renderMyShelf();
+  wereadImportStatus.textContent = t("wereadSyncDone", { count: prepared.length });
+  wereadProgress.hidden = true;
+  wereadPickAll.disabled = false;
   wereadPicked.clear();
   wereadPickItems = [];
   renderWereadPick();
-  loadMissingCoverPalettes();
-  loadMissingIntros();
   closeAddBookPanel({ restoreFocus: false });
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
 }
@@ -3615,19 +3673,31 @@ window.addEventListener("resize", () => {
   if (detailIndex !== null && !detail.classList.contains("is-returning")) positionDetailBook();
 });
 
-if (showMyRoomFirst && hasSavedBooks()) {
-  requestAnimationFrame(() => openMyShelf({ view: "room", restoreFocus: false }));
+// Once someone has a shelf of their own, they land in it; the reference
+// space stays one click away (参考空间 in the top bar) but isn't shown first.
+// The loading screen waits for sign-in so books saved in the account count
+// (at most 3 s), then the right space is chosen before it fades.
+function landInMyRoomIfReady() {
+  if (!hasSavedBooks() || !myShelf.hidden || detailIndex !== null) return;
+  if (!bookIndex.hidden || !addBookPanel.hidden || !authGate.hidden || !readingPanel.hidden) return;
+  openMyShelf({ view: "room", restoreFocus: false });
 }
 
-initializeSupabaseAuth().then(() => {
-  loadMissingCoverPalettes();
-  loadMissingIntros();
-});
+const authReady = initializeSupabaseAuth()
+  .then(() => {
+    loadMissingCoverPalettes();
+    loadMissingIntros();
+  })
+  .catch((error) => console.warn("Auth start-up failed", error));
 updateOnboarding();
 notifyParentTheme();
-window.setTimeout(() => {
+Promise.all([
+  new Promise((resolve) => window.setTimeout(resolve, 1250)),
+  Promise.race([authReady, new Promise((resolve) => window.setTimeout(resolve, 3000))]),
+]).then(() => {
+  landInMyRoomIfReady();
   entryScreen?.classList.add("is-done");
-}, 1250);
+});
 }).catch((error) => {
   console.error(error);
   const status = document.querySelector("#activeTitle");
