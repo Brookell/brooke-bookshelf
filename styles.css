@@ -4937,6 +4937,31 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   cursor: default;
 }
 
+/* Underline variant for the reading panel: no pill, just the labels on a
+   hairline, with an ink line under the selected one that slides. The line
+   is the thumb layer's bottom edge, so the same clip-path logic moves it. */
+.reading-tabs.rubber-segment {
+  --rs-track: transparent;
+  --rs-inset: 0px;
+  --rs-radius: 0;
+  --rs-thumb-radius: 0px;
+  --rs-h: 40px;
+  --rs-font: 13px;
+  --rs-pad: 14px;
+  --rs-min: 52px;
+  --rs-idle: 0.5;
+  --rs-line: 2px;
+  box-shadow: inset 0 -1px 0 rgba(21, 21, 21, 0.12);
+}
+
+.reading-tabs .rubber-segment__thumb {
+  background: linear-gradient(var(--ink), var(--ink)) bottom / 100% var(--rs-line) no-repeat;
+  color: var(--ink);
+}
+
+.reading-tabs .rubber-segment__item[data-pressed] { transform: none; }
+.reading-tabs .rubber-segment__item:focus-visible { outline-offset: -2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .rubber-segment__item { transition: opacity 160ms ease; }
   .rubber-segment[data-ready] .rubber-segment__thumb { transition: none; }
