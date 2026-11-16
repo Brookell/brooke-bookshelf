@@ -410,8 +410,13 @@ function updatePageTitle() {
 
 function updateSpaceSwitch() {
   updatePageTitle();
+  // Once someone has their own books, 参考空间 steps back from the top bar
+  // while they are in their room; it stays in the room's bottom toolbar
+  // (building icon), and reappears up top whenever they visit it.
+  const tuckReference = hasSavedBooks() && activeSpace === "user";
   spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
+    if (button.dataset.spaceTarget === "brooke") button.hidden = tuckReference;
   });
   library.classList.toggle("is-user-space", activeSpace === "user");
   roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
@@ -509,6 +514,14 @@ function customBookDimensions(seed, title) {
   };
 }
 
+// WeRead serves covers in sizes by file prefix: s_ is a 70px thumbnail,
+// t6_ 250px, t9_ 428px. Always ask for the large one so covers are sharp.
+function sharpCover(url) {
+  const value = String(url || "");
+  if (!/^https?:\/\/[^/]*(weread\.qq\.com|myqcloud\.com)\//.test(value)) return value;
+  return value.replace(/\/(s|t[0-8])_([^/]+)$/, "/t9_$2").replace(/^http:/, "https:");
+}
+
 function normalizeBook(book, index = books.length) {
   const palette = CUSTOM_BOOK_PALETTE[index % CUSTOM_BOOK_PALETTE.length];
   const safeTitle = String(book.title || "未命名书籍").trim();
@@ -534,7 +547,7 @@ function normalizeBook(book, index = books.length) {
     spineWidth,
     height: customSize?.height || Number(book.height) || 1,
     shelfGap: customSize ? customSize.shelfGap : (Number(book.shelfGap) || 28),
-    image: book.image || "",
+    image: sharpCover(book.image),
     originalCover: Boolean(book.originalCover || book.image),
     opacity: Number(book.opacity) || 1,
     filter: book.filter || "none",
@@ -1057,7 +1070,7 @@ function updateStaticLanguage() {
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-view="room"]'), t("room"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="info"]'), "查看操作提示");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="add"]'), t("addBook"));
-  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "回到参考空间");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "参考空间");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="previous"]'), t("previousBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="next"]'), t("nextBook"));
   detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
@@ -1110,6 +1123,7 @@ function saveBookState(book, status = DEFAULT_STATUS) {
   renderMyShelf();
   updateDetailShelfControls();
   syncBookStateToSupabase(book);
+  updateSpaceSwitch();
   if (wasEmpty) showOnboardingRoomStep(book);
   else updateOnboarding();
 }
@@ -1120,6 +1134,7 @@ function removeBookState(book) {
   renderMyShelf();
   updateDetailShelfControls();
   removeBookStateFromSupabase(book);
+  updateSpaceSwitch();
   updateOnboarding();
 }
 
@@ -2180,6 +2195,7 @@ function readingHeatmapMarkup(year) {
 }
 
 function readingCoverMarkup(cover, title = "") {
+  cover = sharpCover(cover);
   return `<span class="rd-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(title).slice(0, 2))}</span>`}</span>`;
 }
 

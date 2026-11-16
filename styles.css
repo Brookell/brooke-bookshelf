@@ -4563,3 +4563,61 @@ h1 {
 .my-room-book-meta small {
   display: none !important;
 }
+
+/* ---- Reading panel accent: a muted terracotta that sits on the paper
+   background, used for the calendar, month bars and progress bars. ---- */
+.reading-panel {
+  --rd-accent: #a4472f;
+  --rd-heat-1: #efdccf;
+  --rd-heat-2: #dfae93;
+  --rd-heat-3: #c47758;
+  --rd-heat-4: #93402a;
+}
+
+.reading-panel .reading-heatmap span {
+  background: rgba(21, 21, 21, 0.05);
+}
+
+.reading-panel .reading-heatmap .is-blank,
+.reading-panel .reading-heatmap .is-future {
+  background: transparent;
+}
+
+.reading-panel .reading-heatmap .level-1,
+.reading-panel .rd-legend .level-1 { background: var(--rd-heat-1); }
+.reading-panel .reading-heatmap .level-2,
+.reading-panel .rd-legend .level-2 { background: var(--rd-heat-2); }
+.reading-panel .reading-heatmap .level-3,
+.reading-panel .rd-legend .level-3 { background: var(--rd-heat-3); }
+.reading-panel .reading-heatmap .level-4,
+.reading-panel .rd-legend .level-4 { background: var(--rd-heat-4); }
+
+.reading-panel .reading-heatmap span[data-label]:hover {
+  outline-color: var(--rd-heat-4);
+}
+
+.reading-panel .rd-bar span {
+  background: var(--rd-heat-2);
+}
+
+.reading-panel .rd-bar.is-current span {
+  background: var(--rd-accent);
+}
+
+.reading-panel .rd-bar.is-current small {
+  color: var(--rd-accent);
+  font-weight: 600;
+}
+
+.reading-panel .reading-progress i::after,
+.reading-panel .rd-progress i {
+  background: var(--rd-accent);
+}
+
+.reading-panel .rd-tooltip {
+  background: var(--rd-heat-4);
+}
+
+.space-switch button[hidden] {
+  display: none;
+}
