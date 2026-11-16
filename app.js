@@ -2374,9 +2374,7 @@ function readingOverviewMarkup() {
   const year = reading.year;
   const yearNumber = readingYearNumber(year);
   const modeLabel = READING_MODES.find(([mode]) => mode === reading.mode)?.[1] || "";
-  const tabs = READING_MODES.map(([mode, label]) => `
-    <button type="button" data-reading-mode="${mode}" aria-pressed="${String(mode === reading.mode)}">${label}</button>
-  `).join("");
+  const tabs = readingSegmentMarkup();
   const compare = stats?.compare;
   const tiles = [
     ["阅读时长", stats ? formatDuration(stats.totalReadTime) : "—", ""],
@@ -2389,7 +2387,7 @@ function readingOverviewMarkup() {
 
   return `
     <div class="rd-toolbar">
-      <div class="reading-tabs" role="group" aria-label="统计周期">${tabs}</div>
+      ${tabs}
       <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
     </div>
     ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
@@ -2503,6 +2501,173 @@ function readingBookMarkup() {
   `;
 }
 
+// ---- 本周 / 本月 / 本年 / 总计: a "rubber" segmented control ----
+// The thumb is a layer over the whole track holding a copy of every label;
+// clip-path shows only the selected slot, so labels turn paper-coloured
+// exactly where the thumb is. The selected slot can be dragged; pulled past
+// either end the thumb stretches like rubber, and it springs to the nearest
+// option on release.
+
+const RUBBER_PULL = 0.35; // how much of an overshoot the thumb follows
+const RUBBER_MAX = 18; // px it can stretch at most
+const readingSegmentState = { switching: false, suppressClick: false, refocus: false };
+
+function readingSegmentMarkup() {
+  const items = READING_MODES.map(([mode, label]) => {
+    const checked = mode === reading.mode;
+    return `<button type="button" class="rubber-segment__item" role="radio" aria-checked="${checked}" tabindex="${checked ? 0 : -1}" data-reading-mode="${mode}">${label}</button>`;
+  }).join("");
+  const copies = READING_MODES.map(([, label]) => `<span class="rubber-segment__item rubber-segment__copy">${label}</span>`).join("");
+  return `
+    <div class="reading-tabs rubber-segment" role="radiogroup" aria-label="统计周期" data-equal data-draggable>
+      ${items}
+      <span class="rubber-segment__thumb" aria-hidden="true">${copies}</span>
+    </div>`;
+}
+
+function segmentGeometry(segment) {
+  const thumb = segment.querySelector(".rubber-segment__thumb");
+  const items = [...segment.querySelectorAll("button.rubber-segment__item")];
+  const inset = thumb.offsetLeft;
+  const slots = items.map((item) => ({ left: item.offsetLeft - inset, width: item.offsetWidth }));
+  return { thumb, items, slots, width: thumb.clientWidth };
+}
+
+// Show the thumb from `left` to `right` (px inside the thumb layer).
+function clipSegmentThumb(thumb, left, right, width) {
+  thumb.style.clipPath = `inset(0 ${(width - right).toFixed(1)}px 0 ${left.toFixed(1)}px round var(--rs-thumb-radius))`;
+}
+
+function placeSegmentThumb(segment, index) {
+  const { thumb, slots, width } = segmentGeometry(segment);
+  const slot = slots[index];
+  if (slot && width) clipSegmentThumb(thumb, slot.left, slot.left + slot.width, width);
+}
+
+function checkedSegmentIndex(segment) {
+  return [...segment.querySelectorAll("button.rubber-segment__item")].findIndex((item) => item.getAttribute("aria-checked") === "true");
+}
+
+// Slide the thumb, then load and redraw the panel for the new period.
+async function selectReadingMode(segment, mode) {
+  const items = [...segment.querySelectorAll("button.rubber-segment__item")];
+  const index = items.findIndex((item) => item.dataset.readingMode === mode);
+  placeSegmentThumb(segment, index);
+  if (mode === reading.mode || readingSegmentState.switching) return;
+  readingSegmentState.switching = true;
+  items.forEach((item, i) => {
+    item.setAttribute("aria-checked", String(i === index));
+    item.tabIndex = i === index ? 0 : -1;
+  });
+  reading.mode = mode;
+  const slide = new Promise((resolve) => setTimeout(resolve, 380));
+  try {
+    await Promise.all([slide, loadReadingStats(mode)]);
+  } catch (error) {
+    reading.error = readingErrorText(error);
+  }
+  readingSegmentState.switching = false;
+  renderReadingPanel();
+}
+
+function setupReadingSegment() {
+  const segment = readingPanelBody.querySelector(".rubber-segment");
+  if (!segment) return;
+  const place = () => placeSegmentThumb(segment, checkedSegmentIndex(segment));
+  place();
+  new ResizeObserver(place).observe(segment);
+  // Turn transitions on only after the first placement, so it doesn't slide in.
+  requestAnimationFrame(() => segment.setAttribute("data-ready", ""));
+  if (readingSegmentState.refocus) {
+    readingSegmentState.refocus = false;
+    segment.querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
+  }
+
+  let drag = null;
+  const release = (event) => {
+    segment.querySelectorAll("[data-pressed]").forEach((item) => item.removeAttribute("data-pressed"));
+    if (!drag) return;
+    const { moved, center, geometry } = drag;
+    drag = null;
+    segment.removeAttribute("data-held");
+    geometry.thumb.style.transform = "";
+    if (!moved || event.type === "pointercancel") {
+      place();
+      return;
+    }
+    readingSegmentState.suppressClick = true;
+    setTimeout(() => { readingSegmentState.suppressClick = false; }, 0);
+    let nearest = 0;
+    geometry.slots.forEach((slot, i) => {
+      const best = geometry.slots[nearest];
+      if (Math.abs(slot.left + slot.width / 2 - center) < Math.abs(best.left + best.width / 2 - center)) nearest = i;
+    });
+    selectReadingMode(segment, geometry.items[nearest].dataset.readingMode);
+  };
+
+  segment.addEventListener("pointerdown", (event) => {
+    const item = event.target instanceof Element ? event.target.closest("button.rubber-segment__item") : null;
+    if (!item || event.button !== 0 || readingSegmentState.switching) return;
+    item.setAttribute("data-pressed", "");
+    if (item.getAttribute("aria-checked") !== "true") return;
+    const geometry = segmentGeometry(segment);
+    const slot = geometry.slots[geometry.items.indexOf(item)];
+    drag = { startX: event.clientX, start: slot.left + slot.width / 2, center: slot.left + slot.width / 2, moved: false, geometry, half: slot.width / 2 };
+    segment.setPointerCapture(event.pointerId);
+  });
+
+  segment.addEventListener("pointermove", (event) => {
+    if (!drag) return;
+    const dx = event.clientX - drag.startX;
+    if (!drag.moved && Math.abs(dx) < 4) return;
+    if (!drag.moved) {
+      drag.moved = true;
+      segment.setAttribute("data-held", "");
+      segment.querySelectorAll("[data-pressed]").forEach((item) => item.removeAttribute("data-pressed"));
+    }
+    const { slots, thumb, width } = drag.geometry;
+    const first = slots[0].left + slots[0].width / 2;
+    const last = slots[slots.length - 1].left + slots[slots.length - 1].width / 2;
+    const wanted = drag.start + dx;
+    const center = Math.min(last, Math.max(first, wanted));
+    drag.center = center;
+    const left = center - drag.half;
+    const right = center + drag.half;
+    clipSegmentThumb(thumb, left, right, width);
+    // Past either end the thumb keeps its inner edge and stretches out
+    // toward the pull, like rubber (scaled from that inner edge).
+    const over = wanted - center;
+    const stretch = Math.min(RUBBER_MAX, Math.abs(over) * RUBBER_PULL);
+    if (stretch > 0.5) {
+      const anchor = over < 0 ? right : left;
+      thumb.style.transformOrigin = `${anchor.toFixed(1)}px 50%`;
+      thumb.style.transform = `scaleX(${(1 + stretch / (drag.half * 2)).toFixed(3)})`;
+    } else {
+      thumb.style.transform = "";
+    }
+  });
+
+  segment.addEventListener("pointerup", release);
+  segment.addEventListener("pointercancel", release);
+  segment.addEventListener("lostpointercapture", release);
+
+  segment.addEventListener("keydown", (event) => {
+    const items = [...segment.querySelectorAll("button.rubber-segment__item")];
+    const current = checkedSegmentIndex(segment);
+    const next = {
+      ArrowRight: current + 1, ArrowDown: current + 1,
+      ArrowLeft: current - 1, ArrowUp: current - 1,
+      Home: 0, End: items.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const index = Math.max(0, Math.min(items.length - 1, next));
+    items[index].focus();
+    readingSegmentState.refocus = true;
+    selectReadingMode(segment, items[index].dataset.readingMode);
+  });
+}
+
 function renderReadingPanel() {
   if (!readingPanelBody) return;
   if (reading.loading) readingPanelBody.innerHTML = readingLoadingMarkup();
@@ -2510,6 +2675,7 @@ function renderReadingPanel() {
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
   else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup() : readingOverviewMarkup();
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+  setupReadingSegment();
 }
 
 async function openReadingBook(index) {
@@ -3841,14 +4007,10 @@ readingPanelBody.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   const modeButton = target?.closest("[data-reading-mode]");
   if (modeButton) {
-    reading.mode = modeButton.dataset.readingMode;
-    renderReadingPanel();
-    try {
-      await loadReadingStats(reading.mode);
-    } catch (error) {
-      reading.error = readingErrorText(error);
+    // A drag that just ended also fires a click; the drag already chose.
+    if (!readingSegmentState.suppressClick) {
+      selectReadingMode(modeButton.closest(".rubber-segment"), modeButton.dataset.readingMode);
     }
-    renderReadingPanel();
     return;
   }
   const recommendButton = target?.closest("[data-reading-recommend]");
