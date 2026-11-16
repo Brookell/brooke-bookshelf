@@ -5520,3 +5520,113 @@ button.flow.flow:disabled::after { opacity: 0.5; }
 .auth-gate-link[hidden] {
   display: none;
 }
+
+/* ---- Phones: room to breathe ----
+   Phones get their own layout rather than a squeezed desktop: shorter
+   books with clear space under the title, the book name on its own line,
+   and only four buttons at the bottom (all books, add, previous, next).
+   Everything else lives in 菜单. */
+@media (max-width: 720px) {
+  .masthead-meta {
+    display: none;
+  }
+
+  .shelf-viewport {
+    inset: 32% 0 max(118px, calc(env(safe-area-inset-bottom) + 108px));
+  }
+
+  .shelf-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
+    padding-top: 14px;
+    border-top: 1px solid rgba(21, 21, 21, 0.12);
+  }
+
+  .shelf-toolbar p {
+    max-width: 100%;
+  }
+
+  .shelf-actions {
+    justify-content: space-between;
+  }
+
+  .shelf-actions .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  #shelfHelpToggle,
+  #myShelfToggle,
+  #readingPanelToggle,
+  #roomOnlyToggle {
+    display: none;
+  }
+
+  /* My room: same idea. */
+  .my-room-rail {
+    top: 32%;
+    bottom: max(118px, calc(env(safe-area-inset-bottom) + 108px));
+    height: auto;
+    min-height: 0;
+  }
+
+  .my-room-book {
+    height: min(calc(var(--room-height) * 0.74), calc(100% - 8px));
+  }
+
+  .my-room-caption {
+    right: 16px;
+    bottom: max(78px, calc(env(safe-area-inset-bottom) + 70px));
+    max-width: none;
+  }
+
+  .my-shelf.is-room-view .my-shelf-view-toggle {
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
+    justify-content: space-between;
+  }
+
+  .my-shelf.is-room-view .my-shelf-view-toggle .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .my-shelf.is-room-view .my-shelf-view-toggle :is([data-my-shelf-action="info"], [data-my-shelf-view], [data-my-shelf-action="reading"], [data-my-shelf-action="brooke"]) {
+    display: none;
+  }
+}
+
+/* Phones: the first-visit card is compact and sits in the space under the
+   title, so the shelf stays visible. */
+@media (max-width: 720px) {
+  .library:not(.is-detail-open) .shelf-onboarding {
+    top: max(178px, calc(env(safe-area-inset-top) + 164px));
+    right: 16px;
+    bottom: auto;
+    left: 16px;
+    width: auto;
+    padding: 14px 16px;
+  }
+
+  .library:not(.is-detail-open) .shelf-onboarding h2 {
+    font-size: 20px;
+  }
+
+  .library:not(.is-detail-open) .shelf-onboarding p:not(.shelf-onboarding-kicker) {
+    display: none;
+  }
+
+  .library:not(.is-detail-open) .shelf-onboarding-actions {
+    margin-top: 10px;
+    flex-wrap: nowrap;
+  }
+
+  .library:not(.is-detail-open) .shelf-onboarding-actions button {
+    flex: 1;
+    padding-inline: 12px 30px;
+    white-space: nowrap;
+  }
+}

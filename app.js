@@ -3386,7 +3386,12 @@ function createBook(book, index) {
 
 function measureShelf() {
   const availableHeight = viewport.clientHeight;
-  const maximumHeight = Math.max(260, Math.min(430, availableHeight - 8));
+  // Phones: shorter books with air above them, instead of spines that reach
+  // up to the title.
+  const narrow = window.matchMedia("(max-width: 720px)").matches;
+  const maximumHeight = narrow
+    ? Math.max(190, Math.min(320, availableHeight * 0.86))
+    : Math.max(260, Math.min(430, availableHeight - 8));
   let cursor = 0;
   const lastReferenceIndex = books.map(isReferenceBook).lastIndexOf(true);
   books.forEach((book, index) => {
@@ -3725,10 +3730,10 @@ function wereadBookIdFor(book) {
 // the full title so editions can be told apart.
 function cleanBookTitle(title) {
   const full = String(title || "").trim();
-  const short = full
-    .replace(/\s*[（(【\[][^）)】\]]*[）)】\]]\s*$/g, "")
-    .replace(/\s*[（(【\[][^）)】\]]*[）)】\]]\s*$/g, "")
-    .trim();
+  // Everything from the first bracket on is edition talk ("（名家译、深度注释）
+  // 最深的伤害…"), as long as a real title comes before it.
+  const cut = full.search(/[（(【\[]/);
+  const short = cut >= 2 ? full.slice(0, cut).trim() : full;
   return short || full;
 }
 
@@ -4651,6 +4656,13 @@ function setupSiteMenu() {
         label: "阅读记录",
         onSelect: () => runAfterDetail(openReadingPanel),
         isCurrent: () => !readingPanel.hidden,
+      },
+      {
+        label: "操作提示",
+        onSelect: () => runAfterDetail(() => {
+          if (shelfHelp.hidden) toggleShelfHelp();
+        }),
+        isCurrent: () => !shelfHelp.hidden,
       },
     ],
     footer: [
