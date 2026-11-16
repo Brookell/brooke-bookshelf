@@ -2056,16 +2056,21 @@ function openReadingPanel() {
   refreshReadingPanel();
 }
 
-function closeReadingPanel() {
+// returnToShelf: false when the user is heading somewhere else (e.g. picked
+// a space in the top switch), so the panel just gets out of the way.
+function closeReadingPanel({ immediate = false, returnToShelf = reading.returnToShelf } = {}) {
   if (readingPanel.hidden) return;
   readingPanel.classList.remove("is-visible");
   readingPanel.setAttribute("aria-hidden", "true");
   library.classList.remove("is-reading-open");
-  window.setTimeout(() => {
+  reading.returnToShelf = false;
+  const hide = () => {
     if (!readingPanel.classList.contains("is-visible")) readingPanel.hidden = true;
     updateOnboarding();
-  }, 380);
-  if (reading.returnToShelf) openMyShelf({ view: myShelfView, restoreFocus: false });
+  };
+  if (immediate) hide();
+  else window.setTimeout(hide, 380);
+  if (returnToShelf) openMyShelf({ view: myShelfView, restoreFocus: false });
 }
 
 // Everything the dashboard needs is fetched first, behind a progress bar;
@@ -3558,6 +3563,7 @@ accountButton?.addEventListener("click", () => {
 spaceSwitch.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-space-target]") : null;
   if (!button) return;
+  closeReadingPanel({ immediate: true, returnToShelf: false });
   if (button.dataset.spaceTarget === "user") requireAuth(() => openUserSpace({ restoreFocus: false }));
   else openBrookeSpace({ restoreFocus: false });
 });
@@ -3828,7 +3834,7 @@ readingPanelToggle?.addEventListener("click", openReadingPanel);
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !readingPanel.hidden && !coverPickerState) closeReadingPanel();
 });
-readingPanelClose.addEventListener("click", closeReadingPanel);
+readingPanelClose.addEventListener("click", () => closeReadingPanel());
 readingPanelBody.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
   const modeButton = target?.closest("[data-reading-mode]");
