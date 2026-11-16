@@ -938,7 +938,8 @@ function setOnboardingContent({ kicker, title, copy, primary, secondary = t("onb
 
 function updateOnboarding() {
   window.clearTimeout(onboardingCloseTimer);
-  const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden;
+  const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden
+    && (!readingPanel || readingPanel.hidden);
   if (!shouldShow) {
     shelfOnboarding.classList.remove("is-visible");
     onboardingCloseTimer = window.setTimeout(() => {
@@ -2002,6 +2003,7 @@ function openReadingPanel() {
   reading.view = "overview";
   readingPanel.hidden = false;
   readingPanel.setAttribute("aria-hidden", "false");
+  updateOnboarding();
   requestAnimationFrame(() => {
     library.classList.add("is-reading-open");
     readingPanel.classList.add("is-visible");
@@ -2018,6 +2020,7 @@ function closeReadingPanel() {
   library.classList.remove("is-reading-open");
   window.setTimeout(() => {
     if (!readingPanel.classList.contains("is-visible")) readingPanel.hidden = true;
+    updateOnboarding();
   }, 380);
   if (reading.returnToShelf) openMyShelf({ view: myShelfView, restoreFocus: false });
 }
@@ -2182,7 +2185,7 @@ function readingHeatmapMarkup(year) {
   for (let day = new Date(start); day.getFullYear() === yearNumber; day.setDate(day.getDate() + 1)) {
     const seconds = byDay.get(`${day.getMonth()}-${day.getDate()}`) || 0;
     const label = `${day.getMonth() + 1}月${day.getDate()}日：${seconds ? formatDuration(seconds) : "没有阅读"}`;
-    cells.push(`<span class="${day > today ? "is-future" : `level-${level(seconds)}`}" title="${label}"></span>`);
+    cells.push(day > today ? '<span class="is-future"></span>' : `<span class="level-${level(seconds)}" data-label="${label}"></span>`);
   }
   return `<div class="reading-heatmap" role="img" aria-label="${yearNumber} 年每天的阅读时长">${cells.join("")}</div>`;
 }
@@ -2374,7 +2377,10 @@ function readingOverviewMarkup() {
 
       <section class="rd-card rd-span-2">
         <h4>阅读日历 <small>${year ? `${formatDuration(year.totalReadTime)} · ${year.readDays} 天` : ""}</small></h4>
-        ${year ? readingHeatmapMarkup(year) : `<p class="reading-muted">正在读取…</p>`}
+        <div class="rd-calendar">
+          ${year ? readingHeatmapMarkup(year) : `<p class="reading-muted">正在读取…</p>`}
+          <span class="rd-tooltip" role="tooltip" hidden></span>
+        </div>
         ${year && readingDailyMap(year).size ? `<div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>` : ""}
       </section>
 
@@ -3817,6 +3823,40 @@ readingPanelBody.addEventListener("click", async (event) => {
     renderReadingPanel();
   }
 });
+// Calendar: show the day and reading time for the square under the mouse.
+readingPanelBody.addEventListener("mouseover", (event) => {
+  const cell = event.target instanceof Element ? event.target.closest(".reading-heatmap span[data-label]") : null;
+  const calendar = cell?.closest(".rd-calendar");
+  const tooltip = readingPanelBody.querySelector(".rd-tooltip");
+  if (!tooltip) return;
+  if (!cell || !calendar) {
+    tooltip.hidden = true;
+    return;
+  }
+  const box = calendar.getBoundingClientRect();
+  const rect = cell.getBoundingClientRect();
+  tooltip.textContent = cell.dataset.label;
+  tooltip.hidden = false;
+  const half = tooltip.offsetWidth / 2;
+  const x = Math.min(Math.max(rect.left + rect.width / 2 - box.left, half), box.width - half);
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${rect.top - box.top}px`;
+});
+readingPanelBody.addEventListener("mouseleave", () => {
+  const tooltip = readingPanelBody.querySelector(".rd-tooltip");
+  if (tooltip) tooltip.hidden = true;
+});
+// Recommendations row: a normal mouse wheel scrolls it sideways.
+readingPanelBody.addEventListener("wheel", (event) => {
+  const row = event.target instanceof Element ? event.target.closest(".rd-recommend") : null;
+  if (!row || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+  const max = row.scrollWidth - row.clientWidth;
+  if (max <= 0) return;
+  const next = Math.min(max, Math.max(0, row.scrollLeft + event.deltaY));
+  if (next === row.scrollLeft) return;
+  event.preventDefault();
+  row.scrollLeft = next;
+}, { passive: false });
 readingPanelBody.addEventListener("keydown", (event) => {
   const row = event.target instanceof Element ? event.target.closest("tr[data-reading-book]") : null;
   if (row && (event.key === "Enter" || event.key === " ")) {

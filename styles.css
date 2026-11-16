@@ -4447,3 +4447,65 @@ h1 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Recommendations: one row of small books that scrolls sideways. */
+.rd-recommend {
+  display: flex;
+  grid-template-columns: none;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: 8px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 21, 21, 0.22) transparent;
+}
+
+.rd-recommend li {
+  flex: 0 0 112px;
+  scroll-snap-align: start;
+}
+
+.rd-recommend .rd-cover {
+  width: 84px;
+}
+
+@media (max-width: 960px), (max-width: 640px) {
+  .rd-recommend {
+    grid-template-columns: none;
+  }
+}
+
+/* Notes table: larger covers. */
+.rd-table-title .rd-cover {
+  flex: 0 0 36px;
+  width: 36px;
+}
+
+/* Calendar day tooltip. */
+.rd-calendar {
+  position: relative;
+}
+
+.rd-tooltip {
+  position: absolute;
+  z-index: 5;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.rd-tooltip[hidden] {
+  display: none;
+}
+
+.reading-heatmap span[data-label]:hover {
+  outline: 1px solid var(--ink);
+  outline-offset: 1px;
+}
