@@ -1,0 +1,6 @@
+# Local-only files that must never reach the Vercel deployment.
+config.local.js
+supabase/
+.env*
+# Docs and data notes are for maintainers, not visitors.
+*.md

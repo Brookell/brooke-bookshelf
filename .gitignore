@@ -2,3 +2,4 @@ config.local.js
 supabase/.env
 supabase/.env.local
 supabase/.temp/
+.vercel
