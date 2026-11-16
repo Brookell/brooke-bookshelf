@@ -5420,3 +5420,11 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     display: none;
   }
 }
+
+/* Panels that slide over the shelf (增添书籍, 全部书目, 阅读记录, 我的书架
+   list, sign-in) sit on plain paper, so the strip above them must not keep
+   the shelf's colour wash. */
+.library:is(.is-add-book-open, .is-index-open, .is-reading-open, .is-auth-gate-open),
+.library.is-my-shelf-open:not(.is-my-room-view) {
+  background-color: var(--paper);
+}
