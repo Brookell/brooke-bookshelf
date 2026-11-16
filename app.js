@@ -2086,6 +2086,8 @@ const reading = {
   // Cover colour per cover URL, for the masthead and charts.
   themeColors: {},
   quote: undefined,
+  // Highlight texts per WeRead bookId, so 换一条 doesn't refetch a book.
+  highlightCache: {},
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2497,26 +2499,79 @@ async function loadReadingTheme(mode = reading.mode) {
   }
 }
 
-// One highlight to feature: from the most recently annotated book, a
-// sentence that reads well on its own (not too short, not a whole page).
+// 摘录: one of the user's highlights, picked at random from any annotated
+// book (books with more highlights come up more often). 换一条 picks again.
+function readingQuoteCandidates(texts) {
+  const usable = texts
+    .map((text) => String(text || "").replace(/\s+/g, " ").trim())
+    .filter((text) => text.length >= 8);
+  const fitting = usable.filter((text) => text.length <= 120);
+  return fitting.length ? fitting : usable;
+}
+
+async function readingHighlightTexts(bookId) {
+  if (!reading.highlightCache[bookId]) {
+    const data = await callWereadMe("highlights", { bookId });
+    reading.highlightCache[bookId] = readingQuoteCandidates((data.highlights || []).map((mark) => mark.text));
+  }
+  return reading.highlightCache[bookId];
+}
+
+function pickWeightedNotebook(exclude = new Set()) {
+  const books = (reading.notebooks || []).filter((entry) => entry.highlights > 0 && entry.book?.bookId && !exclude.has(entry.book.bookId));
+  const total = books.reduce((sum, entry) => sum + entry.highlights, 0);
+  let roll = Math.random() * total;
+  return books.find((entry) => (roll -= entry.highlights) < 0) || books[books.length - 1] || null;
+}
+
+async function pickReadingQuote() {
+  const tried = new Set();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const item = pickWeightedNotebook(tried);
+    if (!item) return null;
+    tried.add(item.book.bookId);
+    const texts = await readingHighlightTexts(item.book.bookId);
+    const choices = texts.filter((text) => text !== reading.quote?.text);
+    if (!choices.length) continue;
+    const text = choices[Math.floor(Math.random() * choices.length)];
+    return { text: text.length > 160 ? `${text.slice(0, 158)}…` : text, title: item.book.title, author: item.book.author || "" };
+  }
+  return null;
+}
+
 async function loadReadingQuote() {
   if (reading.quote !== undefined) return;
   reading.quote = null;
-  const item = (reading.notebooks || []).find((entry) => entry.highlights > 0 && entry.book?.bookId);
-  if (!item) return;
   try {
-    const data = await callWereadMe("highlights", { bookId: item.book.bookId });
-    const marks = (data.highlights || [])
-      .map((mark) => String(mark.text || "").replace(/\s+/g, " ").trim())
-      .filter((text) => text.length >= 12);
-    const fitting = marks.filter((text) => text.length <= 90);
-    const pool = fitting.length ? fitting : marks;
-    if (!pool.length) return;
-    const text = pool[Math.floor(Math.random() * Math.min(pool.length, 12))];
-    reading.quote = { text: text.length > 140 ? `${text.slice(0, 138)}…` : text, title: item.book.title, author: item.book.author || "" };
+    reading.quote = await pickReadingQuote();
   } catch (error) {
     console.warn("Reading quote failed", error);
   }
+}
+
+function readingQuoteInner(quote) {
+  return `
+    <p>${escapeHtml(quote.text)}</p>
+    <cite>《${escapeHtml(cleanBookTitle(quote.title))}》${quote.author ? ` · ${escapeHtml(quote.author)}` : ""}</cite>`;
+}
+
+// 换一条: swap just the quote, with a short fade, without redrawing the panel.
+async function shuffleReadingQuote(button) {
+  const box = readingPanelBody.querySelector(".rd-quote");
+  if (!box || button.disabled) return;
+  button.disabled = true;
+  box.classList.add("is-changing");
+  try {
+    const [next] = await Promise.all([pickReadingQuote(), new Promise((resolve) => setTimeout(resolve, 220))]);
+    if (next) {
+      reading.quote = next;
+      box.innerHTML = readingQuoteInner(next);
+    }
+  } catch (error) {
+    console.warn("Reading quote failed", error);
+  }
+  box.classList.remove("is-changing");
+  button.disabled = false;
 }
 
 // 23 小时 54 分 as big number + small unit pairs.
@@ -2575,11 +2630,13 @@ function readingQuoteMarkup(number) {
   if (!quote) return "";
   return `
     <section class="rd-section rd-span-3">
-      ${readingSectionHead("摘录", number, "你最近的划线")}
-      <blockquote class="rd-quote">
-        <p>${escapeHtml(quote.text)}</p>
-        <cite>《${escapeHtml(cleanBookTitle(quote.title))}》${quote.author ? ` · ${escapeHtml(quote.author)}` : ""}</cite>
-      </blockquote>
+      ${readingSectionHead("摘录", number, "随机一条你划过的句子")}
+      <blockquote class="rd-quote" aria-live="polite">${readingQuoteInner(quote)}</blockquote>
+      <div class="rd-quote-actions">
+        <button type="button" class="rd-quote-shuffle" data-quote-shuffle>
+          <i data-lucide="shuffle" aria-hidden="true"></i><span>换一条</span>
+        </button>
+      </div>
     </section>`;
 }
 
@@ -4247,6 +4304,11 @@ readingPanelBody.addEventListener("click", async (event) => {
     }
     return;
   }
+  const shuffleButton = target?.closest("[data-quote-shuffle]");
+  if (shuffleButton) {
+    shuffleReadingQuote(shuffleButton);
+    return;
+  }
   const recommendButton = target?.closest("[data-reading-recommend]");
   if (recommendButton) {
     const item = reading.recommend?.[Number(recommendButton.dataset.readingRecommend)];
@@ -4274,7 +4336,7 @@ readingPanelBody.addEventListener("click", async (event) => {
     } catch (error) {
       console.warn(error);
     }
-    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, quote: undefined, error: "" });
+    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, quote: undefined, highlightCache: {}, error: "" });
     renderReadingPanel();
   }
 });
