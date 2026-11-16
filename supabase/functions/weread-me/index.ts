@@ -13,6 +13,7 @@
 // POST { action: "highlights", bookId }         -> highlights + thoughts for one book
 // POST { action: "progress", bookIds }          -> reading progress per book (max 40)
 // POST { action: "shelf" }                      -> the user's WeRead shelf
+// POST { action: "recommend" }                  -> WeRead's 为你推荐 for this user
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // Must match the `version` in tencent/wechatreading skills/SKILL.md.
@@ -316,6 +317,21 @@ Deno.serve(async (request) => {
         .filter((id: string) => /^[\w-]{1,40}$/.test(id))
         .slice(0, 40);
       return jsonResponse({ progress: await progress(saved.key, bookIds) });
+    }
+    if (action === "recommend") {
+      const data = await weread(saved.key, "/book/recommend", { count: 12 });
+      // deno-lint-ignore no-explicit-any
+      const books = (Array.isArray(data.books) ? data.books : []).map((book: any) => ({
+        bookId: String(book.bookId || ""),
+        title: String(book.title || ""),
+        author: String(book.author || ""),
+        cover: String(book.cover || ""),
+        intro: String(book.intro || ""),
+        reason: String(book.reason || ""),
+        rating: Number(book.newRating) > 0 ? Number(book.newRating) : null,
+        ratingTitle: book.newRatingDetail?.title || "",
+      })).filter((book: { bookId: string; title: string }) => book.bookId && book.title);
+      return jsonResponse({ books });
     }
     if (action === "shelf") {
       const data = await weread(saved.key, "/shelf/sync");

@@ -971,6 +971,7 @@ function updateOnboarding() {
 }
 
 function showOnboardingRoomStep(book) {
+  if (readingPanel && !readingPanel.hidden) return;
   window.clearTimeout(onboardingCloseTimer);
   setOnboardingContent({
     kicker: t("onboardingSavedKicker"),
@@ -1948,6 +1949,7 @@ const reading = {
   error: "",
   returnToShelf: false,
   loading: null,
+  recommend: null,
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2040,6 +2042,11 @@ async function refreshReadingPanel() {
     if (!reading.year) tasks.push(() => callWereadMe("stats", { mode: "annually" }).then((data) => { reading.year = data; }));
     if (!reading.notebooks) tasks.push(() => callWereadMe("notebooks").then((data) => { reading.notebooks = data.books || []; }));
     if (!reading.progress) tasks.push(() => loadReadingProgress());
+    if (!reading.recommend) {
+      tasks.push(() => callWereadMe("recommend")
+        .then((data) => { reading.recommend = data.books || []; })
+        .catch((error) => { console.warn(error); reading.recommend = []; }));
+    }
     if (tasks.length) {
       reading.loading = { done: 0, total: tasks.length };
       renderReadingPanel();
@@ -2119,19 +2126,29 @@ function readingConnectMarkup() {
 
 // WeRead timestamps are documented as seconds; accept milliseconds too so a
 // unit mix-up can't push every day into a far-future (invisible) year.
-function wereadDate(value) {
+// Calendar day of a WeRead timestamp. WeRead's days, months and years start
+// at midnight Beijing time (UTC+8), which is still the evening before in
+// Europe, so dates are read in Beijing time rather than the viewer's zone.
+// Accepts seconds, milliseconds or a date string.
+const BEIJING_OFFSET_MS = 8 * 3600 * 1000;
+
+function wereadDay(value) {
   const number = Number(value);
+  let ms;
   if (Number.isNaN(number)) {
-    const parsed = new Date(String(value));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    ms = new Date(String(value)).getTime();
+    if (Number.isNaN(ms)) return null;
+  } else {
+    if (!number) return null;
+    ms = number > 1e12 ? number : number * 1000;
   }
-  if (!number) return null;
-  return new Date(number > 1e12 ? number : number * 1000);
+  const shifted = new Date(ms + BEIJING_OFFSET_MS);
+  return { year: shifted.getUTCFullYear(), month: shifted.getUTCMonth(), date: shifted.getUTCDate() };
 }
 
 function readingYearNumber(year) {
   const now = new Date().getFullYear();
-  const fromData = wereadDate(year?.baseTime)?.getFullYear();
+  const fromData = wereadDay(year?.baseTime)?.year;
   return fromData && Math.abs(fromData - now) <= 1 ? fromData : now;
 }
 
@@ -2144,9 +2161,9 @@ function readingDailyMap(year) {
     : Object.keys(year?.readTimes || {}).length > 12 ? year.readTimes : {};
   const map = new Map();
   Object.entries(source).forEach(([key, value]) => {
-    const day = wereadDate(key);
-    if (!day || day.getFullYear() !== yearNumber) return;
-    const id = `${day.getMonth()}-${day.getDate()}`;
+    const day = wereadDay(key);
+    if (!day || day.year !== yearNumber) return;
+    const id = `${day.month}-${day.date}`;
     map.set(id, (map.get(id) || 0) + (Number(value) || 0));
   });
   return map;
@@ -2213,8 +2230,8 @@ function readingMonthBars(year) {
   const source = Object.keys(year?.dailyReadTimes || {}).length ? year.dailyReadTimes : year?.readTimes || {};
   const months = Array(12).fill(0);
   Object.entries(source).forEach(([key, value]) => {
-    const day = wereadDate(key);
-    if (day && day.getFullYear() === yearNumber) months[day.getMonth()] += Number(value) || 0;
+    const day = wereadDay(key);
+    if (day && day.year === yearNumber) months[day.month] += Number(value) || 0;
   });
   const max = Math.max(1, ...months);
   const now = new Date();
@@ -2235,6 +2252,41 @@ function readingFocusBook() {
     .filter(({ item }) => item && item.progress > 0 && item.progress < 100)
     .sort((a, b) => (b.item.updateTime || 0) - (a.item.updateTime || 0) || b.item.progress - a.item.progress);
   return candidates[0] || null;
+}
+
+function recommendBook(item) {
+  return customBookFromSearchResult(searchResultToVolume({
+    id: `weread-${item.bookId}`,
+    source: "weread",
+    title: item.title,
+    author: item.author,
+    cover: item.cover,
+    description: shortenIntro(item.intro),
+  }));
+}
+
+function isRecommendAdded(item) {
+  const book = books.find((candidate) => candidate.id === recommendBook(item).id);
+  return Boolean(book && getBookState(book));
+}
+
+// Add a recommended book without leaving the panel; colours and intro are
+// filled in the background.
+function addRecommendedBook(item) {
+  const draft = recommendBook(item);
+  const existing = books.find((book) => book.id === draft.id);
+  const book = existing || draft;
+  if (!existing) {
+    books.push(book);
+    writeCustomBooks();
+    createBook(book, books.length - 1);
+    totalBooks.textContent = formatReferenceCount();
+    renderBookIndex();
+    measureShelf();
+  }
+  saveBookState(book, DEFAULT_STATUS);
+  loadCoverPalette(book);
+  loadRealIntro(book);
 }
 
 function readingOverviewMarkup() {
@@ -2266,7 +2318,6 @@ function readingOverviewMarkup() {
     <header class="rd-card rd-hero">
       <div>
         <h3>你的阅读年 — ${yearNumber}</h3>
-        <p class="rd-sub">${year ? `今年读了 ${formatDuration(year.totalReadTime)}，${year.readDays} 天打开过书${year.preferCategoryWord ? `，${escapeHtml(year.preferCategoryWord)}` : ""}。` : "正在读取你的阅读记录…"}</p>
       </div>
       <div class="rd-hero-actions">
         <div class="reading-tabs" role="group" aria-label="统计周期">${tabs}</div>
@@ -2356,6 +2407,22 @@ function readingOverviewMarkup() {
             </tbody>
           </table></div>` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
       </section>
+
+      ${reading.recommend?.length ? `
+      <section class="rd-card rd-span-3">
+        <h4>为你推荐 <small>来自微信读书</small></h4>
+        <ul class="rd-recommend">${reading.recommend.map((item, index) => {
+          const added = isRecommendAdded(item);
+          return `
+          <li>
+            ${readingCoverMarkup(item.cover, item.title)}
+            <strong>${escapeHtml(item.title)}</strong>
+            <small>${escapeHtml(item.author)}</small>
+            ${item.reason ? `<em>${escapeHtml(item.reason)}</em>` : item.rating ? `<em>微信读书 ${(item.rating / 10).toFixed(1)}${item.ratingTitle ? ` · ${escapeHtml(item.ratingTitle)}` : ""}</em>` : ""}
+            <button type="button" data-reading-recommend="${index}" ${added ? "disabled" : ""}>${added ? "已加入" : "加入书架"}</button>
+          </li>`;
+        }).join("")}</ul>
+      </section>` : ""}
     </div>
   `;
 }
@@ -2971,7 +3038,10 @@ function populateBookDetail(index) {
 }
 
 function renderDetailDescription(book) {
-  detailDescription.innerHTML = book.description
+  // Hide placeholder lines ("来自微信读书搜索。" …) once a real intro is there.
+  const real = book.description.filter((paragraph) => !PLACEHOLDER_INTRO.test(paragraph));
+  const paragraphs = book.isCustom && real.length ? real : book.description;
+  detailDescription.innerHTML = paragraphs
     .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
     .join("");
 }
@@ -3716,6 +3786,16 @@ readingPanelBody.addEventListener("click", async (event) => {
     renderReadingPanel();
     return;
   }
+  const recommendButton = target?.closest("[data-reading-recommend]");
+  if (recommendButton) {
+    const item = reading.recommend?.[Number(recommendButton.dataset.readingRecommend)];
+    if (item) {
+      addRecommendedBook(item);
+      recommendButton.disabled = true;
+      recommendButton.textContent = "已加入";
+    }
+    return;
+  }
   const bookButton = target?.closest("[data-reading-book]");
   if (bookButton) {
     openReadingBook(Number(bookButton.dataset.readingBook));
@@ -3733,7 +3813,7 @@ readingPanelBody.addEventListener("click", async (event) => {
     } catch (error) {
       console.warn(error);
     }
-    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, error: "" });
+    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, error: "" });
     renderReadingPanel();
   }
 });
