@@ -915,7 +915,8 @@ async function signOutEverywhere() {
   const client = getSupabaseClient();
   accountButton.disabled = true;
   try {
-    await client?.auth.signOut();
+    // Only this browser's session, so the admin page stays signed in.
+    await client?.auth.signOut({ scope: "local" });
   } catch (error) {
     console.warn("Sign out failed", error);
   }

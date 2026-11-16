@@ -46,7 +46,10 @@
     const key = String(window.BROOKE_SUPABASE_ANON_KEY || "").trim();
     if (!url || !key || !window.supabase?.createClient) return null;
     return window.supabase.createClient(url, key, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      // Own storage key: the admin login is kept apart from the main site's,
+      // so signing in or out there doesn't touch it. It stays signed in on
+      // this browser until 退出 is pressed.
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "brooke-bookshelf-admin-auth" },
     });
   }
 
@@ -306,7 +309,7 @@
     });
 
     $("refreshButton").addEventListener("click", load);
-    $("signOutButton").addEventListener("click", () => client.auth.signOut());
+    $("signOutButton").addEventListener("click", () => client.auth.signOut({ scope: "local" }));
     $("userFilter").addEventListener("input", renderUsers);
 
     document.querySelectorAll("#userTable th[data-sort]").forEach((th) => {
