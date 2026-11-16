@@ -15,7 +15,9 @@
 // - cached by query for CACHE_TTL_HOURS so repeats never hit WeRead again
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
-const SKILL_VERSION = "1.0.4";
+// Must match the `version` in tencent/wechatreading skills/SKILL.md; the
+// gateway refuses older versions with an upgrade_info message.
+const SKILL_VERSION = "1.0.5";
 const MAX_LIMIT = 12;
 const RATE_LIMIT_PER_HOUR = 40;
 const CACHE_TTL_HOURS = 24 * 7;
@@ -192,8 +194,8 @@ async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
     publishTime: String(info.publishTime || "").slice(0, 10),
     category: String(info.category || "").trim(),
     isbn: String(info.isbn || "").trim(),
-    // WeRead reports ratings out of 1000.
-    rating: Number.isFinite(rating) && rating > 0 ? Math.round(rating / 10) : null,
+    // WeRead reports ratings on a 0–100 scale.
+    rating: Number.isFinite(rating) && rating > 0 ? rating : null,
   };
 }
 

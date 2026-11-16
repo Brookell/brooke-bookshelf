@@ -530,7 +530,7 @@ function normalizeBook(book, index = books.length) {
     source: book.source || "",
     sourceId: book.sourceId || "",
     deepLink: book.deepLink || "",
-    introFetched: Boolean(book.introFetched),
+    introLoaded: Boolean(book.introLoaded),
   };
 }
 
@@ -2399,7 +2399,7 @@ function shortenIntro(text) {
 const introRequests = new Set();
 
 async function loadRealIntro(book) {
-  if (book.source !== "weread" || !book.sourceId || book.introFetched || introRequests.has(book.id)) return;
+  if (book.source !== "weread" || !book.sourceId || book.introLoaded || introRequests.has(book.id)) return;
   const accessToken = await getSupabaseAccessToken();
   if (!accessToken) return;
   introRequests.add(book.id);
@@ -2415,8 +2415,9 @@ async function loadRealIntro(book) {
     });
     if (!response.ok) return;
     const { info } = await response.json().catch(() => ({}));
-    book.introFetched = true;
-    if (info) {
+    if (!info) return;
+    book.introLoaded = true;
+    {
       const intro = shortenIntro(info.intro);
       const meta = [info.publisher, String(info.publishTime || "").slice(0, 7)].filter(Boolean).join(" · ");
       const description = [intro, meta].filter(Boolean);

@@ -1,5 +1,6 @@
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
-const SKILL_VERSION = "1.0.4";
+// Must match the `version` in tencent/wechatreading skills/SKILL.md.
+const SKILL_VERSION = "1.0.5";
 const IMPORT_LIMIT = 20;
 
 const corsHeaders = {
