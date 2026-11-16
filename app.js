@@ -509,8 +509,9 @@ function normalizeBook(book, index = books.length) {
     id,
     title: safeTitle,
     author: safeAuthor,
+    // Intros fetched earlier were saved as [intro, "出版社 · 年月"]; keep only the intro.
     description: Array.isArray(book.description) && book.description.length
-      ? book.description.map(String)
+      ? book.description.map(String).slice(0, book.introLoaded ? 1 : undefined)
       : ["这是你自己加入书架的书。之后接入用户数据库后，它会成为你专属书架的一部分。"],
     color: book.color || palette[0],
     ink: book.ink || palette[1],
@@ -801,6 +802,7 @@ async function loadShelfFromSupabase() {
   updateDetailShelfControls();
   updateOnboarding();
   loadMissingCoverPalettes();
+  loadMissingIntros();
 }
 
 async function syncLocalShelfToSupabase() {
@@ -1640,6 +1642,7 @@ async function syncWereadShelf(apiKey) {
     measureShelf();
     wereadImportStatus.textContent = t("wereadSyncDone", { count: items.length });
     loadMissingCoverPalettes();
+    loadMissingIntros();
     wereadApiKey.value = "";
     if (items.length > 0) {
       closeAddBookPanel({ restoreFocus: false });
@@ -2518,48 +2521,86 @@ function loadMissingCoverPalettes() {
 const introRequests = new Set();
 
 // WeRead bookId for a book: imported shelf books keep it as sourceId,
-// searched books as wereadBookId (older ones only in their id).
+// searched books as wereadBookId, and older ones only inside their id
+// ("weread-<bookId>" for early imports, "custom-weread-<bookId>" for search).
 function wereadBookIdFor(book) {
   if (book.wereadBookId) return book.wereadBookId;
   if (book.source === "weread" && book.sourceId) return book.sourceId;
-  const match = String(book.id).match(/^custom-weread-([\w-]+)$/);
+  const match = String(book.id).match(/^(?:custom-)?weread-([\w-]+)$/);
   return match ? match[1] : "";
 }
 
-async function loadRealIntro(book) {
-  const bookId = wereadBookIdFor(book);
-  if (!bookId || book.introLoaded || introRequests.has(book.id)) return;
+// Placeholder lines written when a book was added without a real intro.
+const PLACEHOLDER_INTRO = /^(微信读书分类：|来自微信读书|这本书保留了微信读书|这本书由微信读书|来自 Google Books 搜索|这本书由你搜索加入|这是你自己加入书架的书|出版时间：)/;
+
+function needsRealIntro(book) {
+  return Boolean(book?.isCustom)
+    && !book.introLoaded
+    && book.description.every((paragraph) => PLACEHOLDER_INTRO.test(paragraph));
+}
+
+async function callBookFunction(body) {
   const accessToken = await getSupabaseAccessToken();
-  if (!accessToken) return;
+  if (!accessToken) return null;
+  const response = await fetch(`${readSupabaseFunctionsUrl()}/search-books`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: readSupabaseAnonKey(),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) return null;
+  return response.json().catch(() => null);
+}
+
+// Books without a WeRead bookId (e.g. added from Google) are matched by
+// searching WeRead for their title and taking the first same-titled book.
+async function findWereadBookId(book) {
+  const data = await callBookFunction({ query: book.title, limit: 5 });
+  const normalize = (value) => String(value || "").replace(/[\s（）()【】《》:：·・-]/g, "").toLowerCase();
+  const title = normalize(book.title);
+  const match = (data?.results || []).find((result) => result.source === "weread"
+    && (normalize(result.title) === title || normalize(result.title).startsWith(title) || title.startsWith(normalize(result.title))));
+  return match ? String(match.id).replace(/^weread-/, "") : "";
+}
+
+async function loadRealIntro(book) {
+  if (!needsRealIntro(book) || introRequests.has(book.id)) return;
+  if (!(await getSupabaseAccessToken())) return;
   introRequests.add(book.id);
   try {
-    const response = await fetch(`${readSupabaseFunctionsUrl()}/search-books`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        apikey: readSupabaseAnonKey(),
-      },
-      body: JSON.stringify({ bookId }),
-    });
-    if (!response.ok) return;
-    const { info } = await response.json().catch(() => ({}));
-    if (!info) return;
-    book.introLoaded = true;
-    {
-      const intro = shortenIntro(info.intro);
-      const meta = [info.publisher, String(info.publishTime || "").slice(0, 7)].filter(Boolean).join(" · ");
-      const description = [intro, meta].filter(Boolean);
-      if (description.length) book.description = description;
+    let bookId = wereadBookIdFor(book);
+    if (!bookId) {
+      bookId = await findWereadBookId(book);
+      if (!bookId) return;
+      book.wereadBookId = bookId;
     }
+    const data = await callBookFunction({ bookId });
+    const intro = shortenIntro(data?.info?.intro);
+    if (!intro) return;
+    book.introLoaded = true;
+    book.description = [intro];
     if (book.isCustom) writeCustomBooks();
     if (getBookState(book)) syncBookStateToSupabase(book);
     if (detailIndex === books.indexOf(book)) renderDetailDescription(book);
+    renderMyShelf();
   } catch (error) {
     console.warn("WeRead book info failed", error);
   } finally {
     introRequests.delete(book.id);
   }
+}
+
+// Fill in intros for every saved book that still shows placeholder text,
+// one at a time so WeRead isn't hit all at once.
+let introQueue = Promise.resolve();
+
+function loadMissingIntros() {
+  books.filter((book) => getBookState(book) && needsRealIntro(book)).forEach((book) => {
+    introQueue = introQueue.then(() => loadRealIntro(book));
+  });
 }
 
 function positionDetailBook(index = detailIndex ?? activeIndex ?? 0) {
@@ -3148,7 +3189,10 @@ if (showMyRoomFirst && hasSavedBooks()) {
   requestAnimationFrame(() => openMyShelf({ view: "room", restoreFocus: false }));
 }
 
-initializeSupabaseAuth().then(loadMissingCoverPalettes);
+initializeSupabaseAuth().then(() => {
+  loadMissingCoverPalettes();
+  loadMissingIntros();
+});
 updateOnboarding();
 notifyParentTheme();
 window.setTimeout(() => {

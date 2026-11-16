@@ -22,7 +22,8 @@ const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // gateway refuses older versions with an upgrade_info message.
 const SKILL_VERSION = "1.0.5";
 const MAX_LIMIT = 12;
-const RATE_LIMIT_PER_HOUR = 40;
+// Enough for a user to fill intros for a few dozen saved books in one go.
+const RATE_LIMIT_PER_HOUR = 120;
 const CACHE_TTL_HOURS = 24 * 7;
 
 const corsHeaders = {
