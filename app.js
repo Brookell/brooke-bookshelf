@@ -2098,10 +2098,18 @@ async function refreshReadingPanel() {
         .catch((error) => { console.warn(error); reading.recommend = []; }));
     }
     if (tasks.length) {
-      reading.loading = { done: 0, total: tasks.length };
+      reading.loading = { done: 0, total: tasks.length, images: null };
       renderReadingPanel();
       await Promise.all(tasks.map((task) => task().then(() => {
         reading.loading.done += 1;
+        updateReadingLoading();
+      })));
+      // Then wait for the covers, so the panel opens with its pictures in.
+      const urls = readingCoverUrls();
+      reading.loading.images = { done: 0, total: urls.length };
+      updateReadingLoading();
+      await Promise.all(urls.map((url) => preloadImage(url).then(() => {
+        reading.loading.images.done += 1;
         updateReadingLoading();
       })));
     }
@@ -2114,9 +2122,43 @@ async function refreshReadingPanel() {
   renderReadingPanel();
 }
 
+// Covers the dashboard shows without scrolling far: month tops, 读得最多,
+// progress, recommendations and the first notebooks.
+function readingCoverUrls() {
+  const stats = reading.stats[reading.mode];
+  const covers = [
+    ...(reading.monthTops || []).filter((item) => item.readTime > 0).map((item) => item.book?.cover),
+    ...(stats?.readLongest || []).slice(0, 10).map((item) => item.book?.cover),
+    ...(reading.progress || []).map((item) => item.cover),
+    ...(reading.recommend || []).map((item) => item.cover),
+    ...(reading.notebooks || []).slice(0, 30).map((item) => item.book?.cover),
+  ];
+  return [...new Set(covers.filter(Boolean).map((cover) => sharpCover(cover)))];
+}
+
+// Resolves once the image has fully downloaded, or failed, or
+// after 10 s, so a slow cover never blocks the panel for good.
+function preloadImage(url) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const finish = () => { clearTimeout(timer); resolve(); };
+    const timer = setTimeout(finish, 10000);
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = url;
+  });
+}
+
+// Data counts for the first half of the bar, covers for the second.
+function readingLoadingPercent() {
+  const { done, total, images } = reading.loading;
+  const data = total ? done / total : 1;
+  if (!images) return Math.round(data * 50);
+  return Math.round(50 + (images.total ? images.done / images.total : 1) * 50);
+}
+
 function readingLoadingMarkup() {
-  const { done, total } = reading.loading;
-  const percent = total ? Math.round((done / total) * 100) : 0;
+  const percent = readingLoadingPercent();
   return `
     <div class="rd-loading" role="status">
       <p>正在读取你的阅读记录…</p>
@@ -2129,8 +2171,9 @@ function readingLoadingMarkup() {
 function updateReadingLoading() {
   const box = readingPanelBody.querySelector(".rd-loading");
   if (!box || !reading.loading) return;
-  const { done, total } = reading.loading;
-  const percent = total ? Math.round((done / total) * 100) : 0;
+  const percent = readingLoadingPercent();
+  const note = box.querySelector("p");
+  if (note) note.textContent = reading.loading.images ? "正在加载封面…" : "正在读取你的阅读记录…";
   box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(percent));
   box.querySelector("i").style.width = `${percent}%`;
 }
