@@ -4340,20 +4340,19 @@ h1 {
   transition: width 260ms ease;
 }
 
-.rd-toggle {
-  margin-top: 10px;
-  padding: 6px 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
-  font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+
+/* Long lists scroll inside their card, so the card keeps a fixed size. */
+.rd-scroll {
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(21, 21, 21, 0.22) transparent;
 }
 
-.rd-toggle:hover,
-.rd-toggle:focus-visible {
-  color: var(--ink);
+.rd-scroll .rd-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f3f2ef;
 }

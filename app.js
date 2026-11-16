@@ -1947,7 +1947,6 @@ const reading = {
   error: "",
   returnToShelf: false,
   loading: null,
-  expanded: { progress: false, notes: false },
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2239,16 +2238,6 @@ function readingFocusBook() {
   return candidates[0] || null;
 }
 
-// Long lists show the first few rows with a 展开 / 收起 toggle.
-const READING_LIST_PREVIEW = 5;
-
-function readingToggleMarkup(key, count) {
-  if (count <= READING_LIST_PREVIEW) return "";
-  return `<button type="button" class="rd-toggle" data-reading-toggle="${key}" aria-expanded="${String(reading.expanded[key])}">
-    ${reading.expanded[key] ? "收起" : `展开全部 ${count} 本`}
-  </button>`;
-}
-
 function readingOverviewMarkup() {
   const stats = reading.stats[reading.mode];
   const year = reading.year;
@@ -2336,12 +2325,12 @@ function readingOverviewMarkup() {
       <section class="rd-card rd-span-2">
         <h4>阅读日历 <small>${year ? `${formatDuration(year.totalReadTime)} · ${year.readDays} 天` : ""}</small></h4>
         ${year ? readingHeatmapMarkup(year) : `<p class="reading-muted">正在读取…</p>`}
-        <div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>
+        ${year && readingDailyMap(year).size ? `<div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>` : ""}
       </section>
 
       <section class="rd-card">
         <h4>阅读进度 <small>${progressBooks.length ? `${progressBooks.length} 本` : ""}</small></h4>
-        ${progressBooks.length ? `<ul class="reading-progress">${(reading.expanded.progress ? progressBooks : progressBooks.slice(0, READING_LIST_PREVIEW)).map((book) => {
+        ${progressBooks.length ? `<div class="rd-scroll"><ul class="reading-progress">${progressBooks.map((book) => {
           const item = reading.progress[wereadBookIdFor(book)];
           return `
           <li>
@@ -2349,15 +2338,15 @@ function readingOverviewMarkup() {
             <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
             <em>${Number(item.progress) || 0}%</em>
           </li>`;
-        }).join("")}</ul>${readingToggleMarkup("progress", progressBooks.length)}` : `<p class="reading-muted">${reading.progress ? "书架上还没有来自微信读书的书。" : "正在读取…"}</p>`}
+        }).join("")}</ul></div>` : `<p class="reading-muted">${reading.progress ? "书架上还没有来自微信读书的书。" : "正在读取…"}</p>`}
       </section>
 
       <section class="rd-card rd-span-2">
         <h4>划线和想法 <small>${reading.notebooks ? `${reading.notebooks.length} 本书有笔记` : ""}</small></h4>
         ${reading.notebooks?.length ? `
-          <table class="rd-table">
+          <div class="rd-scroll"><table class="rd-table">
             <thead><tr><th>书名</th><th>作者</th><th class="num">划线</th><th class="num">想法</th><th></th></tr></thead>
-            <tbody>${(reading.expanded.notes ? reading.notebooks : reading.notebooks.slice(0, READING_LIST_PREVIEW)).map((item, index) => `
+            <tbody>${reading.notebooks.map((item, index) => `
               <tr data-reading-book="${index}" tabindex="0">
                 <td><span class="rd-table-title">${readingCoverMarkup(item.book?.cover, item.book?.title)}${escapeHtml(item.book?.title || "")}</span></td>
                 <td>${escapeHtml(item.book?.author || "")}</td>
@@ -2366,7 +2355,7 @@ function readingOverviewMarkup() {
                 <td class="num"><i data-lucide="arrow-up-right" aria-hidden="true"></i></td>
               </tr>`).join("")}
             </tbody>
-          </table>${readingToggleMarkup("notes", reading.notebooks.length)}` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
+          </table></div>` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
       </section>
     </div>
   `;
@@ -3711,16 +3700,6 @@ readingPanelBody.addEventListener("click", async (event) => {
       reading.error = readingErrorText(error);
     }
     renderReadingPanel();
-    return;
-  }
-  const toggle = target?.closest("[data-reading-toggle]");
-  if (toggle) {
-    const key = toggle.dataset.readingToggle;
-    reading.expanded[key] = !reading.expanded[key];
-    renderReadingPanel();
-    if (!reading.expanded[key]) {
-      readingPanelBody.querySelector(`[data-reading-toggle="${key}"]`)?.closest(".rd-card")?.scrollIntoView({ block: "nearest" });
-    }
     return;
   }
   const bookButton = target?.closest("[data-reading-book]");
