@@ -531,6 +531,7 @@ function normalizeBook(book, index = books.length) {
     sourceId: book.sourceId || "",
     deepLink: book.deepLink || "",
     introLoaded: Boolean(book.introLoaded),
+    wereadBookId: book.wereadBookId || "",
     coverPalette: book.coverPalette || "",
   };
 }
@@ -1385,6 +1386,7 @@ function customBookFromSearchResult(result, offset = 0) {
     shelfGap: 30,
     image: cover,
     originalCover: Boolean(cover),
+    wereadBookId: result.source === "weread" ? String(result.id || "").replace(/^weread-/, "") : "",
     description: [
       publishYear,
       description || "这本书由你搜索加入，可以继续设置为想读、在读或读完。",
@@ -1662,6 +1664,7 @@ function addCustomBook(book) {
   }
   saveBookState(book, DEFAULT_STATUS);
   loadCoverPalette(book);
+  loadRealIntro(book);
   renderAddBookResults();
   closeAddBookPanel({ restoreFocus: false });
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
@@ -2514,8 +2517,18 @@ function loadMissingCoverPalettes() {
 // the search-books Edge Function) and keep it with the book.
 const introRequests = new Set();
 
+// WeRead bookId for a book: imported shelf books keep it as sourceId,
+// searched books as wereadBookId (older ones only in their id).
+function wereadBookIdFor(book) {
+  if (book.wereadBookId) return book.wereadBookId;
+  if (book.source === "weread" && book.sourceId) return book.sourceId;
+  const match = String(book.id).match(/^custom-weread-([\w-]+)$/);
+  return match ? match[1] : "";
+}
+
 async function loadRealIntro(book) {
-  if (book.source !== "weread" || !book.sourceId || book.introLoaded || introRequests.has(book.id)) return;
+  const bookId = wereadBookIdFor(book);
+  if (!bookId || book.introLoaded || introRequests.has(book.id)) return;
   const accessToken = await getSupabaseAccessToken();
   if (!accessToken) return;
   introRequests.add(book.id);
@@ -2527,7 +2540,7 @@ async function loadRealIntro(book) {
         Authorization: `Bearer ${accessToken}`,
         apikey: readSupabaseAnonKey(),
       },
-      body: JSON.stringify({ bookId: book.sourceId }),
+      body: JSON.stringify({ bookId }),
     });
     if (!response.ok) return;
     const { info } = await response.json().catch(() => ({}));
