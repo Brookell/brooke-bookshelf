@@ -3988,10 +3988,38 @@ function landInMyRoomIfReady() {
   openMyShelf({ view: "room", restoreFocus: false });
 }
 
+// Count a visit once per browser session for the admin dashboard. The id is
+// random and stays in this browser; no IP or personal data is sent.
+function logVisit() {
+  const client = getSupabaseClient();
+  if (!client) return;
+  try {
+    if (window.sessionStorage.getItem("brooke-bookshelf:visit-logged")) return;
+    let visitor = window.localStorage.getItem("brooke-bookshelf:visitor");
+    if (!visitor) {
+      visitor = window.crypto?.randomUUID?.() || `v-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem("brooke-bookshelf:visitor", visitor);
+    }
+    window.sessionStorage.setItem("brooke-bookshelf:visit-logged", "1");
+    let referrer = null;
+    try {
+      if (document.referrer && new URL(document.referrer).host !== window.location.host) referrer = document.referrer;
+    } catch {
+      referrer = null;
+    }
+    client.rpc("log_visit", { visitor, page: window.location.pathname, ref: referrer }).then(({ error }) => {
+      if (error) console.warn("Visit log failed", error);
+    });
+  } catch {
+    // Private mode or blocked storage: skip counting.
+  }
+}
+
 const authReady = initializeSupabaseAuth()
   .then(() => {
     loadMissingCoverPalettes();
     loadMissingIntros();
+    logVisit();
   })
   .catch((error) => console.warn("Auth start-up failed", error));
 updateOnboarding();

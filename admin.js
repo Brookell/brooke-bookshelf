@@ -1,8 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const panels = ["loadingPanel", "signInPanel", "deniedPanel", "dashboard"];
-  const STATUS_LABELS = { want_to_read: "想读", reading: "在读", finished: "读完" };
-  const SOURCE_LABELS = { weread: "微信读书", manual: "搜索添加", brooke: "Brooke 书架" };
 
   let client = null;
   let data = null;
@@ -17,10 +15,11 @@
     return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  const pad = (n) => String(n).padStart(2, "0");
+
   function formatDate(value, withTime = true) {
     if (!value) return "—";
     const date = new Date(value);
-    const pad = (n) => String(n).padStart(2, "0");
     const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
     return withTime ? `${day} ${pad(date.getHours())}:${pad(date.getMinutes())}` : day;
   }
@@ -33,6 +32,15 @@
     return `${days} 天前`;
   }
 
+  const number = (value) => Number(value || 0).toLocaleString("zh-CN");
+
+  // WeRead covers come in sizes by prefix; ask for the large one.
+  function sharpCover(url) {
+    const value = String(url || "");
+    if (!/^https?:\/\/[^/]*(weread\.qq\.com|myqcloud\.com)\//.test(value)) return value;
+    return value.replace(/\/(s|t[0-8])_([^/]+)$/, "/t9_$2").replace(/^http:/, "https:");
+  }
+
   function createClient() {
     const url = String(window.BROOKE_SUPABASE_URL || "").replace(/\/+$/, "");
     const key = String(window.BROOKE_SUPABASE_ANON_KEY || "").trim();
@@ -40,6 +48,13 @@
     return window.supabase.createClient(url, key, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     });
+  }
+
+  function setGreeting() {
+    const now = new Date();
+    const hour = now.getHours();
+    $("greeting").textContent = hour < 11 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
+    $("today").textContent = now.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   }
 
   async function load() {
@@ -65,63 +80,120 @@
     data = overview;
     render();
     show("dashboard");
+    renderTraffic();
+    window.dispatchEvent(new Event("resize"));
   }
+
+  // ---- Rendering ----
 
   function render() {
-    const t = data.totals;
-    const pct = (part, whole) => (whole ? `${Math.round((part / whole) * 100)}%` : "—");
-    const tiles = [
-      ["总用户", t.users, `已验证邮箱 ${t.confirmed_users}`],
-      ["近 7 天新增", t.new_7d, ""],
-      ["近 7 天活跃", t.active_7d, `占 ${pct(t.active_7d, t.users)}`],
-      ["近 30 天活跃", t.active_30d, `占 ${pct(t.active_30d, t.users)}`],
-      ["有书的用户", t.users_with_books, `占 ${pct(t.users_with_books, t.users)}`],
-      ["书架上的书", t.books, t.users_with_books ? `人均 ${(t.books / t.users_with_books).toFixed(1)} 本` : ""],
+    const t = data.totals || {};
+    const conversion = t.visitors_30d ? Math.round((t.new_30d / t.visitors_30d) * 1000) / 10 : null;
+    const kpis = [
+      ["visit", "今日访客", t.visitors_today, `${number(t.visits_today)} 次访问`],
+      ["week", "近 7 天访客", t.visitors_7d, `${number(t.visits_7d)} 次访问`],
+      ["users", "注册用户", t.users, `近 7 天新增 ${number(t.new_7d)}`],
+      ["rate", "注册转化率", conversion === null ? "—" : `${conversion}%`, "30 天新注册 ÷ 访客"],
     ];
-    $("stats").innerHTML = tiles.map(([label, value, sub]) => `
-      <div class="stat">
-        <div class="stat-label">${label}</div>
-        <div class="stat-value">${Number(value || 0).toLocaleString()}</div>
-        <div class="stat-sub">${sub || "&nbsp;"}</div>
+    $("overview").innerHTML = kpis.map(([icon, label, value, note]) => `
+      <div class="kpi kpi-${icon}">
+        <span class="kpi-icon" aria-hidden="true">${ICONS[icon]}</span>
+        <div>
+          <small>${label}</small>
+          <strong>${typeof value === "number" ? number(value) : escapeHtml(value)}</strong>
+          <em>${escapeHtml(note)}</em>
+        </div>
       </div>`).join("");
 
-    renderChart();
+    renderTraffic();
+    renderUsage();
     renderUsers();
+    renderRank("searchList", (data.top_searches || []).map((row) => [row.query, `${row.times} 次`]), "还没有搜索记录");
+    renderRank("referrerList", (data.referrers || []).map((row) => [row.source, `${row.visits} 次`]), "还没有访问记录");
     renderBooks();
-    renderBars("sourceList", (data.sources || []).map((s) => [SOURCE_LABELS[s.source] || s.source, s.books]));
-    renderBars("statusList", Object.keys(STATUS_LABELS).map((k) => [STATUS_LABELS[k], t[k] || 0]));
-    $("generatedAt").textContent = `数据时间：${formatDate(data.generated_at)}`;
+    $("generatedAt").textContent = `数据时间：${formatDate(data.generated_at)}${t.first_visit ? ` · 访问统计从 ${formatDate(t.first_visit, false)} 开始` : ""}`;
   }
 
-  function renderChart() {
-    const days = data.signups_daily || [];
-    const total = days.reduce((sum, d) => sum + d.signups, 0);
-    $("trendSummary").textContent = `共 ${total} 人注册`;
-    const max = Math.max(1, ...days.map((d) => d.signups));
-    const w = 900;
-    const h = 140;
-    const top = 18;
-    const bottom = 1;
-    const slot = w / Math.max(days.length, 1);
-    const barW = Math.max(1, slot - 2);
+  const ICONS = {
+    visit: '<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+    week: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c1.9.8 3.1 2.5 3.5 5.2"/></svg>',
+    rate: '<svg viewBox="0 0 24 24"><path d="M4 19 10 12l4 4 6-8"/><path d="M15 8h5v5"/></svg>',
+  };
+
+  function renderTraffic() {
+    const days = data.daily || [];
+    const max = Math.max(1, ...days.map((d) => Math.max(d.visitors, d.signups)));
+    // Draw at the card's real pixel size so labels stay readable, and fill
+    // the card's height (it stretches to match the usage card beside it).
+    const box = $("trafficChart");
+    box.innerHTML = "";
+    const width = Math.max(300, Math.round(box.clientWidth || 720));
+    const card = box.parentElement.getBoundingClientRect();
+    const total = days.reduce((sum, d) => sum + d.visitors, 0);
+    const room = Math.round(card.bottom - box.getBoundingClientRect().top - 22 - (total ? 0 : 28));
+    const height = window.matchMedia("(max-width: 1180px)").matches ? 240 : Math.max(220, Math.min(420, room));
+    const top = 16;
+    const bottom = 28;
+    const slot = width / Math.max(days.length, 1);
+    const barWidth = Math.max(4, slot * 0.56);
+    const y = (value) => height - bottom - ((height - top - bottom) * value) / max;
     const bars = days.map((d, i) => {
-      const bh = ((h - top - bottom) * d.signups) / max;
-      const y = h - bottom - bh;
-      return `<rect class="bar" x="${(i * slot + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh, d.signups ? 1 : 0).toFixed(1)}"><title>${d.day}：${d.signups} 人</title></rect>`;
+      const x = i * slot + (slot - barWidth) / 2;
+      const barTop = y(d.visitors);
+      return `<rect class="bar-visitors" x="${x.toFixed(1)}" y="${barTop.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(0, height - bottom - barTop).toFixed(1)}" rx="3"><title>${d.day}：访客 ${d.visitors}，访问 ${d.visits}，注册 ${d.signups}</title></rect>`;
     }).join("");
-    const marks = days.filter((d, i) => i % 15 === 0 || i === days.length - 1);
-    $("signupChart").innerHTML = `
-      <div class="chart-max">${max}</div>
-      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="最近 90 天每日注册人数">
-        <line class="baseline" x1="0" x2="${w}" y1="${h - bottom}" y2="${h - bottom}" vector-effect="non-scaling-stroke" />
-        ${bars}
-      </svg>
-      <div class="chart-axis">${marks.map((d) => `<span>${d.day.slice(5)}</span>`).join("")}</div>`;
+    // Join neighbouring days only where someone signed up, so the line
+    // doesn't run along the baseline and hide the bars.
+    const cx = (i) => (i * slot + slot / 2).toFixed(1);
+    const segments = days.slice(1).map((d, i) => (d.signups || days[i].signups
+      ? `M${cx(i)},${y(days[i].signups).toFixed(1)}L${cx(i + 1)},${y(d.signups).toFixed(1)}`
+      : "")).join("");
+    const dots = days.map((d, i) => (d.signups
+      ? `<circle class="dot-signups" cx="${(i * slot + slot / 2).toFixed(1)}" cy="${y(d.signups).toFixed(1)}" r="4"><title>${d.day}：注册 ${d.signups}</title></circle>`
+      : "")).join("");
+    const step = width < 520 ? 7 : 5;
+    const labels = days.map((d, i) => ((i % step === 0 && days.length - 1 - i >= step / 2) || i === days.length - 1
+      ? `<text x="${(i * slot + slot / 2).toFixed(1)}" y="${height - 8}" text-anchor="middle">${d.day.slice(5).replace("-", "/")}</text>`
+      : "")).join("");
+    const grid = [...new Set([0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f)))].filter(Boolean).map((value) => {
+      return `<line x1="0" x2="${width}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"/><text class="axis" x="0" y="${(y(value) - 4).toFixed(1)}">${value}</text>`;
+    }).join("");
+    $("trafficChart").innerHTML = total || days.some((d) => d.signups)
+      ? `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="最近 30 天每天的访客和注册">
+          <g class="grid">${grid}</g>
+          ${bars}
+          <path class="line-signups" d="${segments}" />
+          ${dots}
+          <g class="labels">${labels}</g>
+        </svg>${total ? "" : '<p class="chart-note">访问统计刚开启，之后有人打开网站就会出现柱子。</p>'}`
+      : `<p class="empty">访问统计刚刚开启，还没有数据。网站有人访问后这里就会出现。</p>`;
+  }
+
+  function renderUsage() {
+    const t = data.totals || {};
+    const share = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
+    const rows = [
+      ["近 7 天活跃用户", t.active_7d, share(t.active_7d, t.users)],
+      ["近 30 天活跃用户", t.active_30d, share(t.active_30d, t.users)],
+      ["房间里有书的用户", t.users_with_books, share(t.users_with_books, t.users)],
+      ["连接了微信读书", t.weread_connected, share(t.weread_connected, t.users)],
+    ];
+    $("usageList").innerHTML = rows.map(([label, value, percent]) => `
+      <li>
+        <div class="usage-row"><span>${label}</span><b>${number(value)}</b></div>
+        <div class="meter"><i style="width:${percent}%"></i></div>
+        <small>占注册用户 ${percent}%</small>
+      </li>`).join("") + `
+      <li class="usage-pair">
+        <div><small>书架上的书</small><b>${number(t.books)}</b></div>
+        <div><small>近 7 天搜索</small><b>${number(t.searches_7d)}</b></div>
+      </li>`;
   }
 
   function filteredUsers() {
     const q = $("userFilter").value.trim().toLowerCase();
-    const users = (data.users || []).filter((u) => !q
+    const users = (data?.users || []).filter((u) => !q
       || String(u.email || "").toLowerCase().includes(q)
       || String(u.room_name || "").toLowerCase().includes(q));
     const dir = sortDir === "asc" ? 1 : -1;
@@ -131,7 +203,8 @@
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
-      return (typeof av === "number" ? av - bv : String(av).localeCompare(String(bv))) * dir;
+      if (typeof av === "number" || typeof av === "boolean") return (Number(av) - Number(bv)) * dir;
+      return String(av).localeCompare(String(bv)) * dir;
     });
   }
 
@@ -145,48 +218,48 @@
     });
     const body = $("userTable").querySelector("tbody");
     if (!users.length) {
-      body.innerHTML = `<tr><td colspan="9" class="empty">${(data.users || []).length ? "没有匹配的用户" : "还没有用户注册"}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="5" class="empty">${(data.users || []).length ? "没有匹配的用户" : "还没有用户注册"}</td></tr>`;
       return;
     }
     body.innerHTML = users.map((u) => `
       <tr>
-        <td>${escapeHtml(u.email)}${u.confirmed ? "" : '<span class="badge">未验证</span>'}</td>
-        <td>${escapeHtml(u.room_name || "—")}</td>
-        <td title="${escapeHtml(u.created_at)}">${formatDate(u.created_at)}</td>
-        <td title="${escapeHtml(u.last_sign_in_at)}">${formatDate(u.last_sign_in_at)} <span class="muted">${relative(u.last_sign_in_at)}</span></td>
+        <td>
+          <span class="avatar" aria-hidden="true">${escapeHtml(String(u.email || "?").slice(0, 1).toUpperCase())}</span>
+          <span class="who"><b>${escapeHtml(u.email)}</b>${u.room_name ? `<small>${escapeHtml(u.room_name)}</small>` : ""}</span>
+        </td>
+        <td title="${escapeHtml(u.created_at)}">${formatDate(u.created_at, false)}</td>
+        <td title="${escapeHtml(u.last_sign_in_at)}">${u.last_sign_in_at ? relative(u.last_sign_in_at) : "—"}</td>
         <td class="num">${u.books}</td>
-        <td class="num">${u.want_to_read}</td>
-        <td class="num">${u.reading}</td>
-        <td class="num">${u.finished}</td>
-        <td class="num">${u.from_weread}</td>
+        <td>${u.weread_connected ? '<span class="pill pill-on">已连接</span>' : '<span class="pill">未连接</span>'}</td>
       </tr>`).join("");
+  }
+
+  function renderRank(id, rows, emptyText) {
+    const max = Math.max(1, ...rows.map(([, value]) => parseInt(value, 10) || 0));
+    $(id).innerHTML = rows.length
+      ? rows.map(([label, value]) => `
+        <li>
+          <span class="rank-label">${escapeHtml(label)}</span>
+          <span class="rank-value">${escapeHtml(value)}</span>
+          <i style="width:${((parseInt(value, 10) || 0) / max) * 100}%"></i>
+        </li>`).join("")
+      : `<li class="empty">${emptyText}</li>`;
   }
 
   function renderBooks() {
     const books = data.top_books || [];
-    const body = $("bookTable").querySelector("tbody");
-    body.innerHTML = books.length
+    $("bookList").innerHTML = books.length
       ? books.map((b) => `
-        <tr>
-          <td>${escapeHtml(b.title)}</td>
-          <td>${escapeHtml(b.author || "—")}</td>
-          <td class="num">${b.savers}</td>
-          <td class="num">${b.finished}</td>
-        </tr>`).join("")
-      : '<tr><td colspan="4" class="empty">还没有人收藏书</td></tr>';
+        <li>
+          <span class="cover">${b.cover ? `<img src="${escapeHtml(sharpCover(b.cover))}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(b.title).slice(0, 2))}</span>`}</span>
+          <b>${escapeHtml(b.title)}</b>
+          <small>${escapeHtml(b.author || "")}</small>
+          <em>${b.savers} 人收藏</em>
+        </li>`).join("")
+      : '<li class="empty">还没有人收藏书</li>';
   }
 
-  function renderBars(id, rows) {
-    const max = Math.max(1, ...rows.map(([, v]) => v));
-    $(id).innerHTML = rows.length
-      ? rows.map(([label, value]) => `
-        <div class="bar-row">
-          <span>${escapeHtml(label)}</span>
-          <div class="bar-track"><div class="bar-fill" style="width:${(value / max) * 100}%"></div></div>
-          <span class="bar-value">${value}</span>
-        </div>`).join("")
-      : '<p class="muted">暂无数据</p>';
-  }
+  // ---- CSV ----
 
   function downloadCsv(filename, header, rows) {
     const cell = (v) => {
@@ -201,37 +274,46 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
-  function stamp() {
-    return formatDate(new Date(), false);
-  }
+  // ---- Events ----
 
   function bindEvents() {
     $("signInForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const button = event.target.querySelector("button");
       button.disabled = true;
-      $("signInNote").textContent = "正在发送…";
-      const { error } = await client.auth.signInWithOtp({
+      $("signInNote").textContent = "正在登录…";
+      const { error } = await client.auth.signInWithPassword({
         email: $("signInEmail").value.trim(),
-        options: { emailRedirectTo: window.location.href.split("#")[0], shouldCreateUser: false },
+        password: $("signInPassword").value,
       });
       button.disabled = false;
-      if (!error) $("signInNote").textContent = "登录链接已发送，请在这台设备上打开邮件里的链接。";
-      else if (/signups? not allowed/i.test(error.message)) $("signInNote").textContent = "这个邮箱还没有账号。请先在主页注册登录一次，再回来这里。";
-      else $("signInNote").textContent = `发送失败：${error.message}`;
+      $("signInNote").textContent = error
+        ? (/invalid login credentials/i.test(error.message) ? "邮箱或密码不对。" : `登录失败：${error.message}`)
+        : "";
+    });
+
+    $("magicLinkButton").addEventListener("click", async () => {
+      const email = $("signInEmail").value.trim();
+      if (!email) {
+        $("signInNote").textContent = "请先填好邮箱。";
+        return;
+      }
+      const { error } = await client.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.href.split("#")[0], shouldCreateUser: false },
+      });
+      $("signInNote").textContent = error ? `发送失败：${error.message}` : "登录链接已发送，请在这台设备上打开邮件里的链接。";
     });
 
     $("refreshButton").addEventListener("click", load);
-    $("signOutButton").addEventListener("click", async () => {
-      await client.auth.signOut();
-    });
+    $("signOutButton").addEventListener("click", () => client.auth.signOut());
     $("userFilter").addEventListener("input", renderUsers);
 
     document.querySelectorAll("#userTable th[data-sort]").forEach((th) => {
       const sort = () => {
         const key = th.dataset.sort;
         if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
-        else { sortKey = key; sortDir = ["email", "room_name"].includes(key) ? "asc" : "desc"; }
+        else { sortKey = key; sortDir = key === "email" ? "asc" : "desc"; }
         renderUsers();
       };
       th.addEventListener("click", sort);
@@ -239,19 +321,40 @@
     });
 
     $("exportUsers").addEventListener("click", () => downloadCsv(
-      `reading-room-users-${stamp()}.csv`,
-      ["email", "confirmed", "room_name", "created_at", "last_sign_in_at", "books", "want_to_read", "reading", "finished", "from_weread", "last_shelf_update"],
-      filteredUsers().map((u) => [u.email, u.confirmed, u.room_name, u.created_at, u.last_sign_in_at, u.books, u.want_to_read, u.reading, u.finished, u.from_weread, u.last_shelf_update]),
+      `reading-room-users-${formatDate(new Date(), false)}.csv`,
+      ["email", "confirmed", "room_name", "created_at", "last_sign_in_at", "books", "from_weread", "weread_connected"],
+      filteredUsers().map((u) => [u.email, u.confirmed, u.room_name, u.created_at, u.last_sign_in_at, u.books, u.from_weread, u.weread_connected]),
     ));
 
     $("exportBooks").addEventListener("click", () => downloadCsv(
-      `reading-room-top-books-${stamp()}.csv`,
-      ["title", "author", "savers", "finished"],
-      (data.top_books || []).map((b) => [b.title, b.author, b.savers, b.finished]),
+      `reading-room-top-books-${formatDate(new Date(), false)}.csv`,
+      ["title", "author", "savers"],
+      (data?.top_books || []).map((b) => [b.title, b.author, b.savers]),
     ));
+
+    // Highlight the sidebar link for the section in view.
+    const links = [...document.querySelectorAll(".nav a")];
+    const sections = ["overview", "traffic", "users", "content"];
+    const highlight = () => {
+      let current = sections[0];
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      sections.forEach((id) => { if ($(id).getBoundingClientRect().top < 140) current = id; });
+      if (atBottom) current = sections[sections.length - 1];
+      if ($("dashboard").hidden) current = sections[0];
+      links.forEach((link) => link.classList.toggle("is-active", link.getAttribute("href") === `#${current}`));
+    };
+    window.addEventListener("scroll", highlight, { passive: true });
+    window.addEventListener("resize", highlight);
+    let resizeTimer = 0;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { if (data && !$("dashboard").hidden) renderTraffic(); }, 150);
+    });
+    highlight();
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    setGreeting();
     client = createClient();
     if (!client) {
       $("deniedText").textContent = "没有找到 Supabase 配置（config.js）。";
@@ -259,6 +362,7 @@
       return;
     }
     bindEvents();
+    // Supabase holds a lock while this callback runs; load afterwards.
     client.auth.onAuthStateChange((event) => {
       if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT"].includes(event)) setTimeout(load, 0);
     });
