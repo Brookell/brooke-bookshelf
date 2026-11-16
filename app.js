@@ -2066,7 +2066,6 @@ function readingLoadingMarkup() {
       <div class="weread-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
         <i style="width: ${percent}%"></i>
       </div>
-      <small>${done} / ${total}</small>
     </div>`;
 }
 
@@ -2077,7 +2076,6 @@ function updateReadingLoading() {
   const percent = total ? Math.round((done / total) * 100) : 0;
   box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(percent));
   box.querySelector("i").style.width = `${percent}%`;
-  box.querySelector("small").textContent = `${done} / ${total}`;
 }
 
 async function loadReadingStats(mode) {
