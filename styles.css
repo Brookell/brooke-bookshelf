@@ -1853,6 +1853,8 @@ h1 {
   z-index: 98;
 }
 
+.library.is-reading-open .masthead,
+.library.is-reading-open .shelf-region,
 .library.is-index-open .masthead,
 .library.is-index-open .shelf-region,
 .library.is-my-shelf-open .masthead,
@@ -3494,4 +3496,397 @@ h1 {
   background: transparent;
   color: var(--muted);
   cursor: default;
+}
+
+/* ---- Reading panel ---- */
+.reading-panel-body {
+  width: min(1120px, 100%);
+  margin: 22px auto 0;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+}
+
+.reading-muted,
+.reading-error {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.reading-error {
+  color: #9b2c2c;
+}
+
+.reading-connect {
+  display: grid;
+  max-width: 520px;
+  gap: 14px;
+}
+
+.reading-connect > p {
+  margin: 0;
+  color: rgba(21, 21, 21, 0.72);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.reading-connect form {
+  display: grid;
+  gap: 10px;
+}
+
+.reading-connect label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.reading-connect input[type="password"] {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgba(21, 21, 21, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.5);
+  font: inherit;
+}
+
+.reading-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.reading-consent input {
+  margin-top: 2px;
+  accent-color: var(--ink);
+}
+
+.reading-connect button,
+.reading-tabs button,
+.reading-disconnect,
+.reading-back {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(21, 21, 21, 0.16);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reading-connect button {
+  width: fit-content;
+  min-height: 42px;
+  padding: 0 20px;
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.reading-connect button:disabled {
+  opacity: 0.6;
+}
+
+.reading-tabs button[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.reading-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reading-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reading-disconnect,
+.reading-back {
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.reading-disconnect:hover,
+.reading-back:hover {
+  color: var(--ink);
+}
+
+.reading-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.reading-tiles > div {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+}
+
+.reading-tiles small,
+.reading-section h3 small,
+.reading-books small,
+.reading-progress small,
+.reading-notebooks small,
+.reading-thought small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.reading-tiles strong {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.reading-tiles em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.reading-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.reading-chips span {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(21, 21, 21, 0.05);
+  font-size: 12px;
+}
+
+.reading-section {
+  margin-top: 34px;
+}
+
+.reading-section h3 {
+  margin: 0 0 14px;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.reading-heatmap {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 11px);
+  grid-auto-columns: 11px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.reading-heatmap span {
+  border-radius: 2px;
+  background: rgba(21, 21, 21, 0.06);
+}
+
+.reading-heatmap .is-blank,
+.reading-heatmap .is-future {
+  background: transparent;
+}
+
+.reading-heatmap .level-1 { background: rgba(21, 21, 21, 0.22); }
+.reading-heatmap .level-2 { background: rgba(21, 21, 21, 0.42); }
+.reading-heatmap .level-3 { background: rgba(21, 21, 21, 0.66); }
+.reading-heatmap .level-4 { background: var(--ink); }
+
+.reading-books,
+.reading-progress,
+.reading-notebooks {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  gap: 2px;
+  list-style: none;
+}
+
+.reading-books li,
+.reading-notebooks button {
+  display: grid;
+  padding: 8px 4px;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.reading-notebooks button {
+  width: 100%;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.reading-notebooks button:hover {
+  background: rgba(21, 21, 21, 0.025);
+}
+
+.reading-notebooks svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
+}
+
+.reading-cover {
+  display: block;
+  width: 34px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(21, 21, 21, 0.08);
+}
+
+.reading-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.reading-books li > span:not(.reading-cover),
+.reading-notebooks button > span:not(.reading-cover),
+.reading-progress li > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.reading-books strong,
+.reading-notebooks strong,
+.reading-progress strong {
+  overflow: hidden;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reading-books em,
+.reading-progress em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.reading-progress li {
+  display: grid;
+  padding: 8px 4px;
+  grid-template-columns: minmax(0, 1fr) minmax(80px, 200px) 40px;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.reading-progress i,
+.reading-bars i {
+  position: relative;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(21, 21, 21, 0.08);
+}
+
+.reading-progress i::after,
+.reading-bars i::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--value) * 100%);
+  border-radius: inherit;
+  background: var(--ink);
+  content: "";
+}
+
+.reading-progress em {
+  text-align: right;
+}
+
+.reading-bars {
+  display: grid;
+  max-width: 520px;
+  gap: 10px;
+}
+
+.reading-bars > div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.reading-book-title {
+  margin: 14px 0 0;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.reading-chapter h4 {
+  margin: 20px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reading-panel blockquote {
+  margin: 0 0 10px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid rgba(21, 21, 21, 0.25);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.reading-thought {
+  display: grid;
+  max-width: 760px;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.reading-thought blockquote {
+  margin: 0;
+  color: rgba(21, 21, 21, 0.62);
+  font-size: 14px;
+}
+
+.reading-thought p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+@media (max-width: 720px) {
+  .reading-tiles {
+    grid-template-columns: 1fr;
+  }
+
+  .reading-progress li {
+    grid-template-columns: minmax(0, 1fr) 80px 36px;
+  }
 }

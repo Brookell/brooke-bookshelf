@@ -46,6 +46,10 @@ const myShelfClose = document.querySelector("#myShelfClose");
 const myShelfCount = document.querySelector("#myShelfCount");
 const myShelfList = document.querySelector("#myShelfList");
 const myRoomCaption = document.querySelector("#myRoomCaption");
+const readingPanel = document.querySelector("#readingPanel");
+const readingPanelBody = document.querySelector("#readingPanelBody");
+const readingPanelClose = document.querySelector("#readingPanelClose");
+const readingPanelToggle = document.querySelector("#readingPanelToggle");
 const coverPicker = document.querySelector("#coverPicker");
 const coverPickerKicker = document.querySelector("#coverPickerKicker");
 const coverPickerTitle = document.querySelector("#coverPickerTitle");
@@ -1853,6 +1857,319 @@ async function saveCoverPicker() {
   }
 }
 
+// ---- Reading panel: the user's own WeRead stats, progress and notes ----
+// Uses the user's WeRead key, which they can save (encrypted on the server
+// by the weread-me function) so the panel updates by itself.
+
+const READING_MODES = [
+  ["weekly", "本周"],
+  ["monthly", "本月"],
+  ["annually", "本年"],
+  ["overall", "总计"],
+];
+
+const reading = {
+  connected: null,
+  mode: "monthly",
+  stats: {},
+  year: null,
+  notebooks: null,
+  progress: null,
+  view: "overview",
+  book: null,
+  error: "",
+  returnToShelf: false,
+};
+
+async function callWereadMe(action, extra = {}) {
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) throw Object.assign(new Error("sign in"), { code: "sign_in_required" });
+  const response = await fetch(`${readSupabaseFunctionsUrl()}/weread-me`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: readSupabaseAnonKey(),
+    },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data.error || `weread-me ${response.status}`), { code: data.error });
+  return data;
+}
+
+function readingErrorText(error) {
+  switch (error?.code) {
+    case "weread_key_expired": return "微信读书 API Key 已失效，请重新获取后再连接。";
+    case "invalid_key": return "这个 API Key 格式不对，应以 wrk- 开头。";
+    case "rate_limited": return "刷新得有点频繁，请过一会儿再试。";
+    case "weread_upgrade_required": return "微信读书接口升级了，网站需要更新后才能继续读取。";
+    case "not_connected": return "还没有连接微信读书。";
+    default: return "读取微信读书数据失败，请稍后再试。";
+  }
+}
+
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.round((total % 3600) / 60);
+  if (hours && minutes) return `${hours} 小时 ${minutes} 分钟`;
+  if (hours) return `${hours} 小时`;
+  return `${minutes} 分钟`;
+}
+
+function openReadingPanel() {
+  if (!supabaseSession?.user) {
+    openAuthGate(() => openReadingPanel());
+    return;
+  }
+  reading.returnToShelf = !myShelf.hidden;
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true });
+  closeMyShelf({ restoreFocus: false, immediate: true, targetSpace: activeSpace });
+  reading.view = "overview";
+  readingPanel.hidden = false;
+  readingPanel.setAttribute("aria-hidden", "false");
+  requestAnimationFrame(() => {
+    library.classList.add("is-reading-open");
+    readingPanel.classList.add("is-visible");
+    readingPanelClose.focus({ preventScroll: true });
+  });
+  renderReadingPanel();
+  refreshReadingPanel();
+}
+
+function closeReadingPanel() {
+  if (readingPanel.hidden) return;
+  readingPanel.classList.remove("is-visible");
+  readingPanel.setAttribute("aria-hidden", "true");
+  library.classList.remove("is-reading-open");
+  window.setTimeout(() => {
+    if (!readingPanel.classList.contains("is-visible")) readingPanel.hidden = true;
+  }, 380);
+  if (reading.returnToShelf) openMyShelf({ view: myShelfView, restoreFocus: false });
+}
+
+async function refreshReadingPanel() {
+  reading.error = "";
+  try {
+    if (reading.connected === null) {
+      reading.connected = (await callWereadMe("status")).connected;
+      renderReadingPanel();
+    }
+    if (!reading.connected) return;
+    const tasks = [loadReadingStats(reading.mode)];
+    if (!reading.year) tasks.push(callWereadMe("stats", { mode: "annually" }).then((data) => { reading.year = data; }));
+    if (!reading.notebooks) tasks.push(callWereadMe("notebooks").then((data) => { reading.notebooks = data.books || []; }));
+    if (!reading.progress) tasks.push(loadReadingProgress());
+    await Promise.all(tasks);
+  } catch (error) {
+    console.warn(error);
+    if (error.code === "not_connected") reading.connected = false;
+    reading.error = readingErrorText(error);
+  }
+  renderReadingPanel();
+}
+
+async function loadReadingStats(mode) {
+  if (reading.stats[mode]) return;
+  reading.stats[mode] = await callWereadMe("stats", { mode });
+}
+
+function myWereadBooks() {
+  return books
+    .filter((book) => getBookState(book) && wereadBookIdFor(book))
+    .slice(0, 40);
+}
+
+async function loadReadingProgress() {
+  const list = myWereadBooks();
+  if (!list.length) {
+    reading.progress = {};
+    return;
+  }
+  const data = await callWereadMe("progress", { bookIds: list.map(wereadBookIdFor) });
+  reading.progress = data.progress || {};
+}
+
+function readingConnectMarkup() {
+  return `
+    <div class="reading-connect">
+      <p>连接你的微信读书后，这里会显示你的阅读时长、阅读日历、每本书的阅读进度，以及你的划线和想法。</p>
+      <form id="readingConnectForm">
+        <label for="readingKey">微信读书 API Key</label>
+        <input id="readingKey" type="password" autocomplete="off" placeholder="wrk-xxxxxxxx" required />
+        <label class="reading-consent">
+          <input type="checkbox" id="readingConsent" required />
+          <span>保存这个 Key，用来自动更新我的阅读数据。Key 会加密保存，可以随时断开并删除。</span>
+        </label>
+        <button type="submit">连接微信读书</button>
+      </form>
+      ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
+    </div>
+  `;
+}
+
+function readingHeatmapMarkup(year) {
+  const daily = year?.dailyReadTimes || {};
+  const start = new Date(((year?.baseTime || 0) * 1000) || new Date(new Date().getFullYear(), 0, 1));
+  start.setHours(0, 0, 0, 0);
+  const byDay = new Map(Object.entries(daily).map(([key, value]) => {
+    const day = new Date(Number(key) * 1000);
+    return [`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`, Number(value) || 0];
+  }));
+  const level = (seconds) => (!seconds ? 0 : seconds < 900 ? 1 : seconds < 1800 ? 2 : seconds < 3600 ? 3 : 4);
+  const cells = [];
+  const offset = (start.getDay() + 6) % 7; // weeks start on Monday
+  for (let i = 0; i < offset; i += 1) cells.push('<span class="is-blank"></span>');
+  const today = new Date();
+  for (let day = new Date(start); day.getFullYear() === start.getFullYear(); day.setDate(day.getDate() + 1)) {
+    const seconds = byDay.get(`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`) || 0;
+    const future = day > today;
+    const label = `${day.getMonth() + 1}月${day.getDate()}日：${seconds ? formatDuration(seconds) : "没有阅读"}`;
+    cells.push(`<span class="${future ? "is-future" : `level-${level(seconds)}`}" title="${label}"></span>`);
+  }
+  return `<div class="reading-heatmap" role="img" aria-label="${start.getFullYear()} 年每天的阅读时长">${cells.join("")}</div>`;
+}
+
+function readingOverviewMarkup() {
+  const stats = reading.stats[reading.mode];
+  const tabs = READING_MODES.map(([mode, label]) => `
+    <button type="button" data-reading-mode="${mode}" aria-pressed="${String(mode === reading.mode)}">${label}</button>
+  `).join("");
+  const compare = stats?.compare;
+  const tiles = stats ? `
+    <div class="reading-tiles">
+      <div><small>阅读时长</small><strong>${formatDuration(stats.totalReadTime)}</strong></div>
+      <div><small>阅读天数</small><strong>${stats.readDays} 天</strong></div>
+      <div><small>日均</small><strong>${formatDuration(stats.dayAverageReadTime)}</strong>
+        ${typeof compare === "number" ? `<em>${compare >= 0 ? "比上期多" : "比上期少"} ${Math.abs(Math.round(compare * 100))}%</em>` : ""}</div>
+    </div>
+    ${stats.readStat?.length ? `<div class="reading-chips">${stats.readStat.map((item) => `<span>${escapeHtml(item.stat)} ${escapeHtml(item.counts)}</span>`).join("")}</div>` : ""}
+  ` : `<p class="reading-muted">正在读取…</p>`;
+  const longest = stats?.readLongest?.length ? `
+    <section class="reading-section">
+      <h3>读得最多</h3>
+      <ol class="reading-books">${stats.readLongest.map((item) => `
+        <li>
+          <span class="reading-cover">${item.book?.cover ? `<img src="${escapeHtml(item.book.cover)}" alt="" loading="lazy" />` : ""}</span>
+          <span><strong>${escapeHtml(item.book?.title || "")}</strong><small>${escapeHtml(item.book?.author || "")}</small></span>
+          <em>${formatDuration(item.readTime)}</em>
+        </li>`).join("")}
+      </ol>
+    </section>` : "";
+  const categories = stats?.preferCategory?.length ? `
+    <section class="reading-section">
+      <h3>偏好分类 ${stats.preferCategoryWord ? `<small>${escapeHtml(stats.preferCategoryWord)}</small>` : ""}</h3>
+      <div class="reading-bars">${stats.preferCategory.map((item) => `
+        <div><span>${escapeHtml(item.title || "")}</span><i style="--value: ${Math.max(0, Math.min(1, Number(item.val) || 0))}"></i></div>`).join("")}
+      </div>
+    </section>` : "";
+  const calendar = reading.year ? `
+    <section class="reading-section">
+      <h3>${new Date((reading.year.baseTime || 0) * 1000 || Date.now()).getFullYear()} 阅读日历 <small>${formatDuration(reading.year.totalReadTime)} · ${reading.year.readDays} 天</small></h3>
+      ${readingHeatmapMarkup(reading.year)}
+    </section>` : "";
+  const progressBooks = myWereadBooks().filter((book) => reading.progress?.[wereadBookIdFor(book)]);
+  const progress = progressBooks.length ? `
+    <section class="reading-section">
+      <h3>阅读进度</h3>
+      <ul class="reading-progress">${progressBooks.map((book) => {
+        const item = reading.progress[wereadBookIdFor(book)];
+        return `
+        <li>
+          <span><strong>${escapeHtml(book.title)}</strong><small>${item.readingTime ? `已读 ${formatDuration(item.readingTime)}` : ""}</small></span>
+          <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
+          <em>${Number(item.progress) || 0}%</em>
+        </li>`;
+      }).join("")}
+      </ul>
+    </section>` : "";
+  const notes = reading.notebooks?.length ? `
+    <section class="reading-section">
+      <h3>划线和想法 <small>${reading.notebooks.length} 本书有笔记</small></h3>
+      <ul class="reading-notebooks">${reading.notebooks.map((item, index) => `
+        <li><button type="button" data-reading-book="${index}">
+          <span class="reading-cover">${item.book?.cover ? `<img src="${escapeHtml(item.book.cover)}" alt="" loading="lazy" />` : ""}</span>
+          <span><strong>${escapeHtml(item.book?.title || "")}</strong><small>${item.highlights} 条划线 · ${item.thoughts} 条想法</small></span>
+          <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+        </button></li>`).join("")}
+      </ul>
+    </section>` : reading.notebooks ? `<section class="reading-section"><h3>划线和想法</h3><p class="reading-muted">还没有笔记。</p></section>` : "";
+  return `
+    <div class="reading-toolbar">
+      <div class="reading-tabs" role="group" aria-label="统计周期">${tabs}</div>
+      <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
+    </div>
+    ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
+    ${tiles}
+    ${calendar}
+    ${progress}
+    ${longest}
+    ${categories}
+    ${notes}
+  `;
+}
+
+function readingBookMarkup() {
+  const data = reading.book;
+  if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>← 返回阅读面板</button><p class="reading-muted">正在读取划线…</p>`;
+  const chapters = new Map((data.chapters || []).map((chapter) => [String(chapter.chapterUid), chapter]));
+  const start = (range) => Number(String(range || "").split("-")[0]) || 0;
+  const groups = new Map();
+  (data.highlights || []).forEach((mark) => {
+    const key = String(mark.chapterUid);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(mark);
+  });
+  const ordered = [...groups.entries()].sort(([a], [b]) => (chapters.get(a)?.chapterIdx ?? 0) - (chapters.get(b)?.chapterIdx ?? 0));
+  const highlights = ordered.map(([uid, marks]) => `
+    <section class="reading-chapter">
+      <h4>${escapeHtml(chapters.get(uid)?.title || "")}</h4>
+      ${marks.sort((a, b) => start(a.range) - start(b.range)).map((mark) => `<blockquote>${escapeHtml(mark.text || "")}</blockquote>`).join("")}
+    </section>`).join("");
+  const thoughts = (data.thoughts || []).filter((item) => item.content).map((item) => `
+    <article class="reading-thought">
+      ${item.quote ? `<blockquote>${escapeHtml(item.quote)}</blockquote>` : ""}
+      <p>${escapeHtml(item.content)}</p>
+      <small>${escapeHtml(item.chapterName || "")}${item.createTime ? ` · ${new Date(item.createTime * 1000).toLocaleDateString("zh-CN")}` : ""}</small>
+    </article>`).join("");
+  return `
+    <button type="button" class="reading-back" data-reading-back>← 返回阅读面板</button>
+    <h3 class="reading-book-title">${escapeHtml(data.title || "")}</h3>
+    ${thoughts ? `<section class="reading-section"><h3>我的想法 <small>${data.thoughts.filter((item) => item.content).length} 条</small></h3>${thoughts}</section>` : ""}
+    ${highlights ? `<section class="reading-section"><h3>我的划线 <small>${data.highlights.length} 条</small></h3>${highlights}</section>` : ""}
+    ${!thoughts && !highlights ? `<p class="reading-muted">这本书还没有划线或想法。</p>` : ""}
+  `;
+}
+
+function renderReadingPanel() {
+  if (!readingPanelBody) return;
+  if (reading.connected === null) readingPanelBody.innerHTML = `<p class="reading-muted">正在读取…</p>${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}`;
+  else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
+  else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup() : readingOverviewMarkup();
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+async function openReadingBook(index) {
+  const item = reading.notebooks?.[index];
+  if (!item?.book?.bookId) return;
+  reading.view = "book";
+  reading.book = { title: item.book.title, loaded: false };
+  renderReadingPanel();
+  readingPanel.scrollTop = 0;
+  try {
+    const data = await callWereadMe("highlights", { bookId: item.book.bookId });
+    reading.book = { ...data, title: item.book.title, loaded: true };
+  } catch (error) {
+    console.warn(error);
+    reading.book = { title: item.book.title, loaded: true, highlights: [], thoughts: [] };
+    reading.error = readingErrorText(error);
+  }
+  if (reading.view === "book") renderReadingPanel();
+}
+
 function openMyRoomBook(roomIndex, { focus = false, scroll = true } = {}) {
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   const active = roomBooks[roomIndex];
@@ -3030,6 +3347,7 @@ myShelfViewToggle.addEventListener("click", (event) => {
   const action = actionButton.dataset.myShelfAction;
   if (action === "info") showMyShelfToolsHint();
   else if (action === "add") openAddBookPanel();
+  else if (action === "reading") openReadingPanel();
   else if (action === "brooke") openBrookeSpace({ restoreFocus: false });
   else if (action === "previous") navigateMyRoom(-1);
   else if (action === "next") navigateMyRoom(1);
@@ -3114,6 +3432,65 @@ document.addEventListener("keydown", (event) => {
     closeCoverPicker();
   }
 }, true);
+
+readingPanelToggle?.addEventListener("click", openReadingPanel);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !readingPanel.hidden && !coverPickerState) closeReadingPanel();
+});
+readingPanelClose.addEventListener("click", closeReadingPanel);
+readingPanelBody.addEventListener("click", async (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const modeButton = target?.closest("[data-reading-mode]");
+  if (modeButton) {
+    reading.mode = modeButton.dataset.readingMode;
+    renderReadingPanel();
+    try {
+      await loadReadingStats(reading.mode);
+    } catch (error) {
+      reading.error = readingErrorText(error);
+    }
+    renderReadingPanel();
+    return;
+  }
+  const bookButton = target?.closest("[data-reading-book]");
+  if (bookButton) {
+    openReadingBook(Number(bookButton.dataset.readingBook));
+    return;
+  }
+  if (target?.closest("[data-reading-back]")) {
+    reading.view = "overview";
+    reading.error = "";
+    renderReadingPanel();
+    return;
+  }
+  if (target?.closest("#readingDisconnect")) {
+    try {
+      await callWereadMe("disconnect");
+    } catch (error) {
+      console.warn(error);
+    }
+    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, error: "" });
+    renderReadingPanel();
+  }
+});
+readingPanelBody.addEventListener("submit", async (event) => {
+  if (event.target?.id !== "readingConnectForm") return;
+  event.preventDefault();
+  const form = event.target;
+  const key = form.querySelector("#readingKey").value.trim();
+  const button = form.querySelector("button[type='submit']");
+  button.disabled = true;
+  button.textContent = "正在连接…";
+  try {
+    await callWereadMe("connect", { wereadApiKey: key });
+    Object.assign(reading, { connected: true, error: "" });
+    renderReadingPanel();
+    refreshReadingPanel();
+  } catch (error) {
+    reading.error = readingErrorText(error);
+    renderReadingPanel();
+  }
+});
 
 detailClose.addEventListener("click", closeBookDetail);
 detailReturn.addEventListener("click", closeBookDetail);
