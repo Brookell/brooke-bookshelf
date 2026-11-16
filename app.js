@@ -53,6 +53,10 @@ const myShelfList = document.querySelector("#myShelfList");
 const myRoomCaption = document.querySelector("#myRoomCaption");
 const readingPanel = document.querySelector("#readingPanel");
 const readingPanelBody = document.querySelector("#readingPanelBody");
+const profilePanel = document.querySelector("#profilePanel");
+const profileBody = document.querySelector("#profileBody");
+const profileClose = document.querySelector("#profileClose");
+const tabBar = document.querySelector("#tabBar");
 const readingPanelClose = document.querySelector("#readingPanelClose");
 const readingPanelToggle = document.querySelector("#readingPanelToggle");
 const coverPicker = document.querySelector("#coverPicker");
@@ -1002,7 +1006,7 @@ function updateOnboarding() {
   // Not on a book's detail page: its own 加入我的书架 switch is right there,
   // and a second "add" card would only cover the cover.
   const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden
-    && (!readingPanel || readingPanel.hidden) && detailIndex === null;
+    && (!readingPanel || readingPanel.hidden) && (!profilePanel || profilePanel.hidden) && detailIndex === null;
   if (!shouldShow) {
     shelfOnboarding.classList.remove("is-visible");
     onboardingCloseTimer = window.setTimeout(() => {
@@ -4595,6 +4599,161 @@ function logVisit() {
     // Private mode or blocked storage: skip counting.
   }
 }
+
+// ---- 我的 (profile) page and the phone tab bar ----
+
+let profileCloseTimer = 0;
+
+function profileRow(action, icon, label, note = "") {
+  return `
+    <li><button type="button" data-profile-action="${action}">
+      <i data-lucide="${icon}" aria-hidden="true"></i>
+      <span>${label}</span>
+      ${note ? `<small>${escapeHtml(note)}</small>` : ""}
+      <i data-lucide="chevron-right" aria-hidden="true" class="profile-chevron"></i>
+    </button></li>`;
+}
+
+function renderProfile() {
+  if (!profileBody) return;
+  const user = supabaseSession?.user;
+  const saved = books.filter((book) => getBookState(book)).length;
+  const weread = reading.connected === true ? "已连接" : reading.connected === false ? "未连接" : "";
+  if (!user) {
+    profileBody.innerHTML = `
+      <section class="profile-card">
+        <span class="profile-avatar" aria-hidden="true"><i data-lucide="user-round"></i></span>
+        <div>
+          <strong>还没有登录</strong>
+          <p>登录后，你的书架和阅读记录会保存在账号里。</p>
+        </div>
+        <button type="button" class="profile-signin" data-profile-action="signin">登录 / 注册</button>
+      </section>
+      <ul class="profile-list">
+        ${profileRow("index", "list", "全部书目")}
+        ${profileRow("help", "info", "操作提示")}
+      </ul>`;
+  } else {
+    const joined = user.created_at ? new Date(user.created_at) : null;
+    profileBody.innerHTML = `
+      <section class="profile-card">
+        <span class="profile-avatar" aria-hidden="true">${escapeHtml(String(user.email || "?").slice(0, 1).toUpperCase())}</span>
+        <div>
+          <strong>${escapeHtml(myRoomName)}</strong>
+          <p>${escapeHtml(user.email || "")}${joined ? ` · ${joined.getFullYear()} 年 ${joined.getMonth() + 1} 月加入` : ""}</p>
+        </div>
+      </section>
+      <dl class="profile-stats">
+        <div><dt>书架上的书</dt><dd>${saved}<small> 本</small></dd></div>
+        <div><dt>微信读书</dt><dd class="${weread === "已连接" ? "is-on" : ""}">${weread || "—"}</dd></div>
+      </dl>
+      <ul class="profile-list">
+        ${profileRow("shelf", "rows-3", "我的书架", `${saved} 本`)}
+        ${profileRow("add", "plus", "增添书籍")}
+        ${profileRow("reading", "bar-chart-3", "阅读记录")}
+        ${profileRow("index", "list", "全部书目", "参考空间")}
+        ${profileRow("help", "info", "操作提示")}
+      </ul>
+      <ul class="profile-list">
+        ${profileRow("signout", "log-out", "退出登录")}
+      </ul>`;
+  }
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+function openProfile() {
+  if (detailIndex !== null) closeBookDetail();
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true, targetSpace: activeSpace });
+  closeReadingPanel({ immediate: true, returnToShelf: false });
+  window.clearTimeout(profileCloseTimer);
+  renderProfile();
+  profilePanel.hidden = false;
+  profilePanel.setAttribute("aria-hidden", "false");
+  updateOnboarding();
+  requestAnimationFrame(() => {
+    library.classList.add("is-profile-open");
+    profilePanel.classList.add("is-visible");
+  });
+  // Fill in the WeRead line once we know it.
+  if (isSignedIn() && reading.connected === null) {
+    callWereadMe("status")
+      .then((data) => { reading.connected = Boolean(data.connected); if (!profilePanel.hidden) renderProfile(); })
+      .catch(() => {});
+  }
+}
+
+function closeProfile({ immediate = false } = {}) {
+  if (profilePanel.hidden) return;
+  window.clearTimeout(profileCloseTimer);
+  library.classList.remove("is-profile-open");
+  profilePanel.classList.remove("is-visible");
+  profilePanel.setAttribute("aria-hidden", "true");
+  const finish = () => {
+    if (!profilePanel.classList.contains("is-visible")) profilePanel.hidden = true;
+    updateOnboarding();
+  };
+  if (immediate) finish();
+  else profileCloseTimer = window.setTimeout(finish, 480);
+}
+
+function runProfileAction(action) {
+  if (action === "signin") {
+    openAuthGate(() => openProfile());
+    return;
+  }
+  if (action === "signout") {
+    closeProfile({ immediate: true });
+    signOutEverywhere();
+    return;
+  }
+  closeProfile({ immediate: true });
+  if (action === "shelf") requireAuth(() => openMyShelf({ view: "list", restoreFocus: false }));
+  else if (action === "add") requireAuth(openAddBookPanel);
+  else if (action === "reading") openReadingPanel();
+  else if (action === "index") openBookIndex();
+  else if (action === "help" && shelfHelp.hidden) toggleShelfHelp();
+}
+
+// Which tab is lit follows whatever is on screen.
+function updateTabBar() {
+  if (!tabBar) return;
+  const current = !readingPanel.hidden && library.classList.contains("is-reading-open") ? "reading"
+    : !profilePanel.hidden && library.classList.contains("is-profile-open") ? "profile"
+      : "shelf";
+  tabBar.querySelectorAll("[data-tab]").forEach((button) => {
+    if (button.dataset.tab === current) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+}
+
+function goToShelf() {
+  closeProfile({ immediate: true });
+  closeReadingPanel({ immediate: true, returnToShelf: false });
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  if (detailIndex !== null) closeBookDetail();
+  if (!addBookPanel.hidden || (!myShelf.hidden && myShelfView === "list")) {
+    openMyShelf({ view: "room", restoreFocus: false });
+  }
+}
+
+profileClose?.addEventListener("click", () => closeProfile());
+profileBody?.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-profile-action]") : null;
+  if (button) runProfileAction(button.dataset.profileAction);
+});
+tabBar?.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-tab]") : null;
+  if (!button) return;
+  if (button.dataset.tab === "shelf") goToShelf();
+  else if (button.dataset.tab === "reading") {
+    closeProfile({ immediate: true });
+    openReadingPanel();
+  } else openProfile();
+});
+new MutationObserver(updateTabBar).observe(library, { attributes: true, attributeFilter: ["class"] });
 
 // Top-right menu (staggered-menu.js). Each entry reuses the same path as the
 // matching toolbar button, after clearing whatever is open in front of it.
