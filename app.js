@@ -1424,15 +1424,14 @@ function updateMyRoomCaption(roomIndex) {
   if (book) setAmbientColor(myShelf, book);
 }
 
-// Bottom-left caption, magazine style: a vermilion number, the title in
-// serif, the author after it.
+// Bottom-left caption: the title in serif, the author after it.
 function setShelfCaption(target, book, position) {
   if (!target) return;
   if (!book) {
     target.textContent = "";
     return;
   }
-  target.innerHTML = `<span class="cap-no">NO. ${String(position).padStart(2, "0")}</span><b>${escapeHtml(cleanBookTitle(book.title))}</b><small>${escapeHtml(book.author || "")}</small>`;
+  target.innerHTML = `<b>${escapeHtml(cleanBookTitle(book.title))}</b><small>${escapeHtml(book.author || "")}</small>`;
 }
 
 // The room takes on a pale wash of the book in front of you.
