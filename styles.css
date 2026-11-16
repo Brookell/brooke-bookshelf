@@ -4758,3 +4758,96 @@ h1 {
     right: calc(max(16px, env(safe-area-inset-right)) + 64px);
   }
 }
+
+/* ---- Flow buttons ----
+   CSS-only take on the "flow button": on hover a circle grows from the
+   centre and fills the button, the label slides right, the arrow on the
+   right leaves and one comes in from the left, and the corners tighten.
+   Pure CSS (gradient + pseudo-element arrows) because app.js rewrites some
+   of these labels with textContent.
+   .flow         outlined button, fills with ink
+   .flow-invert  ink button, fills with paper */
+
+button.flow.flow {
+  --flow-fill: var(--ink);
+  --flow-on: var(--paper);
+  --flow-size: 280px;
+  --flow-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M12 5l7 7-7 7'/%3E%3C/svg%3E");
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  padding-right: 38px;
+  padding-left: 20px;
+  background-image: radial-gradient(circle closest-side, var(--flow-fill) 98%, transparent 100%);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 0 0;
+  transition:
+    background-size 800ms cubic-bezier(0.19, 1, 0.22, 1),
+    padding 800ms ease-out,
+    border-radius 600ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 600ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 600ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 600ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+button.flow.flow-invert {
+  --flow-fill: var(--paper);
+  --flow-on: var(--ink);
+}
+
+/* Full-width buttons: keep the arrows beside the short centred label. */
+button.flow.flow-wide { --flow-size: 640px; }
+button.flow.flow.flow-wide::before { left: calc(50% - 64px); opacity: 0; }
+button.flow.flow.flow-wide::after { right: calc(50% - 44px); }
+
+button.flow.flow::before,
+button.flow.flow::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  background: currentColor;
+  -webkit-mask: var(--flow-arrow) center / contain no-repeat;
+  mask: var(--flow-arrow) center / contain no-repeat;
+  transition:
+    left 800ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    right 800ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 300ms ease;
+}
+
+button.flow.flow::before { left: -24px; }
+button.flow.flow::after { right: 14px; }
+
+@media (hover: hover) {
+  button.flow.flow:hover:not(:disabled) {
+    padding-right: 20px;
+    padding-left: 38px;
+    border-color: transparent;
+    border-radius: 12px;
+    background-size: var(--flow-size) var(--flow-size);
+    color: var(--flow-on);
+    transform: none;
+  }
+
+  /* Paper fill on the page's paper colour needs its outline kept. */
+  button.flow.flow-invert:hover:not(:disabled) { border-color: var(--ink); }
+
+  button.flow.flow:hover:not(:disabled)::before { left: 14px; }
+  button.flow.flow:hover:not(:disabled)::after { right: -24px; }
+  button.flow.flow.flow-wide:hover:not(:disabled)::before { left: calc(50% - 44px); opacity: 1; }
+  button.flow.flow.flow-wide:hover:not(:disabled)::after { right: calc(50% - 64px); opacity: 0; }
+}
+
+button.flow.flow:active:not(:disabled) { transform: scale(0.95); }
+
+button.flow.flow:disabled::before,
+button.flow.flow:disabled::after { opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  button.flow.flow,
+  button.flow.flow::before,
+  button.flow.flow::after { transition-duration: 1ms; }
+}

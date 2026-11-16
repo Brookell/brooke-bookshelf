@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-34" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-37" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -147,7 +147,7 @@
             <button type="button" id="wereadPickAll">全选</button>
           </div>
           <ul class="weread-pick-list" id="wereadPickList"></ul>
-          <button type="button" class="weread-pick-import" id="wereadPickImport" disabled>导入选中的书</button>
+          <button type="button" class="weread-pick-import flow flow-invert" id="wereadPickImport" disabled>导入选中的书</button>
           <div class="weread-progress" id="wereadProgress" hidden>
             <div class="weread-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
             <p id="wereadProgressText"></p>
@@ -179,11 +179,11 @@
             <label for="authPasswordConfirm">再输入一次密码</label>
             <input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="6" />
           </div>
-          <button type="submit" id="authSubmit">登录</button>
+          <button type="submit" id="authSubmit" class="flow flow-invert flow-wide">登录</button>
         </form>
         <p class="auth-gate-status" id="authGateStatus" role="status" aria-live="polite"></p>
         <button class="auth-gate-link" id="authGateMagicLink" type="button">忘记密码？发送登录链接到邮箱</button>
-        <button class="auth-gate-secondary" id="authGateGuest" type="button">先体验，稍后注册</button>
+        <button class="auth-gate-secondary flow" id="authGateGuest" type="button">先体验，稍后注册</button>
       </div>
     </section>
 
@@ -192,8 +192,8 @@
       <h2 id="shelfOnboardingTitle">Start with one book</h2>
       <p id="shelfOnboardingCopy">Browse the reference room, open a book that catches your eye, then add it to begin assembling your own room.</p>
       <div class="shelf-onboarding-actions">
-        <button class="shelf-onboarding-primary" id="shelfOnboardingStart" type="button">Choose a book</button>
-        <button class="shelf-onboarding-secondary" id="shelfOnboardingRoom" type="button" hidden>Open my room</button>
+        <button class="shelf-onboarding-primary flow flow-invert" id="shelfOnboardingStart" type="button">Choose a book</button>
+        <button class="shelf-onboarding-secondary flow" id="shelfOnboardingRoom" type="button" hidden>Open my room</button>
       </div>
     </aside>
 
@@ -333,8 +333,8 @@
           </div>
         </div>
         <footer class="cover-picker-footer">
-          <button type="button" id="coverPickerCancel">取消</button>
-          <button type="button" id="coverPickerSave" class="is-primary">保存封面</button>
+          <button type="button" id="coverPickerCancel" class="flow">取消</button>
+          <button type="button" id="coverPickerSave" class="is-primary flow flow-invert">保存封面</button>
         </footer>
       </div>
     </section>
