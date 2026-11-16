@@ -2091,82 +2091,188 @@ function readingHeatmapMarkup(year) {
   return `<div class="reading-heatmap" role="img" aria-label="${start.getFullYear()} 年每天的阅读时长">${cells.join("")}</div>`;
 }
 
+function readingCoverMarkup(cover, title = "") {
+  return `<span class="rd-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(title).slice(0, 2))}</span>`}</span>`;
+}
+
+// Shelf status from the user's own room (想读 / 在读 / 读完) as a donut.
+function readingStatusDonut() {
+  const counts = { want_to_read: 0, reading: 0, finished: 0 };
+  books.forEach((book) => {
+    const state = getBookState(book);
+    if (state && counts[state.status] !== undefined) counts[state.status] += 1;
+  });
+  const total = counts.want_to_read + counts.reading + counts.finished;
+  const parts = [
+    ["finished", "读完", counts.finished, "var(--ink)"],
+    ["reading", "在读", counts.reading, "rgba(21, 21, 21, 0.5)"],
+    ["want_to_read", "想读", counts.want_to_read, "rgba(21, 21, 21, 0.18)"],
+  ];
+  const radius = 42;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  const arcs = total ? parts.map(([, , value, color]) => {
+    const length = (value / total) * circumference;
+    const arc = `<circle r="${radius}" cx="60" cy="60" fill="none" stroke="${color}" stroke-width="14" stroke-dasharray="${length} ${circumference - length}" stroke-dashoffset="${-offset}" />`;
+    offset += length;
+    return arc;
+  }).join("") : `<circle r="${radius}" cx="60" cy="60" fill="none" stroke="rgba(21, 21, 21, 0.08)" stroke-width="14" />`;
+  return `
+    <div class="rd-donut">
+      <svg viewBox="0 0 120 120" role="img" aria-label="书架：读完 ${counts.finished} 本，在读 ${counts.reading} 本，想读 ${counts.want_to_read} 本">
+        <g transform="rotate(-90 60 60)">${arcs}</g>
+        <text x="60" y="58" text-anchor="middle" class="rd-donut-total">${total}</text>
+        <text x="60" y="76" text-anchor="middle" class="rd-donut-label">本书</text>
+      </svg>
+      <ul>${parts.map(([key, label, value, color]) => `<li><i style="background:${color}"></i>${label}<b>${value}</b></li>`).join("")}</ul>
+    </div>`;
+}
+
+// Reading time per month for the current year, as simple bars.
+function readingMonthBars(year) {
+  const buckets = Object.entries(year?.readTimes || {}).map(([key, value]) => [new Date(Number(key) * 1000).getMonth(), Number(value) || 0]);
+  const months = Array.from({ length: 12 }, (_, month) => buckets.filter(([m]) => m === month).reduce((sum, [, v]) => sum + v, 0));
+  const max = Math.max(1, ...months);
+  const now = new Date();
+  const thisYear = new Date((year?.baseTime || 0) * 1000 || now).getFullYear() === now.getFullYear();
+  return `
+    <div class="rd-bars" role="img" aria-label="每月阅读时长">
+      ${months.map((seconds, month) => `
+        <div class="rd-bar${thisYear && month === now.getMonth() ? " is-current" : ""}" title="${month + 1}月：${formatDuration(seconds)}">
+          <span style="height: ${Math.max(seconds ? 3 : 0, Math.round((seconds / max) * 100))}%"></span>
+          <small>${month + 1}</small>
+        </div>`).join("")}
+    </div>`;
+}
+
+function readingFocusBook() {
+  const candidates = myWereadBooks()
+    .map((book) => ({ book, item: reading.progress?.[wereadBookIdFor(book)] }))
+    .filter(({ item }) => item && item.progress > 0 && item.progress < 100)
+    .sort((a, b) => (b.item.updateTime || 0) - (a.item.updateTime || 0) || b.item.progress - a.item.progress);
+  return candidates[0] || null;
+}
+
 function readingOverviewMarkup() {
   const stats = reading.stats[reading.mode];
+  const year = reading.year;
+  const yearNumber = new Date((year?.baseTime || 0) * 1000 || Date.now()).getFullYear();
+  const modeLabel = READING_MODES.find(([mode]) => mode === reading.mode)?.[1] || "";
   const tabs = READING_MODES.map(([mode, label]) => `
     <button type="button" data-reading-mode="${mode}" aria-pressed="${String(mode === reading.mode)}">${label}</button>
   `).join("");
+  const statValue = (name) => stats?.readStat?.find((item) => String(item.stat).includes(name))?.counts || "—";
+  const shelfCount = (status) => books.filter((book) => getBookState(book)?.status === status).length;
   const compare = stats?.compare;
-  const tiles = stats ? `
-    <div class="reading-tiles">
-      <div><small>阅读时长</small><strong>${formatDuration(stats.totalReadTime)}</strong></div>
-      <div><small>阅读天数</small><strong>${stats.readDays} 天</strong></div>
-      <div><small>日均</small><strong>${formatDuration(stats.dayAverageReadTime)}</strong>
-        ${typeof compare === "number" ? `<em>${compare >= 0 ? "比上期多" : "比上期少"} ${Math.abs(Math.round(compare * 100))}%</em>` : ""}</div>
-    </div>
-    ${stats.readStat?.length ? `<div class="reading-chips">${stats.readStat.map((item) => `<span>${escapeHtml(item.stat)} ${escapeHtml(item.counts)}</span>`).join("")}</div>` : ""}
-  ` : `<p class="reading-muted">正在读取…</p>`;
-  const longest = stats?.readLongest?.length ? `
-    <section class="reading-section">
-      <h3>读得最多</h3>
-      <ol class="reading-books">${stats.readLongest.map((item) => `
-        <li>
-          <span class="reading-cover">${item.book?.cover ? `<img src="${escapeHtml(item.book.cover)}" alt="" loading="lazy" />` : ""}</span>
-          <span><strong>${escapeHtml(item.book?.title || "")}</strong><small>${escapeHtml(item.book?.author || "")}</small></span>
-          <em>${formatDuration(item.readTime)}</em>
-        </li>`).join("")}
-      </ol>
-    </section>` : "";
-  const categories = stats?.preferCategory?.length ? `
-    <section class="reading-section">
-      <h3>偏好分类 ${stats.preferCategoryWord ? `<small>${escapeHtml(stats.preferCategoryWord)}</small>` : ""}</h3>
-      <div class="reading-bars">${stats.preferCategory.map((item) => `
-        <div><span>${escapeHtml(item.title || "")}</span><i style="--value: ${Math.max(0, Math.min(1, Number(item.val) || 0))}"></i></div>`).join("")}
-      </div>
-    </section>` : "";
-  const calendar = reading.year ? `
-    <section class="reading-section">
-      <h3>${new Date((reading.year.baseTime || 0) * 1000 || Date.now()).getFullYear()} 阅读日历 <small>${formatDuration(reading.year.totalReadTime)} · ${reading.year.readDays} 天</small></h3>
-      ${readingHeatmapMarkup(reading.year)}
-    </section>` : "";
+  const tiles = [
+    ["阅读时长", stats ? formatDuration(stats.totalReadTime) : "—", modeLabel],
+    ["阅读天数", stats ? `${stats.readDays} 天` : "—", modeLabel],
+    ["日均", stats ? formatDuration(stats.dayAverageReadTime) : "—", typeof compare === "number" ? `${compare >= 0 ? "比上期多" : "比上期少"} ${Math.abs(Math.round(compare * 100))}%` : ""],
+    ["读过", statValue("读过"), ""],
+    ["读完", statValue("读完"), ""],
+    ["笔记", statValue("笔记"), ""],
+    ["在读", `${shelfCount("reading")} 本`, "我的书架"],
+    ["想读", `${shelfCount("want_to_read")} 本`, "我的书架"],
+  ];
+  const wall = (stats?.readLongest || []).slice(0, 8);
+  const focus = readingFocusBook();
   const progressBooks = myWereadBooks().filter((book) => reading.progress?.[wereadBookIdFor(book)]);
-  const progress = progressBooks.length ? `
-    <section class="reading-section">
-      <h3>阅读进度</h3>
-      <ul class="reading-progress">${progressBooks.map((book) => {
-        const item = reading.progress[wereadBookIdFor(book)];
-        return `
-        <li>
-          <span><strong>${escapeHtml(book.title)}</strong><small>${item.readingTime ? `已读 ${formatDuration(item.readingTime)}` : ""}</small></span>
-          <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
-          <em>${Number(item.progress) || 0}%</em>
-        </li>`;
-      }).join("")}
-      </ul>
-    </section>` : "";
-  const notes = reading.notebooks?.length ? `
-    <section class="reading-section">
-      <h3>划线和想法 <small>${reading.notebooks.length} 本书有笔记</small></h3>
-      <ul class="reading-notebooks">${reading.notebooks.map((item, index) => `
-        <li><button type="button" data-reading-book="${index}">
-          <span class="reading-cover">${item.book?.cover ? `<img src="${escapeHtml(item.book.cover)}" alt="" loading="lazy" />` : ""}</span>
-          <span><strong>${escapeHtml(item.book?.title || "")}</strong><small>${item.highlights} 条划线 · ${item.thoughts} 条想法</small></span>
-          <i data-lucide="arrow-up-right" aria-hidden="true"></i>
-        </button></li>`).join("")}
-      </ul>
-    </section>` : reading.notebooks ? `<section class="reading-section"><h3>划线和想法</h3><p class="reading-muted">还没有笔记。</p></section>` : "";
+
   return `
-    <div class="reading-toolbar">
-      <div class="reading-tabs" role="group" aria-label="统计周期">${tabs}</div>
-      <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
-    </div>
+    <header class="rd-card rd-hero">
+      <div>
+        <h3>你的阅读年 — ${yearNumber}</h3>
+        <p class="rd-sub">${year ? `今年读了 ${formatDuration(year.totalReadTime)}，${year.readDays} 天打开过书${year.preferCategoryWord ? `，${escapeHtml(year.preferCategoryWord)}` : ""}。` : "正在读取你的阅读记录…"}</p>
+      </div>
+      <div class="rd-hero-actions">
+        <div class="reading-tabs" role="group" aria-label="统计周期">${tabs}</div>
+        <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
+      </div>
+    </header>
     ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
-    ${tiles}
-    ${calendar}
-    ${progress}
-    ${longest}
-    ${categories}
-    ${notes}
+
+    <div class="rd-grid">
+      <section class="rd-card rd-tiles" aria-label="${modeLabel}统计">
+        ${tiles.map(([label, value, note]) => `
+          <div class="rd-tile"><small>${label}</small><strong>${escapeHtml(value)}</strong>${note ? `<em>${escapeHtml(note)}</em>` : ""}</div>`).join("")}
+      </section>
+
+      <section class="rd-card">
+        <h4>我的书架</h4>
+        ${readingStatusDonut()}
+      </section>
+
+      <section class="rd-card rd-wall-card">
+        <h4>读得最多 <small>${modeLabel}</small></h4>
+        ${wall.length ? `<div class="rd-wall">${wall.map((item) => `
+          <figure title="${escapeHtml(item.book?.title || "")} · ${formatDuration(item.readTime)}">
+            ${readingCoverMarkup(item.book?.cover, item.book?.title)}
+            <figcaption>${escapeHtml(item.book?.title || "")}</figcaption>
+          </figure>`).join("")}</div>` : `<p class="reading-muted">${stats ? "这段时间还没有阅读记录。" : "正在读取…"}</p>`}
+      </section>
+
+      <section class="rd-card rd-span-2">
+        <h4>每月阅读时长 <small>${yearNumber}</small></h4>
+        ${year ? readingMonthBars(year) : `<p class="reading-muted">正在读取…</p>`}
+      </section>
+
+      <section class="rd-card">
+        <h4>偏好分类</h4>
+        ${stats?.preferCategory?.length ? `<div class="reading-bars">${stats.preferCategory.slice(0, 6).map((item) => `
+          <div><span>${escapeHtml(item.title || "")}</span><i style="--value: ${Math.max(0, Math.min(1, Number(item.val) || 0))}"></i></div>`).join("")}
+        </div>` : `<p class="reading-muted">${stats ? "数据还不够。" : "正在读取…"}</p>`}
+      </section>
+
+      <section class="rd-card rd-focus">
+        <h4>正在读</h4>
+        ${focus ? `
+          <div class="rd-focus-body">
+            ${readingCoverMarkup(focus.book.image, focus.book.title)}
+            <div>
+              <strong>${escapeHtml(focus.book.title)}</strong>
+              <small>${escapeHtml(focus.book.author)}</small>
+              <div class="rd-progress"><i style="--value: ${focus.item.progress / 100}"></i></div>
+              <small>读到 ${focus.item.progress}%${focus.item.readingTime ? ` · 已读 ${formatDuration(focus.item.readingTime)}` : ""}</small>
+            </div>
+          </div>` : `<p class="reading-muted">${reading.progress ? "书架上暂时没有读到一半的书。" : "正在读取…"}</p>`}
+      </section>
+
+      <section class="rd-card rd-span-2">
+        <h4>阅读日历 <small>${year ? `${formatDuration(year.totalReadTime)} · ${year.readDays} 天` : ""}</small></h4>
+        ${year ? readingHeatmapMarkup(year) : `<p class="reading-muted">正在读取…</p>`}
+        <div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>
+      </section>
+
+      <section class="rd-card">
+        <h4>阅读进度 <small>${progressBooks.length ? `${progressBooks.length} 本` : ""}</small></h4>
+        ${progressBooks.length ? `<ul class="reading-progress">${progressBooks.map((book) => {
+          const item = reading.progress[wereadBookIdFor(book)];
+          return `
+          <li>
+            <span><strong>${escapeHtml(book.title)}</strong></span>
+            <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
+            <em>${Number(item.progress) || 0}%</em>
+          </li>`;
+        }).join("")}</ul>` : `<p class="reading-muted">${reading.progress ? "书架上还没有来自微信读书的书。" : "正在读取…"}</p>`}
+      </section>
+
+      <section class="rd-card rd-span-2">
+        <h4>划线和想法 <small>${reading.notebooks ? `${reading.notebooks.length} 本书有笔记` : ""}</small></h4>
+        ${reading.notebooks?.length ? `
+          <table class="rd-table">
+            <thead><tr><th>书名</th><th>作者</th><th class="num">划线</th><th class="num">想法</th><th></th></tr></thead>
+            <tbody>${reading.notebooks.map((item, index) => `
+              <tr data-reading-book="${index}" tabindex="0">
+                <td><span class="rd-table-title">${readingCoverMarkup(item.book?.cover, item.book?.title)}${escapeHtml(item.book?.title || "")}</span></td>
+                <td>${escapeHtml(item.book?.author || "")}</td>
+                <td class="num">${item.highlights}</td>
+                <td class="num">${item.thoughts}</td>
+                <td class="num"><i data-lucide="arrow-up-right" aria-hidden="true"></i></td>
+              </tr>`).join("")}
+            </tbody>
+          </table>` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
+      </section>
+    </div>
   `;
 }
 
@@ -3529,6 +3635,13 @@ readingPanelBody.addEventListener("click", async (event) => {
     }
     Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, error: "" });
     renderReadingPanel();
+  }
+});
+readingPanelBody.addEventListener("keydown", (event) => {
+  const row = event.target instanceof Element ? event.target.closest("tr[data-reading-book]") : null;
+  if (row && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    openReadingBook(Number(row.dataset.readingBook));
   }
 });
 readingPanelBody.addEventListener("submit", async (event) => {
