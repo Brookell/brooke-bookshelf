@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex, nofollow" />
   <meta name="theme-color" content="#c2a5f9" />
   <title>Reading Room Admin</title>
-  <link rel="stylesheet" href="./admin.css?v=20261117-5" />
+  <link rel="stylesheet" href="./admin.css?v=20261117-6" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -14,7 +14,7 @@
     }
   </script>
   <script defer src="./code-slots.js?v=20261117-1"></script>
-  <script defer src="./admin.js?v=20261117-11"></script>
+  <script defer src="./admin.js?v=20261117-12"></script>
 </head>
 <body>
   <div class="app">
@@ -46,8 +46,8 @@
         </div>
         <div class="topbar-actions" id="headerActions" hidden>
           <span class="chip" id="signedInAs"></span>
-          <button type="button" id="refreshButton">刷新</button>
-          <button type="button" id="signOutButton">退出</button>
+          <button type="button" id="refreshButton" class="flow-button">刷新</button>
+          <button type="button" id="signOutButton" class="flow-button">退出</button>
         </div>
       </header>
 
@@ -95,7 +95,7 @@
               <h2>用户 <small id="userCount"></small></h2>
               <div class="tools">
                 <input type="search" id="userFilter" placeholder="搜索邮箱或房间名" aria-label="搜索用户" />
-                <button type="button" id="exportUsers">导出 CSV</button>
+                <button type="button" id="exportUsers" class="flow-button flow-lime">导出 CSV</button>
               </div>
             </div>
             <div class="table-wrap">
@@ -128,7 +128,7 @@
           <section class="card span-3" id="content">
             <div class="card-head">
               <h2>最常被收藏的书</h2>
-              <button type="button" id="exportBooks">导出 CSV</button>
+              <button type="button" id="exportBooks" class="flow-button flow-lime">导出 CSV</button>
             </div>
             <ul class="covers" id="bookList"></ul>
           </section>

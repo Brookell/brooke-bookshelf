@@ -427,7 +427,18 @@
     highlight();
   }
 
+  // Adds the arrows, text wrapper and fill circle the flow-button CSS animates.
+  function decorateFlowButtons() {
+    const arrow = (side) => `<svg class="flow-arrow flow-arrow-${side}" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`;
+    document.querySelectorAll(".flow-button").forEach((button) => {
+      if (button.querySelector(".flow-text")) return;
+      const label = button.textContent.trim();
+      button.innerHTML = `${arrow("in")}<span class="flow-text">${escapeHtml(label)}</span><span class="flow-circle" aria-hidden="true"></span>${arrow("out")}`;
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    decorateFlowButtons();
     setGreeting();
     if (!functionsUrl()) {
       $("deniedText").textContent = "没有找到 Supabase 配置（config.js）。";
