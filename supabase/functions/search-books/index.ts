@@ -2,6 +2,7 @@
 //
 // POST { query, limit }  -> { results: SearchResult[] }
 // POST { bookId }        -> { info: BookInfo | null }   (WeRead /book/info)
+// POST { coverColor: url } -> { color: "#rrggbb" | null } (cover's main colour)
 //
 // Tries WeRead's /store/search first (good Chinese coverage and covers), then
 // falls back to Google Books. Both upstream keys live in Supabase secrets:
@@ -13,6 +14,8 @@
 // - only allowed for signed-in users (JWT verified by the gateway + /auth/v1/user)
 // - rate limited per user (RATE_LIMIT_PER_HOUR upstream calls)
 // - cached by query for CACHE_TTL_HOURS so repeats never hit WeRead again
+
+import { decode } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // Must match the `version` in tencent/wechatreading skills/SKILL.md; the
@@ -199,6 +202,65 @@ async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
   };
 }
 
+// Cover hosts the site uses. Anything else is refused so the function can't
+// be used to fetch arbitrary URLs.
+const COVER_HOSTS = [
+  /(^|\.)weread\.qq\.com$/,
+  /(^|\.)myqcloud\.com$/,
+  /^books\.google\.com$/,
+  /(^|\.)googleusercontent\.com$/,
+  /^oipsefmckxyojnntiaax\.supabase\.co$/,
+];
+
+function rgbToHex(r: number, g: number, b: number) {
+  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Main colour of a cover: shrink it, group pixels into coarse colour
+// buckets, ignore near-white margins, and pick the bucket with the most
+// pixels (weighted a little towards saturated colours).
+async function coverColor(url: string): Promise<string | null> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:" || !COVER_HOSTS.some((host) => host.test(parsed.hostname))) return null;
+  const response = await fetch(parsed);
+  if (!response.ok) return null;
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > 4 * 1024 * 1024) return null;
+  // deno-lint-ignore no-explicit-any
+  const image: any = await decode(bytes);
+  if (!image?.width) return null;
+  image.resize(48, Math.max(1, Math.round((48 * image.height) / image.width)));
+  const buckets = new Map<number, { r: number; g: number; b: number; n: number; w: number }>();
+  for (let y = 1; y <= image.height; y += 1) {
+    for (let x = 1; x <= image.width; x += 1) {
+      const [r, g, b, a] = image.getRGBAAt(x, y);
+      if (a < 128) continue;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      if (min > 232) continue; // paper-white borders and backgrounds
+      const saturation = max === 0 ? 0 : (max - min) / max;
+      const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+      const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0, w: 0 };
+      bucket.r += r;
+      bucket.g += g;
+      bucket.b += b;
+      bucket.n += 1;
+      bucket.w += 1 + saturation;
+      buckets.set(key, bucket);
+    }
+  }
+  let best: { r: number; g: number; b: number; n: number; w: number } | null = null;
+  for (const bucket of buckets.values()) {
+    if (!best || bucket.w > best.w) best = bucket;
+  }
+  return best ? rgbToHex(best.r / best.n, best.g / best.n, best.b / best.n) : null;
+}
+
 async function searchGoogle(query: string, limit: number): Promise<SearchResult[]> {
   const url = new URL("https://www.googleapis.com/books/v1/volumes");
   url.searchParams.set("q", query);
@@ -240,6 +302,22 @@ Deno.serve(async (request) => {
     if (!userId) return jsonResponse({ error: "sign_in_required" }, 401);
 
     const body = await request.json().catch(() => ({}));
+
+    if (body.coverColor !== undefined) {
+      const url = String(body.coverColor || "").slice(0, 600);
+      const cacheKey = `color|${url}`;
+      const cached = await readCache(cacheKey);
+      if (cached) return jsonResponse({ color: cached.color ?? null, cached: true });
+      if (await overRateLimit(userId)) return jsonResponse({ error: "rate_limited" }, 429);
+      let color: string | null = null;
+      try {
+        color = await coverColor(url);
+      } catch (error) {
+        console.error("cover colour failed", error);
+      }
+      if (color) await writeCache(cacheKey, { color });
+      return jsonResponse({ color });
+    }
 
     if (body.bookId !== undefined) {
       const bookId = String(body.bookId || "").trim().slice(0, 40);

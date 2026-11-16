@@ -531,6 +531,7 @@ function normalizeBook(book, index = books.length) {
     sourceId: book.sourceId || "",
     deepLink: book.deepLink || "",
     introLoaded: Boolean(book.introLoaded),
+    coverPalette: book.coverPalette || "",
   };
 }
 
@@ -798,6 +799,7 @@ async function loadShelfFromSupabase() {
   measureShelf();
   updateDetailShelfControls();
   updateOnboarding();
+  loadMissingCoverPalettes();
 }
 
 async function syncLocalShelfToSupabase() {
@@ -1635,6 +1637,7 @@ async function syncWereadShelf(apiKey) {
     renderMyShelf();
     measureShelf();
     wereadImportStatus.textContent = t("wereadSyncDone", { count: items.length });
+    loadMissingCoverPalettes();
     wereadApiKey.value = "";
     if (items.length > 0) {
       closeAddBookPanel({ restoreFocus: false });
@@ -1658,6 +1661,7 @@ function addCustomBook(book) {
     measureShelf();
   }
   saveBookState(book, DEFAULT_STATUS);
+  loadCoverPalette(book);
   renderAddBookResults();
   closeAddBookPanel({ restoreFocus: false });
   window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
@@ -1688,6 +1692,7 @@ function confirmRemoveFromShelf(button) {
 function applyCoverToBook(book, url) {
   book.image = url || "";
   book.originalCover = Boolean(url);
+  book.coverPalette = "";
   if (book.isCustom && bookExists(book.id)) writeCustomBooks();
   const index = books.indexOf(book);
   const cover = index >= 0 ? bookElements[index]?.querySelector(".book-cover") : null;
@@ -1698,6 +1703,7 @@ function applyCoverToBook(book, url) {
   renderMyShelf();
   if (index >= 0 && detailIndex === index) populateBookDetail(index);
   if (getBookState(book)) syncBookStateToSupabase(book);
+  loadCoverPalette(book);
 }
 
 let coverPickerState = null;
@@ -2392,6 +2398,116 @@ function shortenIntro(text) {
   return stop > 80 ? head.slice(0, stop + 1) : `${head}…`;
 }
 
+// ---- Spine / detail colours taken from the cover ----
+// Books a user adds start with a rotating palette colour. Once a cover is
+// known, its main colour (worked out by the search-books function, since
+// cover hosts don't allow reading pixels in the browser) becomes the spine,
+// cover and detail background colour, with matching readable ink.
+
+function inkForColor(hex) {
+  return colorContrast(hex, "#171514") >= colorContrast(hex, "#fbf7ee") ? "#171514" : "#fbf7ee";
+}
+
+function applyCoverPalette(book, color) {
+  book.color = color;
+  book.spine = color;
+  book.detailColor = color;
+  book.ink = inkForColor(color);
+  book.spineInk = book.ink;
+  book.coverPalette = book.image;
+  if (book.isCustom && bookExists(book.id)) writeCustomBooks();
+  const index = books.indexOf(book);
+  const element = index >= 0 ? bookElements[index] : null;
+  if (element) {
+    element.style.setProperty("--cover", book.color);
+    element.style.setProperty("--cover-ink", book.ink);
+    element.style.setProperty("--spine", book.spine);
+    element.style.setProperty("--spine-ink", book.spineInk);
+  }
+  renderMyShelf();
+  if (index >= 0 && detailIndex === index) populateBookDetail(index);
+  if (getBookState(book)) syncBookStateToSupabase(book);
+}
+
+function dominantColorFromPixels(data) {
+  const buckets = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+    if (a < 128 || Math.min(r, g, b) > 232) continue;
+    const max = Math.max(r, g, b);
+    const saturation = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+    const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
+    const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0, w: 0 };
+    bucket.r += r;
+    bucket.g += g;
+    bucket.b += b;
+    bucket.n += 1;
+    bucket.w += 1 + saturation;
+    buckets.set(key, bucket);
+  }
+  let best = null;
+  buckets.forEach((bucket) => {
+    if (!best || bucket.w > best.w) best = bucket;
+  });
+  if (!best) return null;
+  return `#${[best.r, best.g, best.b].map((v) => Math.round(v / best.n).toString(16).padStart(2, "0")).join("")}`;
+}
+
+// Uploaded covers kept in the browser are data URLs, which can be read
+// directly; everything else goes through the function.
+async function readLocalCoverColor(dataUrl) {
+  const image = new Image();
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = dataUrl;
+  });
+  const canvas = document.createElement("canvas");
+  canvas.width = 48;
+  canvas.height = Math.max(1, Math.round((48 * image.naturalHeight) / image.naturalWidth));
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return dominantColorFromPixels(context.getImageData(0, 0, canvas.width, canvas.height).data);
+}
+
+async function fetchCoverColor(url) {
+  if (url.startsWith("data:")) return readLocalCoverColor(url);
+  const accessToken = await getSupabaseAccessToken();
+  if (!accessToken) return null;
+  const response = await fetch(`${readSupabaseFunctionsUrl()}/search-books`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      apikey: readSupabaseAnonKey(),
+    },
+    body: JSON.stringify({ coverColor: url }),
+  });
+  if (!response.ok) return null;
+  const { color } = await response.json().catch(() => ({}));
+  return /^#[0-9a-f]{6}$/i.test(color || "") ? color : null;
+}
+
+let paletteQueue = Promise.resolve();
+
+function loadCoverPalette(book) {
+  if (!book?.isCustom || !book.image || book.coverPalette === book.image) return;
+  const image = book.image;
+  paletteQueue = paletteQueue.then(async () => {
+    if (book.image !== image || book.coverPalette === image) return;
+    try {
+      const color = await fetchCoverColor(image);
+      if (color && book.image === image) applyCoverPalette(book, color);
+    } catch (error) {
+      console.warn("Cover colour failed", error);
+    }
+  });
+}
+
+function loadMissingCoverPalettes() {
+  books.filter((book) => book.isCustom && getBookState(book)).forEach(loadCoverPalette);
+}
+
 // Books imported from the WeRead shelf only come with a title, author and
 // category, so their description starts as a placeholder. When a signed-in
 // user opens one, fetch the real intro once via WeRead /book/info (through
@@ -3019,7 +3135,7 @@ if (showMyRoomFirst && hasSavedBooks()) {
   requestAnimationFrame(() => openMyShelf({ view: "room", restoreFocus: false }));
 }
 
-initializeSupabaseAuth();
+initializeSupabaseAuth().then(loadMissingCoverPalettes);
 updateOnboarding();
 notifyParentTheme();
 window.setTimeout(() => {
