@@ -3312,3 +3312,63 @@ h1 {
 .book-index-list .my-shelf-item-actions button:focus-visible > svg {
   transform: scale(1.12);
 }
+
+/* ---- Room view: same feel as the reference shelf ---- */
+
+/* 3D page turn like the shelf (the cover rotates in perspective) and the
+   same small lift for the open book. */
+.my-room-book {
+  --room-lift: 0px;
+  perspective: 2400px;
+  pointer-events: none;
+  transform: translate3d(var(--room-shift), var(--room-lift), 0);
+}
+
+.my-room-book.is-open {
+  --room-lift: -34px;
+}
+
+/* Only the visible spine (and the open cover) react to the mouse, so the
+   wide, overlapping button boxes no longer make books flicker open/closed. */
+.my-room-book-spine,
+.my-room-book.is-open .my-room-book-cover {
+  pointer-events: auto;
+}
+
+.my-room-book.is-open .my-room-book-spine {
+  opacity: 0;
+  transform: none;
+  transition: opacity 200ms ease;
+}
+
+.my-room-caption {
+  position: absolute;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  left: max(24px, env(safe-area-inset-left));
+  z-index: 4;
+  max-width: calc(100% - 360px);
+  margin: 0;
+  overflow: hidden;
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  /* On phones each room book is only as wide as its spine, so the gap to
+     the next one is just the shelf gap (the desktop negative margin made
+     books stack right-to-left off screen). */
+  .my-room-book {
+    margin-right: var(--room-gap);
+  }
+
+  .my-room-caption {
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: 16px;
+    max-width: calc(100% - 320px);
+    line-height: 32px;
+  }
+}

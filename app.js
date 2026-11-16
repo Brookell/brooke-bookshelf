@@ -42,6 +42,7 @@ const myShelf = document.querySelector("#myShelf");
 const myShelfClose = document.querySelector("#myShelfClose");
 const myShelfCount = document.querySelector("#myShelfCount");
 const myShelfList = document.querySelector("#myShelfList");
+const myRoomCaption = document.querySelector("#myRoomCaption");
 const coverPicker = document.querySelector("#coverPicker");
 const coverPickerKicker = document.querySelector("#coverPickerKicker");
 const coverPickerTitle = document.querySelector("#coverPickerTitle");
@@ -1249,14 +1250,13 @@ function renderMyShelf() {
     </button>
   `).join("");
   myShelfRoom.querySelectorAll(".my-room-book").forEach((element, roomIndex) => {
-    // Hover only opens the book; scrolling on hover made the room keep
-    // sliding as each newly centred book came under the mouse.
-    element.addEventListener("mouseenter", () => {
+    // Like the reference shelf, hover follows what is on screen: a book
+    // opens when the mouse reaches its visible spine and stays open while
+    // the mouse is over its cover. Hover never scrolls the room (that made
+    // it keep sliding as each newly centred book came under the mouse).
+    element.querySelector(".my-room-book-spine")?.addEventListener("mouseenter", () => {
       if (roomHasDragged) return;
       openMyRoomBook(roomIndex, { scroll: false });
-    });
-    element.addEventListener("mouseleave", () => {
-      if (myRoomActiveIndex === roomIndex && document.activeElement !== element) resetMyRoomBooks();
     });
     element.addEventListener("focus", () => openMyRoomBook(roomIndex));
   });
@@ -1305,6 +1305,15 @@ function switchMyShelfView(nextView) {
 function centerMyRoom() {
   resetMyRoomBooks();
   myShelfRoom.scrollLeft = Math.max(0, (myShelfRoom.scrollWidth - myShelfRoom.clientWidth) / 2);
+  updateMyRoomCaption(centerMyRoomIndex());
+}
+
+// Bottom-left "书名 / 作者" line, matching the reference shelf.
+function updateMyRoomCaption(roomIndex) {
+  if (!myRoomCaption) return;
+  const element = myShelfRoom.querySelectorAll(".my-room-book")[roomIndex];
+  const book = element ? books[Number(element.dataset.myShelfIndex)] : null;
+  myRoomCaption.textContent = book ? `${book.title} / ${book.author}` : "";
 }
 
 // The room book closest to the middle of the screen, used when the arrow
@@ -1854,6 +1863,7 @@ function openMyRoomBook(roomIndex, { focus = false, scroll = true } = {}) {
     book.classList.toggle("is-open", index === roomIndex);
     book.style.setProperty("--room-shift", `${Math.round(shift)}px`);
   });
+  updateMyRoomCaption(roomIndex);
   if (focus) active.focus({ preventScroll: true });
   if (scroll) active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
 }
@@ -2800,6 +2810,10 @@ function endRoomDrag(event) {
 }
 
 myShelfRoom.addEventListener("pointerup", endRoomDrag);
+myShelfRoom.addEventListener("mouseleave", () => {
+  if (roomDrag || myShelfRoom.contains(document.activeElement)) return;
+  resetMyRoomBooks();
+});
 myShelfRoom.addEventListener("pointercancel", endRoomDrag);
 
 viewport.addEventListener("pointerdown", (event) => {
