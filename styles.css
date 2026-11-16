@@ -3293,3 +3293,22 @@ h1 {
 .auth-gate-link:focus-visible {
   color: var(--ink);
 }
+
+/* Shelf list action icons: no sideways/diagonal hover nudge inherited from
+   the list rows; just a straight, slight enlarge. */
+.book-index-list .my-shelf-item-actions button,
+.book-index-list .my-shelf-item-actions button:hover,
+.book-index-list .my-shelf-item-actions button:focus-visible {
+  transform: none;
+}
+
+.book-index-list .my-shelf-item-actions button > svg {
+  opacity: 1;
+  transform: none;
+  transition: transform 180ms ease;
+}
+
+.book-index-list .my-shelf-item-actions button:hover > svg,
+.book-index-list .my-shelf-item-actions button:focus-visible > svg {
+  transform: scale(1.12);
+}
