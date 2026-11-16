@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-29" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-30" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -58,7 +58,7 @@
             <i data-lucide="plus"></i>
             <span class="sr-only">增添书籍</span>
           </button>
-          <button class="icon-button" id="readingPanelToggle" type="button" title="阅读面板" aria-controls="readingPanel">
+          <button class="icon-button" id="readingPanelToggle" type="button" title="阅读面板" aria-label="阅读面板" aria-controls="readingPanel">
             <i data-lucide="bar-chart-3"></i>
             <span class="sr-only">阅读面板</span>
           </button>
@@ -166,13 +166,21 @@
         </button>
         <p class="auth-gate-kicker">创建你的书架</p>
         <h2 id="authGateTitle">先保存你的 Reading Room</h2>
-        <p class="auth-gate-copy">输入邮箱和密码：第一次用会直接注册，之后用同样的邮箱和密码登录。你加入的书和房间设置都会保存到你的账号。</p>
+        <p class="auth-gate-copy">已经有账号就登录；第一次来请先注册。你加入的书和房间设置都会保存到你的账号。</p>
+        <div class="auth-gate-tabs" role="group" aria-label="登录或注册">
+          <button type="button" data-auth-mode="signin" aria-pressed="true">登录</button>
+          <button type="button" data-auth-mode="signup" aria-pressed="false">注册</button>
+        </div>
         <form class="auth-gate-form" id="authGateForm">
           <label for="authEmail">邮箱</label>
           <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
           <label for="authPassword">密码（至少 6 位）</label>
           <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
-          <button type="submit">登录 / 注册</button>
+          <div class="auth-confirm" id="authConfirmRow" hidden>
+            <label for="authPasswordConfirm">再输入一次密码</label>
+            <input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="6" />
+          </div>
+          <button type="submit" id="authSubmit">登录</button>
         </form>
         <p class="auth-gate-status" id="authGateStatus" role="status" aria-live="polite"></p>
         <button class="auth-gate-link" id="authGateMagicLink" type="button">忘记密码？发送登录链接到邮箱</button>
@@ -265,7 +273,7 @@
           <i data-lucide="plus"></i>
           <span class="sr-only">增添书籍</span>
         </button>
-        <button class="icon-button" type="button" data-my-shelf-action="reading" title="阅读面板">
+        <button class="icon-button" type="button" data-my-shelf-action="reading" title="阅读面板" aria-label="阅读面板">
           <i data-lucide="bar-chart-3"></i>
           <span class="sr-only">阅读面板</span>
         </button>
@@ -380,6 +388,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261116-42"></script>
+  <script defer src="./app.js?v=20261116-43"></script>
 </body>
 </html>

@@ -40,6 +40,9 @@ const authGateClose = document.querySelector("#authGateClose");
 const authGateForm = document.querySelector("#authGateForm");
 const authEmail = document.querySelector("#authEmail");
 const authPassword = document.querySelector("#authPassword");
+const authPasswordConfirm = document.querySelector("#authPasswordConfirm");
+const authConfirmRow = document.querySelector("#authConfirmRow");
+const authSubmit = document.querySelector("#authSubmit");
 const authGateStatus = document.querySelector("#authGateStatus");
 const authGateMagicLink = document.querySelector("#authGateMagicLink");
 const authGateGuest = document.querySelector("#authGateGuest");
@@ -661,25 +664,46 @@ function hasAuthSession() {
   return Boolean(readAuthSession());
 }
 
-// Email + password. Signing in with an unknown email creates the account
-// right away (email confirmation is off in Supabase), so one button does
-// both. Returns { mode } describing what happened.
-async function signInOrSignUp(email, password) {
+// Email + password. 登录 and 注册 are separate so sign-up can ask for the
+// password twice; email confirmation is off in Supabase, so a new account
+// is signed in straight away.
+let authMode = "signin";
+
+function setAuthMode(mode) {
+  authMode = mode === "signup" ? "signup" : "signin";
+  authGate.querySelectorAll("[data-auth-mode]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.authMode === authMode));
+  });
+  const signup = authMode === "signup";
+  authConfirmRow.hidden = !signup;
+  authPasswordConfirm.required = signup;
+  authPassword.autocomplete = signup ? "new-password" : "current-password";
+  authSubmit.textContent = signup ? "注册" : "登录";
+  authGateStatus.textContent = "";
+}
+
+async function signInWithPassword(email, password) {
   const client = getSupabaseClient();
   if (!client) {
     writeAuthSession({ email, mode: "email-prototype" });
     return { mode: "prototype" };
   }
-  const signIn = await client.auth.signInWithPassword({ email, password });
-  if (!signIn.error) return { mode: "signed-in" };
-  if (!/invalid login credentials/i.test(signIn.error.message)) throw signIn.error;
-  const signUp = await client.auth.signUp({ email, password });
-  if (signUp.error && /already registered/i.test(signUp.error.message)) return { mode: "wrong-password" };
-  if (signUp.error) throw signUp.error;
-  if (signUp.data.session) return { mode: "signed-up" };
-  // Supabase answers a sign-up for an existing email without a session:
-  // the account exists and the password did not match.
-  return { mode: "wrong-password" };
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (!error) return { mode: "signed-in" };
+  if (/invalid login credentials/i.test(error.message)) return { mode: "wrong-credentials" };
+  throw error;
+}
+
+async function signUpWithPassword(email, password) {
+  const client = getSupabaseClient();
+  if (!client) {
+    writeAuthSession({ email, mode: "email-prototype" });
+    return { mode: "prototype" };
+  }
+  const { data, error } = await client.auth.signUp({ email, password });
+  if (error && /already registered/i.test(error.message)) return { mode: "already-registered" };
+  if (error) throw error;
+  return { mode: data.session ? "signed-up" : "check-email" };
 }
 
 function authErrorMessage(error) {
@@ -1071,6 +1095,8 @@ function updateStaticLanguage() {
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="info"]'), "查看操作提示");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="add"]'), t("addBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "参考空间");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="reading"]'), "阅读面板");
+  setButtonLabel(readingPanelToggle, "阅读面板");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="previous"]'), t("previousBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="next"]'), t("nextBook"));
   detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
@@ -3518,28 +3544,48 @@ addBookResults.addEventListener("click", (event) => {
   if (Number.isInteger(index) && book) addCustomBook(book);
 });
 authGateClose.addEventListener("click", () => closeAuthGate({ restoreFocus: true }));
+authGate.querySelectorAll("[data-auth-mode]").forEach((button) => {
+  button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+});
 authGateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const button = authGateForm.querySelector("button[type='submit']");
   const email = authEmail.value.trim();
   const password = authPassword.value;
   if (!email || !password) return;
-  button.disabled = true;
-  authGateStatus.textContent = "正在登录…";
+  if (authMode === "signup" && password !== authPasswordConfirm.value) {
+    authGateStatus.textContent = "两次输入的密码不一样，请再检查一下。";
+    authPasswordConfirm.focus();
+    return;
+  }
+  authSubmit.disabled = true;
+  authGateStatus.textContent = authMode === "signup" ? "正在注册…" : "正在登录…";
   try {
-    const result = await signInOrSignUp(email, password);
-    if (result.mode === "wrong-password") {
-      authGateStatus.textContent = "这个邮箱已经注册过，密码不对。忘记密码可以用下面的邮箱链接登录。";
+    const result = authMode === "signup"
+      ? await signUpWithPassword(email, password)
+      : await signInWithPassword(email, password);
+    if (result.mode === "wrong-credentials") {
+      authGateStatus.textContent = "邮箱或密码不对。还没有账号的话，请先注册；忘记密码可以用下面的邮箱链接登录。";
       return;
     }
-    authGateStatus.textContent = result.mode === "signed-up" ? "注册成功，正在进入你的书架…" : "";
+    if (result.mode === "already-registered") {
+      setAuthMode("signin");
+      authGateStatus.textContent = "这个邮箱已经注册过了，请直接登录。";
+      authPassword.focus();
+      return;
+    }
+    if (result.mode === "check-email") {
+      authGateStatus.textContent = "注册成功，请打开邮箱里的确认链接后再登录。";
+      return;
+    }
     authPassword.value = "";
+    authPasswordConfirm.value = "";
+    authGateStatus.textContent = "";
     closeAuthGate({ restoreFocus: false, runPending: true });
   } catch (error) {
     console.error(error);
     authGateStatus.textContent = authErrorMessage(error);
   } finally {
-    button.disabled = false;
+    authSubmit.disabled = false;
   }
 });
 authGateMagicLink.addEventListener("click", async () => {

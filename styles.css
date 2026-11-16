@@ -4621,3 +4621,40 @@ h1 {
 .space-switch button[hidden] {
   display: none;
 }
+
+/* ---- Login / sign-up tabs ---- */
+.auth-gate-tabs {
+  display: inline-flex;
+  width: fit-content;
+  margin: 4px 0 14px;
+  padding: 3px;
+  border: 1px solid rgba(21, 21, 21, 0.14);
+  border-radius: 999px;
+}
+
+.auth-gate-tabs button {
+  min-height: 30px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.auth-gate-tabs button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.auth-confirm {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-confirm[hidden] {
+  display: none;
+}
