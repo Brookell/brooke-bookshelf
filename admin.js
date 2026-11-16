@@ -72,7 +72,7 @@
   function setGreeting() {
     const now = new Date();
     const hour = now.getHours();
-    $("greeting").textContent = hour < 11 ? "早上好" : hour < 18 ? "下午好" : "晚上好";
+    $("greeting").textContent = `${hour < 11 ? "早上好" : hour < 18 ? "下午好" : "晚上好"} 👋`;
     $("today").textContent = now.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   }
 
@@ -159,12 +159,12 @@
     const top = 16;
     const bottom = 28;
     const slot = width / Math.max(days.length, 1);
-    const barWidth = Math.max(4, slot * 0.56);
+    const barWidth = Math.max(4, Math.min(12, slot * 0.34));
     const y = (value) => height - bottom - ((height - top - bottom) * value) / max;
     const bars = days.map((d, i) => {
       const x = i * slot + (slot - barWidth) / 2;
       const barTop = y(d.visitors);
-      return `<rect class="bar-visitors" x="${x.toFixed(1)}" y="${barTop.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(0, height - bottom - barTop).toFixed(1)}" rx="3"><title>${d.day}：访客 ${d.visitors}，访问 ${d.visits}，注册 ${d.signups}</title></rect>`;
+      return `<rect class="bar-visitors${i === days.length - 1 ? " is-today" : ""}" x="${x.toFixed(1)}" y="${barTop.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${Math.max(0, height - bottom - barTop).toFixed(1)}" rx="${(barWidth / 2).toFixed(1)}"><title>${d.day}：访客 ${d.visitors}，访问 ${d.visits}，注册 ${d.signups}</title></rect>`;
     }).join("");
     // Join neighbouring days only where someone signed up, so the line
     // doesn't run along the baseline and hide the bars.
