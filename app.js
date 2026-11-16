@@ -2057,6 +2057,9 @@ const reading = {
   loading: null,
   recommend: null,
   monthTops: null,
+  // Cover colour per cover URL, for the masthead and charts.
+  themeColors: {},
+  quote: undefined,
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2173,6 +2176,8 @@ async function refreshReadingPanel() {
         reading.loading.done += 1;
         updateReadingLoading();
       })));
+      // The masthead colour and the featured highlight.
+      await Promise.all([loadReadingTheme(reading.mode), loadReadingQuote()]);
       // Then wait for the covers, so the panel opens with its pictures in.
       const urls = readingCoverUrls();
       reading.loading.images = { done: 0, total: urls.length };
@@ -2388,11 +2393,11 @@ function readingMonthBars(year) {
           ${months.map((_, month) => {
             const top = tops.get(month);
             if (!top) return '<li class="is-empty" aria-hidden="true"></li>';
-            const label = `${month + 1}月读得最久：${top.book.title} · ${formatDuration(top.readTime)}`;
+            const label = `${month + 1}月读得最久：${cleanBookTitle(top.book.title)} · ${formatDuration(top.readTime)}`;
             return `
               <li title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
                 ${readingCoverMarkup(top.book.cover, top.book.title)}
-                <b>${escapeHtml(top.book.title)}</b>
+                <b>${escapeHtml(cleanBookTitle(top.book.title))}</b>
                 <small>${shortDuration(top.readTime)}</small>
               </li>`;
           }).join("")}
@@ -2435,53 +2440,157 @@ function addRecommendedBook(item) {
   loadRealIntro(book);
 }
 
+// ---- Reading record: masthead colour, featured book and highlight ----
+
+const READING_THEME_FALLBACK = "#3b4a3f";
+const READING_PERIOD_TITLES = { weekly: "本周", monthly: "本月", annually: "今年", overall: "一直以来" };
+
+// The book the masthead is about: the period's most-read, else the year's.
+function readingFeature(mode = reading.mode) {
+  return reading.stats[mode]?.readLongest?.find((item) => item.book?.title)
+    || reading.year?.readLongest?.find((item) => item.book?.title)
+    || null;
+}
+
+function readingThemeColor(mode = reading.mode) {
+  const cover = readingFeature(mode)?.book?.cover;
+  return (cover && reading.themeColors[cover]) || READING_THEME_FALLBACK;
+}
+
+async function loadReadingTheme(mode = reading.mode) {
+  const cover = readingFeature(mode)?.book?.cover;
+  if (!cover || reading.themeColors[cover]) return;
+  try {
+    const color = await Promise.race([
+      fetchCoverColor(sharpCover(cover)),
+      new Promise((resolve) => setTimeout(() => resolve(null), 6000)),
+    ]);
+    if (color) reading.themeColors[cover] = color;
+  } catch (error) {
+    console.warn("Reading theme colour failed", error);
+  }
+}
+
+// One highlight to feature: from the most recently annotated book, a
+// sentence that reads well on its own (not too short, not a whole page).
+async function loadReadingQuote() {
+  if (reading.quote !== undefined) return;
+  reading.quote = null;
+  const item = (reading.notebooks || []).find((entry) => entry.highlights > 0 && entry.book?.bookId);
+  if (!item) return;
+  try {
+    const data = await callWereadMe("highlights", { bookId: item.book.bookId });
+    const marks = (data.highlights || [])
+      .map((mark) => String(mark.text || "").replace(/\s+/g, " ").trim())
+      .filter((text) => text.length >= 12);
+    const fitting = marks.filter((text) => text.length <= 90);
+    const pool = fitting.length ? fitting : marks;
+    if (!pool.length) return;
+    const text = pool[Math.floor(Math.random() * Math.min(pool.length, 12))];
+    reading.quote = { text: text.length > 140 ? `${text.slice(0, 138)}…` : text, title: item.book.title, author: item.book.author || "" };
+  } catch (error) {
+    console.warn("Reading quote failed", error);
+  }
+}
+
+// 23 小时 54 分 as big number + small unit pairs.
+function readingDurationMarkup(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.round((total % 3600) / 60);
+  const parts = hours ? [[hours, "小时"], [minutes, "分"]] : [[minutes, "分钟"]];
+  return parts.map(([value, unit]) => `${value}<small>${unit}</small>`).join(" ");
+}
+
+function readingSectionHead(title, number, note = "") {
+  return `
+    <header class="rd-sec-head">
+      <h4>${title}${note ? ` <small>${note}</small>` : ""}</h4>
+      <span>NO. ${String(number).padStart(2, "0")}</span>
+    </header>`;
+}
+
+function readingMastheadMarkup(stats) {
+  const color = readingThemeColor();
+  const ink = inkForColor(color);
+  const feature = readingFeature();
+  const yearNumber = readingYearNumber(reading.year);
+  const period = READING_PERIOD_TITLES[reading.mode] || "";
+  const compare = stats?.compare;
+  const facts = [
+    stats ? `${stats.readDays} 天在读` : "",
+    stats?.dayAverageReadTime ? `日均 ${formatDuration(stats.dayAverageReadTime)}` : "",
+    ...(stats?.readStat || []).map((item) => `${item.stat} ${item.counts}`),
+    typeof compare === "number" && reading.mode !== "overall" ? `${compare >= 0 ? "比上期多" : "比上期少"} ${Math.abs(Math.round(compare * 100))}%` : "",
+  ].filter(Boolean);
+  return `
+    <section class="rd-masthead" style="--rd-c: ${color}; --rd-on: ${ink};">
+      <div class="rd-masthead-bar">
+        ${readingSegmentMarkup()}
+        <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
+      </div>
+      <div class="rd-masthead-body">
+        <div class="rd-masthead-copy">
+          <p class="rd-eyebrow">${reading.mode === "overall" ? "全部" : yearNumber} · ${period}的阅读</p>
+          <p class="rd-total">${stats ? readingDurationMarkup(stats.totalReadTime) : "—"}</p>
+          <p class="rd-facts">${facts.map((fact) => `<span>${escapeHtml(fact)}</span>`).join("")}</p>
+        </div>
+        ${feature ? `
+        <figure class="rd-feature">
+          ${readingCoverMarkup(feature.book.cover, feature.book.title)}
+          <figcaption><small>读得最久</small><b>${escapeHtml(cleanBookTitle(feature.book.title))}</b><span>${formatDuration(feature.readTime)}</span></figcaption>
+        </figure>` : ""}
+      </div>
+    </section>`;
+}
+
+function readingQuoteMarkup(number) {
+  const quote = reading.quote;
+  if (!quote) return "";
+  return `
+    <section class="rd-section rd-span-3">
+      ${readingSectionHead("摘录", number, "你最近的划线")}
+      <blockquote class="rd-quote">
+        <p>${escapeHtml(quote.text)}</p>
+        <cite>《${escapeHtml(cleanBookTitle(quote.title))}》${quote.author ? ` · ${escapeHtml(quote.author)}` : ""}</cite>
+      </blockquote>
+    </section>`;
+}
+
 function readingOverviewMarkup() {
   // Everything here comes from WeRead; the room's own books aren't counted.
   const stats = reading.stats[reading.mode];
   const year = reading.year;
   const yearNumber = readingYearNumber(year);
   const modeLabel = READING_MODES.find(([mode]) => mode === reading.mode)?.[1] || "";
-  const tabs = readingSegmentMarkup();
-  const compare = stats?.compare;
-  const tiles = [
-    ["阅读时长", stats ? formatDuration(stats.totalReadTime) : "—", ""],
-    ["阅读天数", stats ? `${stats.readDays} 天` : "—", ""],
-    ["日均", stats ? formatDuration(stats.dayAverageReadTime) : "—", typeof compare === "number" ? `${compare >= 0 ? "比上期多" : "比上期少"} ${Math.abs(Math.round(compare * 100))}%` : ""],
-    ...(stats?.readStat || []).map((item) => [String(item.stat || ""), String(item.counts || ""), ""]),
-  ];
   const wall = (stats?.readLongest || []).slice(0, 10);
   const progressBooks = reading.progress || [];
+  let number = 0;
+  const next = () => (number += 1);
 
   return `
-    <div class="rd-toolbar">
-      ${tabs}
-      <button type="button" class="reading-disconnect" id="readingDisconnect">断开微信读书</button>
-    </div>
+    ${readingMastheadMarkup(stats)}
     ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
 
     <div class="rd-grid">
-      <section class="rd-card rd-tiles" aria-label="${modeLabel}统计">
-        ${tiles.map(([label, value, note]) => `
-          <div class="rd-tile"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong>${note ? `<em>${escapeHtml(note)}</em>` : ""}</div>`).join("")}
-      </section>
-
-      <section class="rd-card rd-span-2 rd-wall-card">
-        <h4>读得最多 <small>${modeLabel}</small></h4>
-        ${wall.length ? `<div class="rd-wall">${wall.map((item) => `
+      <section class="rd-section rd-span-3 rd-wall-card">
+        ${readingSectionHead("读得最多", next(), modeLabel)}
+        ${wall.length ? `<div class="rd-wall">${wall.map((item, index) => `
           <figure title="${escapeHtml(item.book?.title || "")} · ${formatDuration(item.readTime)}">
+            <span class="rd-rank">${index + 1}</span>
             ${readingCoverMarkup(item.book?.cover, item.book?.title)}
-            <figcaption>${escapeHtml(item.book?.title || "")}</figcaption>
+            <figcaption>${escapeHtml(cleanBookTitle(item.book?.title || ""))}</figcaption>
             <small>${formatDuration(item.readTime)}</small>
           </figure>`).join("")}</div>` : `<p class="reading-muted">这段时间还没有阅读记录。</p>`}
       </section>
 
-      <section class="rd-card rd-span-3">
-        <h4>每月阅读时长 <small>${yearNumber}</small></h4>
+      <section class="rd-section rd-span-3">
+        ${readingSectionHead("每月", next(), `${yearNumber} 年的阅读时长`)}
         ${year ? readingMonthBars(year) : `<p class="reading-muted">没有读取到全年数据。</p>`}
       </section>
 
-      <section class="rd-card rd-span-3">
-        <h4>阅读日历 <small>${year ? `${yearNumber} · ${formatDuration(year.totalReadTime)} · ${year.readDays} 天` : ""}</small></h4>
+      <section class="rd-section rd-span-3">
+        ${readingSectionHead("阅读日历", next(), year ? `${yearNumber} · ${formatDuration(year.totalReadTime)} · ${year.readDays} 天` : "")}
         <div class="rd-calendar">
           ${year ? readingHeatmapMarkup(year) : `<p class="reading-muted">没有读取到全年数据。</p>`}
           <span class="rd-tooltip" role="tooltip" hidden></span>
@@ -2489,25 +2598,27 @@ function readingOverviewMarkup() {
         ${year && readingDailyMap(year).size ? `<div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>` : ""}
       </section>
 
-      <section class="rd-card">
-        <h4>阅读进度 <small>最近在读的 ${progressBooks.length} 本</small></h4>
+      ${readingQuoteMarkup(reading.quote ? next() : 0)}
+
+      <section class="rd-section">
+        ${readingSectionHead("阅读进度", next(), `最近在读的 ${progressBooks.length} 本`)}
         ${progressBooks.length ? `<div class="rd-scroll"><ul class="reading-progress rd-progress-list">${progressBooks.map((item) => `
           <li>
             ${readingCoverMarkup(item.cover, item.title)}
-            <span><strong>${escapeHtml(item.title)}</strong>${item.readingTime ? `<small>已读 ${formatDuration(item.readingTime)}</small>` : ""}</span>
+            <span><strong>${escapeHtml(cleanBookTitle(item.title))}</strong>${item.readingTime ? `<small>已读 ${formatDuration(item.readingTime)}</small>` : ""}</span>
             <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
             <em>${Number(item.progress) || 0}%</em>
           </li>`).join("")}</ul></div>` : `<p class="reading-muted">微信读书书架是空的。</p>`}
       </section>
 
-      <section class="rd-card rd-span-2">
-        <h4>划线和想法 <small>${reading.notebooks ? `${reading.notebooks.length} 本书有笔记` : ""}</small></h4>
+      <section class="rd-section rd-span-2">
+        ${readingSectionHead("划线和想法", next(), reading.notebooks ? `${reading.notebooks.length} 本书有笔记` : "")}
         ${reading.notebooks?.length ? `
           <div class="rd-scroll"><table class="rd-table">
             <thead><tr><th>书名</th><th>作者</th><th class="num">划线</th><th class="num">想法</th><th></th></tr></thead>
             <tbody>${reading.notebooks.map((item, index) => `
               <tr data-reading-book="${index}" tabindex="0">
-                <td><span class="rd-table-title">${readingCoverMarkup(item.book?.cover, item.book?.title)}${escapeHtml(item.book?.title || "")}</span></td>
+                <td><span class="rd-table-title">${readingCoverMarkup(item.book?.cover, item.book?.title)}${escapeHtml(cleanBookTitle(item.book?.title || ""))}</span></td>
                 <td>${escapeHtml(item.book?.author || "")}</td>
                 <td class="num">${item.highlights}</td>
                 <td class="num">${item.thoughts}</td>
@@ -2518,14 +2629,14 @@ function readingOverviewMarkup() {
       </section>
 
       ${reading.recommend?.length ? `
-      <section class="rd-card rd-span-3">
-        <h4>为你推荐 <small>来自微信读书</small></h4>
+      <section class="rd-section rd-span-3">
+        ${readingSectionHead("为你推荐", next(), "来自微信读书")}
         <ul class="rd-recommend">${reading.recommend.map((item, index) => {
           const added = isRecommendAdded(item);
           return `
           <li>
             ${readingCoverMarkup(item.cover, item.title)}
-            <strong>${escapeHtml(item.title)}</strong>
+            <strong>${escapeHtml(cleanBookTitle(item.title))}</strong>
             <small>${escapeHtml(item.author)}</small>
             ${item.reason ? `<em>${escapeHtml(item.reason)}</em>` : item.rating ? `<em>微信读书 ${(item.rating / 10).toFixed(1)}${item.ratingTitle ? ` · ${escapeHtml(item.ratingTitle)}` : ""}</em>` : ""}
             <button type="button" data-reading-recommend="${index}" ${added ? "disabled" : ""}>${added ? "已加入" : "加入书架"}</button>
@@ -2629,7 +2740,7 @@ async function selectReadingMode(segment, mode) {
   reading.mode = mode;
   const slide = new Promise((resolve) => setTimeout(resolve, 380));
   try {
-    await Promise.all([slide, loadReadingStats(mode)]);
+    await Promise.all([slide, loadReadingStats(mode).then(() => loadReadingTheme(mode))]);
   } catch (error) {
     reading.error = readingErrorText(error);
   }
@@ -2742,6 +2853,10 @@ function renderReadingPanel() {
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
   else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup() : readingOverviewMarkup();
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+  // Charts and calendar take the masthead's cover colour.
+  const themed = reading.connected && !reading.loading && reading.view !== "book";
+  readingPanel.toggleAttribute("data-themed", Boolean(themed));
+  if (themed) readingPanel.style.setProperty("--rd-c", readingThemeColor());
   setupReadingSegment();
 }
 
@@ -4132,7 +4247,7 @@ readingPanelBody.addEventListener("click", async (event) => {
     } catch (error) {
       console.warn(error);
     }
-    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, error: "" });
+    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, quote: undefined, error: "" });
     renderReadingPanel();
   }
 });

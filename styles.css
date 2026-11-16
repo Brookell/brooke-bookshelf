@@ -4253,7 +4253,7 @@ h1 {
 .rd-legend .level-3 { background: rgba(21, 21, 21, 0.66); }
 .rd-legend .level-4 { background: var(--ink); }
 
-.rd-card .reading-progress li {
+:is(.rd-card, .rd-section) .reading-progress li {
   grid-template-columns: minmax(0, 1fr) 70px 36px;
 }
 
@@ -4312,7 +4312,7 @@ h1 {
   box-shadow: none;
 }
 
-.rd-card .reading-heatmap {
+:is(.rd-card, .rd-section) .reading-heatmap {
   grid-template-rows: repeat(7, auto);
   grid-auto-columns: minmax(0, 1fr);
   gap: 2px;
@@ -4320,16 +4320,16 @@ h1 {
 }
 
 @media (max-width: 640px) {
-  .rd-card .reading-heatmap {
+  :is(.rd-card, .rd-section) .reading-heatmap {
     gap: 1px;
   }
 
-  .rd-card .reading-heatmap span {
+  :is(.rd-card, .rd-section) .reading-heatmap span {
     border-radius: 1px;
   }
 }
 
-.rd-card .reading-heatmap span {
+:is(.rd-card, .rd-section) .reading-heatmap span {
   aspect-ratio: 1;
 }
 
@@ -4573,7 +4573,7 @@ h1 {
   font-size: 10px;
 }
 
-.rd-card .rd-progress-list li {
+:is(.rd-card, .rd-section) .rd-progress-list li {
   grid-template-columns: 34px minmax(0, 1fr) 70px 38px;
 }
 
@@ -4593,7 +4593,7 @@ h1 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .rd-card .rd-progress-list li {
+  :is(.rd-card, .rd-section) .rd-progress-list li {
     grid-template-columns: 30px minmax(0, 1fr) 54px 34px;
     gap: 10px;
   }
@@ -5083,5 +5083,271 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   .my-room-caption {
     bottom: max(58px, calc(env(safe-area-inset-bottom) + 58px));
     max-width: calc(100% - 32px);
+  }
+}
+
+/* ---- Reading record, editorial version ----
+   A masthead in the cover colour of the period's most-read book, then
+   numbered sections like a magazine, with one vermilion accent. The
+   charts and calendar take the same cover colour (data-themed). */
+.reading-panel {
+  --vermilion: #c23a22;
+}
+
+.reading-panel[data-themed] {
+  --rd-accent: var(--rd-c);
+  --rd-heat-1: color-mix(in srgb, var(--rd-c) 22%, var(--paper));
+  --rd-heat-2: color-mix(in srgb, var(--rd-c) 45%, var(--paper));
+  --rd-heat-3: color-mix(in srgb, var(--rd-c) 72%, var(--paper));
+  --rd-heat-4: var(--rd-c);
+}
+
+.rd-masthead {
+  display: grid;
+  gap: 26px;
+  padding: 18px clamp(18px, 3vw, 34px) clamp(22px, 3vw, 34px);
+  border-radius: 22px;
+  background: var(--rd-c);
+  color: var(--rd-on);
+  transition: background 600ms ease, color 600ms ease;
+}
+
+.rd-masthead-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The underline tabs and the disconnect link in the masthead's own ink. */
+.rd-masthead .reading-tabs.rubber-segment {
+  --rs-ink: var(--rd-on);
+  --rs-idle: 0.6;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--rd-on) 22%, transparent);
+}
+
+.rd-masthead .reading-tabs .rubber-segment__thumb {
+  background: linear-gradient(var(--rd-on), var(--rd-on)) bottom / 100% var(--rs-line) no-repeat;
+  color: var(--rd-on);
+}
+
+.rd-masthead .reading-tabs .rubber-segment__item:focus-visible {
+  outline-color: var(--rd-on);
+}
+
+.rd-masthead .reading-disconnect {
+  color: var(--rd-on);
+  opacity: 0.6;
+}
+
+.rd-masthead .reading-disconnect:hover {
+  color: var(--rd-on);
+  opacity: 1;
+}
+
+.rd-masthead-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 28px;
+}
+
+.rd-eyebrow {
+  margin: 0;
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  opacity: 0.75;
+}
+
+.rd-total {
+  margin: 10px 0 0;
+  font-family: Didot, "Bodoni 72", "Songti SC", "STSong", serif;
+  font-size: clamp(54px, 9vw, 112px);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.rd-total small {
+  margin-left: 0.08em;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 0.3em;
+  letter-spacing: 0;
+}
+
+.rd-facts {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 16px 0 0;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.rd-facts span + span::before {
+  content: "·";
+  margin: 0 10px;
+  opacity: 0.6;
+}
+
+.rd-feature {
+  display: grid;
+  width: clamp(104px, 12vw, 150px);
+  margin: 0;
+  gap: 10px;
+}
+
+.rd-feature .rd-cover {
+  border-radius: 3px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+
+.rd-feature figcaption {
+  display: grid;
+  gap: 2px;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.rd-feature figcaption small {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  opacity: 0.7;
+}
+
+.rd-feature figcaption span {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* Sections: a heavy rule, a serif title and a vermilion number. */
+.rd-section {
+  min-width: 0;
+  padding-top: 12px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.rd-grid:has(.rd-section) {
+  row-gap: 44px;
+  column-gap: 36px;
+  margin-top: 40px;
+}
+
+.rd-sec-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.rd-sec-head h4 {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: clamp(20px, 2vw, 26px);
+  font-weight: 600;
+}
+
+.rd-sec-head h4 small {
+  margin-left: 8px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.rd-sec-head > span {
+  flex: none;
+  color: var(--vermilion);
+  font-family: "Courier New", monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+}
+
+.rd-section .rd-wall {
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 22px 18px;
+}
+
+.rd-section .rd-wall figure {
+  max-width: 130px;
+}
+
+.rd-wall figure {
+  position: relative;
+}
+
+.rd-rank {
+  position: absolute;
+  top: -10px;
+  left: -8px;
+  z-index: 1;
+  color: var(--rd-accent, var(--ink));
+  font-family: Didot, "Bodoni 72", serif;
+  font-size: 30px;
+  line-height: 1;
+  text-shadow: 0 0 0 var(--paper), 2px 2px 0 var(--paper), -2px -2px 0 var(--paper), 2px -2px 0 var(--paper), -2px 2px 0 var(--paper);
+}
+
+.rd-section .rd-wall figcaption {
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 13px;
+}
+
+.rd-quote {
+  margin: 0;
+  padding: 4px 0 4px 22px;
+  border-left: 3px solid var(--vermilion);
+}
+
+.rd-quote p {
+  max-width: 34em;
+  margin: 0;
+  color: var(--ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: clamp(20px, 2.4vw, 30px);
+  line-height: 1.6;
+}
+
+.rd-quote p::before { content: "“"; }
+.rd-quote p::after { content: "”"; }
+
+.rd-quote cite {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 13px;
+  font-style: normal;
+}
+
+@media (max-width: 640px) {
+  .rd-masthead-body {
+    grid-template-columns: 1fr;
+  }
+
+  .rd-feature {
+    grid-template-columns: 72px minmax(0, 1fr);
+    width: auto;
+    align-items: end;
+  }
+
+  .rd-section .rd-wall {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .rd-sec-head > span {
+    display: none;
+  }
+
+  .rd-grid:has(.rd-section) {
+    row-gap: 34px;
+    margin-top: 28px;
   }
 }
