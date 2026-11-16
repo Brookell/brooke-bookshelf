@@ -5351,3 +5351,72 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     margin-top: 28px;
   }
 }
+
+/* ---- Shelves, editorial version ----
+   The room takes a pale wash of whichever book is in front of you, and the
+   captions read like a magazine credit: vermilion number, serif title,
+   author. Same accent as the reading record. */
+:root {
+  --vermilion: #c23a22;
+}
+
+.library,
+.my-shelf.is-room-view {
+  background-color: color-mix(in srgb, var(--ambient, var(--paper)) var(--ambient-amount, 12%), var(--paper));
+  transition: background-color 900ms ease;
+}
+
+.shelf-toolbar p,
+.my-room-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 15px;
+  text-transform: none;
+}
+
+.shelf-toolbar p b,
+.my-room-caption b {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.shelf-toolbar p small,
+.my-room-caption small {
+  flex: none;
+  color: var(--muted);
+  font-family: Arial, Helvetica, "Songti SC", "STSong", serif;
+  font-size: 12px;
+}
+
+.cap-no {
+  flex: none;
+  color: var(--vermilion);
+  font-family: "Courier New", monospace;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+}
+
+.masthead-meta #activeNumber {
+  color: var(--vermilion);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .library,
+  .my-shelf.is-room-view {
+    transition: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .shelf-toolbar p,
+  .my-room-caption {
+    font-size: 13px;
+  }
+
+  .shelf-toolbar p small {
+    display: none;
+  }
+}

@@ -1420,7 +1420,33 @@ function updateMyRoomCaption(roomIndex) {
   if (!myRoomCaption) return;
   const element = myShelfRoom.querySelectorAll(".my-room-book")[roomIndex];
   const book = element ? books[Number(element.dataset.myShelfIndex)] : null;
-  myRoomCaption.textContent = book ? `${cleanBookTitle(book.title)} / ${book.author}` : "";
+  setShelfCaption(myRoomCaption, book, roomIndex + 1);
+  if (book) setAmbientColor(myShelf, book);
+}
+
+// Bottom-left caption, magazine style: a vermilion number, the title in
+// serif, the author after it.
+function setShelfCaption(target, book, position) {
+  if (!target) return;
+  if (!book) {
+    target.textContent = "";
+    return;
+  }
+  target.innerHTML = `<span class="cap-no">NO. ${String(position).padStart(2, "0")}</span><b>${escapeHtml(cleanBookTitle(book.title))}</b><small>${escapeHtml(book.author || "")}</small>`;
+}
+
+// The room takes on a pale wash of the book in front of you.
+function setAmbientColor(target, book) {
+  const color = book?.color || book?.spine;
+  if (!target || !/^#[0-9a-f]{6}$/i.test(color || "")) return;
+  // Grey and black covers would only muddy the paper, so the wash is
+  // stronger the more colourful the cover is (6% to 18%).
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const saturation = max === min ? 0 : (max - min) / (1 - Math.abs(max + min - 1));
+  target.style.setProperty("--ambient", color);
+  target.style.setProperty("--ambient-amount", `${Math.round(6 + 12 * saturation)}%`);
 }
 
 // The room book closest to the middle of the screen, used when the arrow
@@ -3358,8 +3384,9 @@ function openBook(index, pin = false) {
   element.classList.add("is-open");
   element.setAttribute("aria-expanded", "true");
   applyBookShifts(index);
-  activeTitle.textContent = `${cleanBookTitle(books[index].title)} / ${books[index].author}`;
+  setShelfCaption(activeTitle, books[index], referencePosition(index));
   activeNumber.textContent = String(referencePosition(index)).padStart(2, "0");
+  setAmbientColor(library, books[index]);
   keepCoverInView(index);
 }
 
@@ -3820,7 +3847,7 @@ function navigateTo(index, step = 1) {
 
 books.forEach(createBook);
 totalBooks.textContent = formatReferenceCount();
-activeTitle.textContent = cleanBookTitle(books[0].title);
+setShelfCaption(activeTitle, books[0], 1);
 applyLanguage();
 measureShelf();
 
