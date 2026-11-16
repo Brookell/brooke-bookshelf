@@ -544,6 +544,7 @@ function normalizeBook(book, index = books.length) {
     sourceId: book.sourceId || "",
     deepLink: book.deepLink || "",
     introLoaded: Boolean(book.introLoaded),
+    introVersion: Number(book.introVersion) || 0,
     wereadBookId: book.wereadBookId || "",
     coverPalette: book.coverPalette || "",
   };
@@ -2979,13 +2980,25 @@ function renderDetailDescription(book) {
 
 // Keep the detail page tidy: first paragraph of the intro, cut near 180
 // characters at a sentence end where possible.
+// Intro for the detail page: the opening sentences, joined across WeRead's
+// one-sentence-per-line paragraphs, up to about 200 characters and ending
+// at a sentence break, so it reads as a short summary rather than a lone line.
+const INTRO_TARGET = 200;
+// Bump when the intro rules change so saved intros are rebuilt.
+const INTRO_VERSION = 2;
+
 function shortenIntro(text) {
-  const first = String(text || "").split(/\n+/).map((line) => line.trim()).find(Boolean) || "";
-  const characters = [...first];
-  if (characters.length <= 180) return first;
-  const head = characters.slice(0, 180).join("");
-  const stop = Math.max(head.lastIndexOf("。"), head.lastIndexOf("！"), head.lastIndexOf("？"));
-  return stop > 80 ? head.slice(0, stop + 1) : `${head}…`;
+  const joined = String(text || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("");
+  const characters = [...joined];
+  if (characters.length <= INTRO_TARGET) return joined;
+  const head = characters.slice(0, INTRO_TARGET).join("");
+  const stop = Math.max(head.lastIndexOf("。"), head.lastIndexOf("！"), head.lastIndexOf("？"), head.lastIndexOf("……"));
+  if (stop > 60) return head.slice(0, head.startsWith("……", stop) ? stop + 2 : stop + 1);
+  return `${head}…`;
 }
 
 // ---- Spine / detail colours taken from the cover ----
@@ -3133,9 +3146,11 @@ function wereadBookIdFor(book) {
 const PLACEHOLDER_INTRO = /^(微信读书分类：|来自微信读书|这本书保留了微信读书|这本书由微信读书|来自 Google Books 搜索|这本书由你搜索加入|这是你自己加入书架的书|出版时间：)/;
 
 function needsRealIntro(book) {
-  return Boolean(book?.isCustom)
-    && !book.introLoaded
-    && book.description.every((paragraph) => PLACEHOLDER_INTRO.test(paragraph));
+  if (!book?.isCustom) return false;
+  // Intros saved under older rules (just the first line) are rebuilt; the
+  // function answers these from its cache, so WeRead isn't asked again.
+  if (book.introLoaded) return (book.introVersion || 1) < INTRO_VERSION && Boolean(wereadBookIdFor(book));
+  return book.description.every((paragraph) => PLACEHOLDER_INTRO.test(paragraph));
 }
 
 async function callBookFunction(body) {
@@ -3180,6 +3195,7 @@ async function loadRealIntro(book) {
     const intro = shortenIntro(data?.info?.intro);
     if (!intro) return;
     book.introLoaded = true;
+    book.introVersion = INTRO_VERSION;
     book.description = [intro];
     if (book.isCustom) writeCustomBooks();
     if (getBookState(book)) syncBookStateToSupabase(book);
