@@ -693,6 +693,8 @@ function setAuthMode(mode) {
   authPasswordConfirm.required = signup;
   authPassword.autocomplete = signup ? "new-password" : "current-password";
   authSubmit.textContent = signup ? "注册" : "登录";
+  // "忘记密码？" only makes sense when signing in.
+  authGateMagicLink.hidden = signup;
   authGateStatus.textContent = "";
 }
 
@@ -4132,7 +4134,7 @@ authGateForm.addEventListener("submit", async (event) => {
       ? await signUpWithPassword(email, password)
       : await signInWithPassword(email, password);
     if (result.mode === "wrong-credentials") {
-      authGateStatus.textContent = "邮箱或密码不对。还没有账号的话，请先注册；忘记密码可以用下面的邮箱链接登录。";
+      authGateStatus.textContent = "邮箱或密码不对。还没有账号就先注册；忘记密码可以点下面的「忘记密码？」。";
       return;
     }
     if (result.mode === "already-registered") {

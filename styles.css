@@ -205,10 +205,10 @@ button:focus-visible,
 }
 
 .auth-gate h2 {
-  max-width: 360px;
+  max-width: calc(100% - 44px);
   margin: 0;
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-  font-size: clamp(30px, 5vw, 44px);
+  font-size: clamp(26px, 3.4vw, 36px);
   font-weight: 600;
   line-height: 1.15;
 }
@@ -5515,4 +5515,8 @@ button.flow.flow:disabled::after { opacity: 0.5; }
 .library:is(.is-add-book-open, .is-index-open, .is-reading-open, .is-auth-gate-open),
 .library.is-my-shelf-open:not(.is-my-room-view) {
   background-color: var(--paper);
+}
+
+.auth-gate-link[hidden] {
+  display: none;
 }

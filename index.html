@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-52" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-54" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -172,9 +172,7 @@
           <i data-lucide="x"></i>
           <span class="sr-only">返回</span>
         </button>
-        <p class="auth-gate-kicker">创建你的书架</p>
-        <h2 id="authGateTitle">先保存你的 Reading Room</h2>
-        <p class="auth-gate-copy">已经有账号就登录；第一次来请先注册。你加入的书和房间设置都会保存到你的账号。</p>
+        <h2 id="authGateTitle">进入 Reading Room</h2>
         <div class="auth-gate-tabs" role="group" aria-label="登录或注册">
           <button type="button" data-auth-mode="signin" aria-pressed="true">登录</button>
           <button type="button" data-auth-mode="signup" aria-pressed="false">注册</button>
@@ -182,17 +180,17 @@
         <form class="auth-gate-form" id="authGateForm">
           <label for="authEmail">邮箱</label>
           <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
-          <label for="authPassword">密码（至少 6 位）</label>
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
+          <label for="authPassword">密码</label>
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 位" required />
           <div class="auth-confirm" id="authConfirmRow" hidden>
-            <label for="authPasswordConfirm">再输入一次密码</label>
+            <label for="authPasswordConfirm">确认密码</label>
             <input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="6" />
           </div>
           <button type="submit" id="authSubmit" class="flow flow-invert flow-wide">登录</button>
         </form>
         <p class="auth-gate-status" id="authGateStatus" role="status" aria-live="polite"></p>
-        <button class="auth-gate-link" id="authGateMagicLink" type="button">忘记密码？发送登录链接到邮箱</button>
-        <button class="auth-gate-secondary flow" id="authGateGuest" type="button">先体验，稍后注册</button>
+        <button class="auth-gate-link" id="authGateMagicLink" type="button">忘记密码？</button>
+        <button class="auth-gate-secondary flow" id="authGateGuest" type="button">先逛逛</button>
       </div>
     </section>
 
@@ -397,6 +395,6 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261116-70"></script>
+  <script defer src="./app.js?v=20261116-71"></script>
 </body>
 </html>
