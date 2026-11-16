@@ -4,8 +4,10 @@
 --    Visitors are identified by a random id kept in their browser (no IP,
 --    no fingerprinting). Rows are written only through log_visit(); nobody
 --    can read them from the browser.
--- 2. public.admin_overview(): replaces the version in admin.sql and adds
---    visits, unique visitors, sign-ups over time, conversion and usage.
+-- 2. public.admin_overview_data(): visits, unique visitors, sign-ups over
+--    time, conversion and usage. Called by the admin-passcode function, and
+--    by public.admin_overview() (replaces the version in admin.sql) for
+--    signed-in admins.
 
 create table if not exists public.site_visits (
   id bigint generated always as identity primary key,
@@ -48,7 +50,9 @@ $$;
 revoke all on function public.log_visit(text, text, text) from public;
 grant execute on function public.log_visit(text, text, text) to anon, authenticated;
 
-create or replace function public.admin_overview()
+-- The data itself. Only the service role may call this directly (the
+-- admin-passcode Edge Function); signed-in admins go through admin_overview().
+create or replace function public.admin_overview_data()
 returns jsonb
 language plpgsql
 stable
@@ -58,10 +62,6 @@ as $$
 declare
   result jsonb;
 begin
-  if not public.is_admin() then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
-
   select jsonb_build_object(
     'generated_at', now(),
 
@@ -169,6 +169,24 @@ begin
   ) into result;
 
   return result;
+end;
+$$;
+
+revoke all on function public.admin_overview_data() from public, anon, authenticated;
+grant execute on function public.admin_overview_data() to service_role;
+
+create or replace function public.admin_overview()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+  return public.admin_overview_data();
 end;
 $$;
 

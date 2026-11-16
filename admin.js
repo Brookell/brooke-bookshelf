@@ -2,7 +2,6 @@
   const $ = (id) => document.getElementById(id);
   const panels = ["loadingPanel", "signInPanel", "deniedPanel", "dashboard"];
 
-  let client = null;
   let data = null;
   let sortKey = "created_at";
   let sortDir = "desc";
@@ -41,16 +40,33 @@
     return value.replace(/\/(s|t[0-8])_([^/]+)$/, "/t9_$2").replace(/^http:/, "https:");
   }
 
-  function createClient() {
+  const TOKEN_KEY = "brooke-bookshelf:admin-token";
+
+  function readToken() {
+    try { return window.localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; }
+  }
+
+  function writeToken(token) {
+    try {
+      if (token) window.localStorage.setItem(TOKEN_KEY, token);
+      else window.localStorage.removeItem(TOKEN_KEY);
+    } catch {}
+  }
+
+  function functionsUrl() {
     const url = String(window.BROOKE_SUPABASE_URL || "").replace(/\/+$/, "");
-    const key = String(window.BROOKE_SUPABASE_ANON_KEY || "").trim();
-    if (!url || !key || !window.supabase?.createClient) return null;
-    return window.supabase.createClient(url, key, {
-      // Own storage key: the admin login is kept apart from the main site's,
-      // so signing in or out there doesn't touch it. It stays signed in on
-      // this browser until 退出 is pressed.
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, storageKey: "brooke-bookshelf-admin-auth" },
+    return url ? `${url}/functions/v1/admin-passcode` : "";
+  }
+
+  async function callAdmin(payload) {
+    const response = await fetch(functionsUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: String(window.BROOKE_SUPABASE_ANON_KEY || "") },
+      body: JSON.stringify(payload),
     });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(body.error || `admin-passcode ${response.status}`), { code: body.error });
+    return body;
   }
 
   function setGreeting() {
@@ -60,31 +76,35 @@
     $("today").textContent = now.toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
   }
 
-  async function load() {
-    show("loadingPanel");
-    const { data: sessionData } = await client.auth.getSession();
-    const session = sessionData?.session;
-    if (!session) {
-      $("headerActions").hidden = true;
-      show("signInPanel");
-      return;
-    }
-    $("headerActions").hidden = false;
-    $("signedInAs").textContent = session.user.email || "";
-
-    const { data: overview, error } = await client.rpc("admin_overview");
-    if (error) {
-      $("deniedText").textContent = error.code === "42501"
-        ? `${session.user.email} 不是管理员账号。`
-        : `加载失败：${error.message}`;
-      show("deniedPanel");
-      return;
-    }
+  function showDashboard(overview) {
     data = overview;
-    render();
+    $("headerActions").hidden = false;
+    $("signedInAs").textContent = "管理员";
     show("dashboard");
+    render();
     renderTraffic();
     window.dispatchEvent(new Event("resize"));
+  }
+
+  async function load() {
+    const token = readToken();
+    if (!token) {
+      $("headerActions").hidden = true;
+      show("signInPanel");
+      $("signInPasscode").focus();
+      return;
+    }
+    show("loadingPanel");
+    try {
+      showDashboard((await callAdmin({ token })).data);
+    } catch (error) {
+      if (error.code === "signed_out") {
+        writeToken("");
+        return load();
+      }
+      $("deniedText").textContent = `加载失败：${error.message}`;
+      show("deniedPanel");
+    }
   }
 
   // ---- Rendering ----
@@ -284,32 +304,25 @@
       event.preventDefault();
       const button = event.target.querySelector("button");
       button.disabled = true;
-      $("signInNote").textContent = "正在登录…";
-      const { error } = await client.auth.signInWithPassword({
-        email: $("signInEmail").value.trim(),
-        password: $("signInPassword").value,
-      });
-      button.disabled = false;
-      $("signInNote").textContent = error
-        ? (/invalid login credentials/i.test(error.message) ? "邮箱或密码不对。" : `登录失败：${error.message}`)
-        : "";
-    });
-
-    $("magicLinkButton").addEventListener("click", async () => {
-      const email = $("signInEmail").value.trim();
-      if (!email) {
-        $("signInNote").textContent = "请先填好邮箱。";
-        return;
+      $("signInNote").textContent = "正在验证…";
+      try {
+        const result = await callAdmin({ passcode: $("signInPasscode").value });
+        writeToken(result.token);
+        $("signInPasscode").value = "";
+        $("signInNote").textContent = "";
+        showDashboard(result.data);
+      } catch (error) {
+        $("signInNote").textContent = error.code === "wrong_passcode"
+          ? "密码不对。"
+          : error.code === "locked"
+            ? "错误次数太多，请一小时后再试。"
+            : `登录失败：${error.message}`;
       }
-      const { error } = await client.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.href.split("#")[0], shouldCreateUser: false },
-      });
-      $("signInNote").textContent = error ? `发送失败：${error.message}` : "登录链接已发送，请在这台设备上打开邮件里的链接。";
+      button.disabled = false;
     });
 
     $("refreshButton").addEventListener("click", load);
-    $("signOutButton").addEventListener("click", () => client.auth.signOut({ scope: "local" }));
+    $("signOutButton").addEventListener("click", () => { writeToken(""); load(); });
     $("userFilter").addEventListener("input", renderUsers);
 
     document.querySelectorAll("#userTable th[data-sort]").forEach((th) => {
@@ -358,16 +371,12 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setGreeting();
-    client = createClient();
-    if (!client) {
+    if (!functionsUrl()) {
       $("deniedText").textContent = "没有找到 Supabase 配置（config.js）。";
       show("deniedPanel");
       return;
     }
     bindEvents();
-    // Supabase holds a lock while this callback runs; load afterwards.
-    client.auth.onAuthStateChange((event) => {
-      if (["INITIAL_SESSION", "SIGNED_IN", "SIGNED_OUT"].includes(event)) setTimeout(load, 0);
-    });
+    load();
   });
 })();

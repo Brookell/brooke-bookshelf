@@ -13,8 +13,7 @@
       document.write('<script src="./config.local.js"><\/script>');
     }
   </script>
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.56.0/dist/umd/supabase.min.js"></script>
-  <script defer src="./admin.js?v=20261117-4"></script>
+  <script defer src="./admin.js?v=20261117-5"></script>
 </head>
 <body>
   <div class="app">
@@ -59,13 +58,10 @@
       <section class="state card" id="signInPanel" hidden>
         <h2>管理员登录</h2>
         <form id="signInForm" class="sign-in">
-          <label for="signInEmail">邮箱</label>
-          <input id="signInEmail" type="email" required autocomplete="email" placeholder="you@example.com" />
-          <label for="signInPassword">密码</label>
-          <input id="signInPassword" type="password" required autocomplete="current-password" />
-          <button type="submit">登录</button>
+          <label for="signInPasscode">密码</label>
+          <input id="signInPasscode" type="password" required autocomplete="current-password" inputmode="numeric" />
+          <button type="submit">进入</button>
         </form>
-        <button type="button" class="link" id="magicLinkButton">没有设置密码？发送登录链接到邮箱</button>
         <p class="muted" id="signInNote" role="status"></p>
       </section>
 
