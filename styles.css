@@ -4716,3 +4716,45 @@ h1 {
 .auth-confirm[hidden] {
   display: none;
 }
+
+/* Top-right menu (staggered-menu.js) */
+.library > .sm-root .sm-toggle {
+  color: var(--muted);
+}
+
+.library > .sm-root .sm-toggle:hover,
+.library > .sm-root .sm-toggle:focus-visible,
+.library > .sm-root.is-open .sm-toggle {
+  color: var(--ink);
+}
+
+/* Panels and the book detail put their own round close button in the same
+   corner, so the menu toggle steps aside while one of them is open. */
+.library > .sm-root .sm-toggle {
+  transition: color 0.3s ease, opacity 0.24s ease, visibility 0s;
+}
+
+.library:is(.is-detail-open, .is-index-open, .is-my-shelf-open, .is-add-book-open, .is-reading-open, .is-auth-gate-open) > .sm-root:not(.is-open) .sm-toggle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: color 0.3s ease, opacity 0.18s ease, visibility 0s 0.18s;
+}
+
+/* The book counter sits beside the menu toggle, on the same line. */
+.masthead-meta {
+  top: 16px;
+  right: calc(max(24px, env(safe-area-inset-right)) + 72px);
+}
+
+@media (max-width: 720px) {
+  .library > .sm-root .sm-toggle {
+    top: max(20px, calc(env(safe-area-inset-top) + 6px));
+    right: max(16px, env(safe-area-inset-right));
+  }
+
+  .masthead-meta {
+    top: 12px;
+    right: calc(max(16px, env(safe-area-inset-right)) + 64px);
+  }
+}

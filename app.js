@@ -413,10 +413,10 @@ function updatePageTitle() {
 
 function updateSpaceSwitch() {
   updatePageTitle();
-  // Once someone has their own books, 参考空间 steps back from the top bar
-  // while they are in their room; it stays in the room's bottom toolbar
-  // (building icon), and reappears up top whenever they visit it.
-  const tuckReference = hasSavedBooks() && activeSpace === "user";
+  // Signed-in people don't get 参考空间 in the top bar at all. Before that,
+  // once someone has their own books it steps back while they are in their
+  // room, and reappears up top whenever they visit it.
+  const tuckReference = isSignedIn() || (hasSavedBooks() && activeSpace === "user");
   spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
     if (button.dataset.spaceTarget === "brooke") button.hidden = tuckReference;
@@ -902,7 +902,12 @@ async function syncSettingsToSupabase() {
 // Sign in / sign out in the top bar. Only a real Supabase session counts as
 // signed in; the local "try first" mode still shows 登录 so people can
 // upgrade to a real account at any time.
+function isSignedIn() {
+  return Boolean(supabaseSession?.user);
+}
+
 function updateAccountButton() {
+  updateSpaceSwitch();
   if (!accountButton) return;
   const user = supabaseSession?.user;
   accountButton.hidden = !getSupabaseClient();
@@ -2166,9 +2171,8 @@ function readingLoadingPercent() {
 function readingLoadingMarkup() {
   const percent = readingLoadingPercent();
   return `
-    <div class="rd-loading" role="status">
-      <p>正在读取你的阅读记录…</p>
-      <div class="weread-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
+    <div class="rd-loading">
+      <div class="weread-progress-bar" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
         <i style="width: ${percent}%"></i>
       </div>
     </div>`;
@@ -2178,8 +2182,6 @@ function updateReadingLoading() {
   const box = readingPanelBody.querySelector(".rd-loading");
   if (!box || !reading.loading) return;
   const percent = readingLoadingPercent();
-  const note = box.querySelector("p");
-  if (note) note.textContent = reading.loading.images ? "正在加载封面…" : "正在读取你的阅读记录…";
   box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(percent));
   box.querySelector("i").style.width = `${percent}%`;
 }
@@ -4099,6 +4101,81 @@ function logVisit() {
     // Private mode or blocked storage: skip counting.
   }
 }
+
+// Top-right menu (staggered-menu.js). Each entry reuses the same path as the
+// matching toolbar button, after clearing whatever is open in front of it.
+function setupSiteMenu() {
+  if (typeof window.StaggeredMenu !== "function") return;
+
+  const runAfterDetail = (action) => {
+    closeReadingPanel({ immediate: true, returnToShelf: false });
+    if (detailIndex === null) {
+      action();
+      return;
+    }
+    closeBookDetail();
+    const startedAt = performance.now();
+    const wait = () => {
+      if (detailIndex === null) action();
+      else if (performance.now() - startedAt < 2000) requestAnimationFrame(wait);
+    };
+    requestAnimationFrame(wait);
+  };
+
+  window.StaggeredMenu(library, {
+    title: "Reading Room / 目录",
+    position: "right",
+    toggleLabels: ["菜单", "关闭"],
+    colors: ["#d9d5ce", "#151515"],
+    panelColor: "#eeece8",
+    panelInk: "#151515",
+    items: [
+      {
+        label: "参考空间",
+        isHidden: isSignedIn,
+        onSelect: () => runAfterDetail(() => {
+          closeBookIndex({ restoreFocus: false, immediate: true });
+          openBrookeSpace({ restoreFocus: false });
+        }),
+        isCurrent: () => activeSpace === "brooke" && bookIndex.hidden && myShelf.hidden && readingPanel.hidden,
+      },
+      {
+        label: "我的空间",
+        onSelect: () => runAfterDetail(() => requireAuth(() => openUserSpace({ restoreFocus: false }))),
+        isCurrent: () => !myShelf.hidden && myShelfView === "room",
+      },
+      {
+        label: "全部书目",
+        onSelect: () => runAfterDetail(openBookIndex),
+        isCurrent: () => !bookIndex.hidden,
+      },
+      {
+        label: "我的书架",
+        onSelect: () => runAfterDetail(() => requireAuth(() => openMyShelf({ view: "list" }))),
+        isCurrent: () => !myShelf.hidden && myShelfView === "list",
+      },
+      {
+        label: "增添书籍",
+        onSelect: () => runAfterDetail(() => requireAuth(openAddBookPanel)),
+        isCurrent: () => !addBookPanel.hidden,
+      },
+      {
+        label: "阅读面板",
+        onSelect: () => runAfterDetail(openReadingPanel),
+        isCurrent: () => !readingPanel.hidden,
+      },
+    ],
+    footer: [
+      {
+        label: () => accountButton?.textContent || t("signIn"),
+        isHidden: () => !accountButton || accountButton.hidden,
+        onSelect: () => runAfterDetail(() => accountButton.click()),
+      },
+    ],
+  });
+}
+
+setupSiteMenu();
 
 const authReady = initializeSupabaseAuth()
   .then(() => {
