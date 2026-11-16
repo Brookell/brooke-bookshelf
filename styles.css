@@ -4839,7 +4839,7 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   button.flow.flow::after { transition-duration: 1ms; }
 }
 
-/* ---- Rubber segmented control (阅读面板 本周 / 本月 / 本年 / 总计) ----
+/* ---- Rubber segmented control (阅读记录 本周 / 本月 / 本年 / 总计) ----
    Thumb position comes from app.js (setupReadingSegment) via clip-path. */
 
 .rubber-segment {

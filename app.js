@@ -1101,8 +1101,8 @@ function updateStaticLanguage() {
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="info"]'), "查看操作提示");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="add"]'), t("addBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="brooke"]'), "参考空间");
-  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="reading"]'), "阅读面板");
-  setButtonLabel(readingPanelToggle, "阅读面板");
+  setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="reading"]'), "阅读记录");
+  setButtonLabel(readingPanelToggle, "阅读记录");
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="previous"]'), t("previousBook"));
   setButtonLabel(myShelfViewToggle.querySelector('[data-my-shelf-action="next"]'), t("nextBook"));
   detailStatus.querySelector('[data-detail-status="want_to_read"]').textContent = t("want");
@@ -2471,7 +2471,7 @@ function readingOverviewMarkup() {
 
 function readingBookMarkup() {
   const data = reading.book;
-  if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>← 返回阅读面板</button><p class="reading-muted">正在读取划线…</p>`;
+  if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>← 返回阅读记录</button><p class="reading-muted">正在读取划线…</p>`;
   const chapters = new Map((data.chapters || []).map((chapter) => [String(chapter.chapterUid), chapter]));
   const start = (range) => Number(String(range || "").split("-")[0]) || 0;
   const groups = new Map();
@@ -2493,7 +2493,7 @@ function readingBookMarkup() {
       <small>${escapeHtml(item.chapterName || "")}${item.createTime ? ` · ${new Date(item.createTime * 1000).toLocaleDateString("zh-CN")}` : ""}</small>
     </article>`).join("");
   return `
-    <button type="button" class="reading-back" data-reading-back>← 返回阅读面板</button>
+    <button type="button" class="reading-back" data-reading-back>← 返回阅读记录</button>
     <h3 class="reading-book-title">${escapeHtml(data.title || "")}</h3>
     ${thoughts ? `<section class="reading-section"><h3>我的想法 <small>${data.thoughts.filter((item) => item.content).length} 条</small></h3>${thoughts}</section>` : ""}
     ${highlights ? `<section class="reading-section"><h3>我的划线 <small>${data.highlights.length} 条</small></h3>${highlights}</section>` : ""}
@@ -4322,7 +4322,7 @@ function setupSiteMenu() {
         isCurrent: () => !addBookPanel.hidden,
       },
       {
-        label: "阅读面板",
+        label: "阅读记录",
         onSelect: () => runAfterDetail(openReadingPanel),
         isCurrent: () => !readingPanel.hidden,
       },

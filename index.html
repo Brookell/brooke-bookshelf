@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-40" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-41" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -57,9 +57,9 @@
             <i data-lucide="plus"></i>
             <span class="sr-only">增添书籍</span>
           </button>
-          <button class="icon-button" id="readingPanelToggle" type="button" title="阅读面板" aria-label="阅读面板" aria-controls="readingPanel">
+          <button class="icon-button" id="readingPanelToggle" type="button" title="阅读记录" aria-label="阅读记录" aria-controls="readingPanel">
             <i data-lucide="bar-chart-3"></i>
-            <span class="sr-only">阅读面板</span>
+            <span class="sr-only">阅读记录</span>
           </button>
           <button class="icon-button room-only-toggle" id="roomOnlyToggle" type="button" title="进入我的空间" aria-pressed="false">
             <i data-lucide="door-open"></i>
@@ -272,9 +272,9 @@
           <i data-lucide="plus"></i>
           <span class="sr-only">增添书籍</span>
         </button>
-        <button class="icon-button" type="button" data-my-shelf-action="reading" title="阅读面板" aria-label="阅读面板">
+        <button class="icon-button" type="button" data-my-shelf-action="reading" title="阅读记录" aria-label="阅读记录">
           <i data-lucide="bar-chart-3"></i>
-          <span class="sr-only">阅读面板</span>
+          <span class="sr-only">阅读记录</span>
         </button>
         <button class="icon-button" type="button" data-my-shelf-action="brooke" title="参考空间">
           <i data-lucide="building-2"></i>
@@ -295,7 +295,7 @@
       <header class="book-index-header">
         <div>
           <p>我的微信读书</p>
-          <h2 id="readingPanelTitle">阅读面板</h2>
+          <h2 id="readingPanelTitle">阅读记录</h2>
         </div>
         <button class="book-index-close" id="readingPanelClose" type="button" title="关闭">
           <i data-lucide="x"></i>
@@ -388,6 +388,6 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261116-55"></script>
+  <script defer src="./app.js?v=20261116-56"></script>
 </body>
 </html>
