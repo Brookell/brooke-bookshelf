@@ -113,6 +113,17 @@ const DEFAULT_SUPABASE_URL = "https://oipsefmckxyojnntiaax.supabase.co";
 const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
+// Set once anyone has signed in on this browser, so the sign-in sheet opens
+// on 注册 for first-time visitors and on 登录 for returning ones.
+const HAS_ACCOUNT_STORAGE_KEY = "brooke-bookshelf:has-account:v1";
+
+function rememberHasAccount() {
+  try { window.localStorage.setItem(HAS_ACCOUNT_STORAGE_KEY, "1"); } catch {}
+}
+
+function hasAccountOnThisBrowser() {
+  try { return window.localStorage.getItem(HAS_ACCOUNT_STORAGE_KEY) === "1"; } catch { return false; }
+}
 const DEFAULT_STATUS = "want_to_read";
 const CUSTOM_BOOK_PALETTE = [
   ["#67242d", "#f8f0e5", "#5a1f28", "#f8f0e5"],
@@ -416,7 +427,10 @@ function updateSpaceSwitch() {
   // Signed-in people don't get 参考空间 in the top bar at all. Before that,
   // once someone has their own books it steps back while they are in their
   // room, and reappears up top whenever they visit it.
-  const tuckReference = isSignedIn() || (hasSavedBooks() && activeSpace === "user");
+  // It only steps back while you're in your own room; whenever you are in
+  // the reference room its tab is there (and highlighted), so you always
+  // know where you are. The menu always lists it.
+  const tuckReference = activeSpace === "user" && (isSignedIn() || hasSavedBooks());
   spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
     if (button.dataset.spaceTarget === "brooke") button.hidden = tuckReference;
@@ -944,6 +958,7 @@ async function initializeSupabaseAuth() {
   supabaseSession = data.session || null;
   updateAccountButton();
   if (supabaseSession?.user) {
+    rememberHasAccount();
     await loadSettingsFromSupabase();
     await loadShelfFromSupabase();
     await syncLocalShelfToSupabase();
@@ -952,6 +967,7 @@ async function initializeSupabaseAuth() {
   client.auth.onAuthStateChange((event, session) => {
     supabaseSession = session || null;
     updateAccountButton();
+    if (session?.user) rememberHasAccount();
     // Supabase also reports SIGNED_IN when it merely restores or refreshes
     // the same session; only a different account needs the reload below.
     if (event !== "SIGNED_IN" || !session?.user || session.user.id === knownUserId) return;
@@ -981,8 +997,10 @@ function setOnboardingContent({ kicker, title, copy, primary, secondary = t("onb
 
 function updateOnboarding() {
   window.clearTimeout(onboardingCloseTimer);
+  // Not on a book's detail page: its own 加入我的书架 switch is right there,
+  // and a second "add" card would only cover the cover.
   const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden
-    && (!readingPanel || readingPanel.hidden);
+    && (!readingPanel || readingPanel.hidden) && detailIndex === null;
   if (!shouldShow) {
     shelfOnboarding.classList.remove("is-visible");
     onboardingCloseTimer = window.setTimeout(() => {
@@ -1238,7 +1256,7 @@ function renderBookIndex() {
         <span class="book-index-number">${String(referencePosition(index)).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
-          <strong>${escapeHtml(book.title)}</strong>
+          <strong>${escapeHtml(cleanBookTitle(book.title))}</strong>
           <small>${escapeHtml(book.author)}</small>
         </span>
         <i data-lucide="arrow-up-right" aria-hidden="true"></i>
@@ -1261,6 +1279,8 @@ function renderMyShelf() {
   }, {});
   myShelfCount.textContent = String(totalSaved).padStart(2, "0");
   myShelf.classList.toggle("is-room-view", myShelfView === "room");
+  // In the room itself the menu takes the corner instead of a close button.
+  library.classList.toggle("is-my-room-view", myShelfView === "room");
   myShelfEmpty.hidden = savedEntries.length > 0 || myShelfView === "room";
   myShelfListView.hidden = savedEntries.length === 0 || myShelfView !== "list";
   myShelfRoomView.hidden = myShelfView !== "room";
@@ -1283,7 +1303,7 @@ function renderMyShelf() {
         <span class="book-index-number">${String(listIndex + 1).padStart(2, "0")}</span>
         <span class="book-index-swatch" style="--book-index-color: ${book.spine}" aria-hidden="true"></span>
         <span class="book-index-copy">
-          <strong>${escapeHtml(book.title)}</strong>
+          <strong>${escapeHtml(cleanBookTitle(book.title))}</strong>
           <small>${escapeHtml(book.author)}</small>
         </span>
         <i data-lucide="arrow-up-right" aria-hidden="true"></i>
@@ -1308,10 +1328,10 @@ function renderMyShelf() {
         ${coverMarkup(book, index)}
       </span>
       <span class="my-room-book-spine">
-        <span>${escapeHtml(book.title)}</span>
+        <span>${escapeHtml(cleanBookTitle(book.title))}</span>
       </span>
       <span class="my-room-book-meta">
-        <strong>${escapeHtml(book.title)}</strong>
+        <strong>${escapeHtml(cleanBookTitle(book.title))}</strong>
         <small>${escapeHtml(t(STATUS_LABEL_KEYS[state.status] || "saved"))}</small>
       </span>
     </button>
@@ -1371,7 +1391,27 @@ function switchMyShelfView(nextView) {
 // the reference shelf starts.
 function centerMyRoom() {
   resetMyRoomBooks();
-  myShelfRoom.scrollLeft = Math.max(0, (myShelfRoom.scrollWidth - myShelfRoom.clientWidth) / 2);
+  // Centre the row of spines. Each book's box is as wide as its (closed)
+  // cover, so the last one sticks out past its spine; measuring the
+  // scroll width would push short rows left of centre.
+  const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+  myShelfRoom.style.paddingLeft = "";
+  if (roomBooks.length) {
+    const first = roomBooks[0];
+    const last = roomBooks[roomBooks.length - 1];
+    const lastSpine = parseFloat(getComputedStyle(last).getPropertyValue("--room-width")) || last.offsetWidth;
+    const middle = (first.offsetLeft + last.offsetLeft + lastSpine) / 2;
+    const shortBy = myShelfRoom.clientWidth / 2 - middle;
+    // A short row can't scroll far enough left to sit in the middle; pad it.
+    if (shortBy > 0) {
+      myShelfRoom.style.paddingLeft = `${parseFloat(getComputedStyle(myShelfRoom).paddingLeft) + shortBy}px`;
+      myShelfRoom.scrollLeft = 0;
+    } else {
+      myShelfRoom.scrollLeft = middle - myShelfRoom.clientWidth / 2;
+    }
+  } else {
+    myShelfRoom.scrollLeft = Math.max(0, (myShelfRoom.scrollWidth - myShelfRoom.clientWidth) / 2);
+  }
   updateMyRoomCaption(centerMyRoomIndex());
 }
 
@@ -1380,7 +1420,7 @@ function updateMyRoomCaption(roomIndex) {
   if (!myRoomCaption) return;
   const element = myShelfRoom.querySelectorAll(".my-room-book")[roomIndex];
   const book = element ? books[Number(element.dataset.myShelfIndex)] : null;
-  myRoomCaption.textContent = book ? `${book.title} / ${book.author}` : "";
+  myRoomCaption.textContent = book ? `${cleanBookTitle(book.title)} / ${book.author}` : "";
 }
 
 // The room book closest to the middle of the screen, used when the arrow
@@ -1523,13 +1563,16 @@ function renderAddBookResults(results = lastSearchResults) {
           <div class="add-book-copy">
             <h3>${escapeHtml(book.title)}</h3>
             <p>${escapeHtml(book.author)}</p>
-            <small>${escapeHtml(book.description[0] || "")}</small>
+            ${(() => {
+              const line = book.description.find((paragraph) => !PLACEHOLDER_INTRO.test(paragraph));
+              return line ? `<small>${escapeHtml(line)}</small>` : "";
+            })()}
           </div>
           <div class="add-book-result-actions">
-            ${saved ? "" : `<button type="button" class="add-book-cover-choice" data-cover-result="${index}">${escapeHtml(t("chooseCover"))}</button>`}
             <button type="button" data-add-book-result="${index}" ${saved ? "disabled" : ""}>
-              ${saved ? t("addedSearchResult") : t("addSearchResult")}
+              ${saved ? `✓ ${t("addedSearchResult")}` : t("addSearchResult")}
             </button>
+            ${saved ? "" : `<button type="button" class="add-book-cover-choice" data-cover-result="${index}">${escapeHtml(t("chooseCover"))}</button>`}
           </div>
         </article>
       </li>
@@ -1543,7 +1586,18 @@ async function searchBooks(query) {
   addBookAbortController?.abort();
   addBookAbortController = new AbortController();
   addBookStatus.textContent = t("searchBookLoading");
-  addBookResults.innerHTML = "";
+  addBookStatus.classList.add("is-loading");
+  // Placeholder cards while WeRead answers (it can take several seconds).
+  addBookResults.innerHTML = Array.from({ length: 4 }, () => `
+    <li aria-hidden="true">
+      <div class="add-book-result add-book-skeleton">
+        <span class="add-book-cover"></span>
+        <span class="add-book-skeleton-lines"><i></i><i></i><i></i></span>
+      </div>
+    </li>`).join("");
+  const slowNote = window.setTimeout(() => {
+    if (addBookStatus.classList.contains("is-loading")) addBookStatus.textContent = "还在找，书库比较大，再等几秒…";
+  }, 4000);
   try {
     const results = (await fetchBookSearch(trimmed, { limit: 8, signal: addBookAbortController.signal }))
       .map((result, index) => customBookFromSearchResult(result, index));
@@ -1556,6 +1610,9 @@ async function searchBooks(query) {
       ? t("searchBookQuotaError")
       : error.name === "SearchRateLimitError" ? t("searchBookRateLimited") : t("searchBookError");
   } finally {
+    window.clearTimeout(slowNote);
+    addBookStatus.classList.remove("is-loading");
+    if (addBookResults.querySelector(".add-book-skeleton")) addBookResults.innerHTML = "";
     addBookAbortController = null;
   }
 }
@@ -1700,7 +1757,7 @@ function renderWereadPick() {
             ${item.cover ? `<img src="${escapeHtml(item.cover)}" alt="" loading="lazy" />` : ""}
           </span>
           <span class="weread-pick-copy">
-            <strong>${escapeHtml(book.title)}</strong>
+            <strong>${escapeHtml(cleanBookTitle(book.title))}</strong>
             <small>${escapeHtml(onShelf ? t("wereadPickOnShelf") : book.author)}</small>
           </span>
         </label>
@@ -1806,8 +1863,9 @@ function addCustomBook(book) {
   loadCoverPalette(book);
   loadRealIntro(book);
   renderAddBookResults();
-  closeAddBookPanel({ restoreFocus: false });
-  window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
+  // Stay on the results so several books can be added from one search;
+  // closing the panel then goes back to the room.
+  addBookStatus.textContent = `已把《${cleanBookTitle(book.title)}》加入你的书架，可以继续添加。`;
 }
 
 // ---- Shelf management: remove books, choose covers ----
@@ -2210,6 +2268,15 @@ function readingConnectMarkup() {
         <button type="submit">连接微信读书</button>
       </form>
       ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
+      <details class="weread-howto" open>
+        <summary>怎么获取 API Key？</summary>
+        <ol>
+          <li>在电脑或另一台设备上打开 <a href="https://weread.qq.com/r/weread-skills" target="_blank" rel="noopener">weread.qq.com/r/weread-skills</a>。</li>
+          <li>用手机上的微信读书 App 扫页面上的二维码。</li>
+          <li>按提示生成 Key，复制以 <code>wrk-</code> 开头的那一串，粘贴到上面。</li>
+        </ol>
+      </details>
+      <p class="reading-note">没有用微信读书？阅读记录需要它的数据，不过你的书架和房间不受影响，可以照常加书、整理。</p>
     </div>
   `;
 }
@@ -2732,7 +2799,7 @@ function updateDetailShelfControls() {
   const state = getBookState(book);
   const status = state?.status || "";
   detailSave.classList.toggle("is-saved", Boolean(state));
-  detailSaveLabel.textContent = t("addToShelf");
+  detailSaveLabel.textContent = state ? "已在我的书架" : t("addToShelf");
   detailSave.setAttribute("aria-pressed", String(Boolean(state)));
   let activeStatusIndex = -1;
   detailStatus.querySelectorAll("[data-detail-status]").forEach((button, index) => {
@@ -2811,11 +2878,11 @@ function closeBookIndex({ restoreFocus = true, immediate = false } = {}) {
 
 function openAddBookPanel() {
   if (detailIndex !== null) return;
-  activeSpace = "user";
-  updateSpaceSwitch();
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
-  closeMyShelf({ restoreFocus: false, immediate: true });
+  closeMyShelf({ restoreFocus: false, immediate: true, targetSpace: "user" });
+  activeSpace = "user";
+  updateSpaceSwitch();
   window.clearTimeout(addBookCloseTimer);
   pinnedIndex = null;
   if (activeIndex !== null) closeBook(activeIndex, true);
@@ -2830,9 +2897,9 @@ function openAddBookPanel() {
   });
 }
 
-function closeAddBookPanel({ restoreFocus = true, immediate = false } = {}) {
+function closeAddBookPanel({ restoreFocus = true, immediate = false, targetSpace = "brooke" } = {}) {
   if (addBookPanel.hidden) return;
-  activeSpace = "brooke";
+  activeSpace = targetSpace;
   updateSpaceSwitch();
   window.clearTimeout(addBookCloseTimer);
   addBookAbortController?.abort();
@@ -2852,6 +2919,7 @@ function closeAddBookPanel({ restoreFocus = true, immediate = false } = {}) {
 
 function openAuthGate(action) {
   pendingAuthAction = action;
+  setAuthMode(hasAccountOnThisBrowser() ? "signin" : "signup");
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
   closeMyShelf({ restoreFocus: false, immediate: true });
@@ -2917,7 +2985,7 @@ function openMyShelf({ view = myShelfView, restoreFocus = true } = {}) {
   updateSpaceSwitch();
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
-  closeAddBookPanel({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true, targetSpace: "user" });
   window.clearTimeout(myShelfCloseTimer);
   myShelfView = view;
   pinnedIndex = null;
@@ -2947,6 +3015,7 @@ function closeMyShelf({ restoreFocus = true, immediate = false, targetSpace = "b
     if (!myShelf.classList.contains("is-visible")) {
       myShelf.hidden = true;
       myShelf.classList.remove("is-room-view");
+      library.classList.remove("is-my-room-view");
       myShelfView = "list";
       activeSpace = targetSpace;
       updateSpaceSwitch();
@@ -2997,7 +3066,7 @@ function openBookFromIndex(index) {
 }
 
 function coverMarkup(book, index) {
-  const safeTitle = escapeHtml(book.title);
+  const safeTitle = escapeHtml(cleanBookTitle(book.title));
   const safeAuthor = escapeHtml(book.author);
   if (book.originalCover && book.image) {
     return `<img class="cover-art cover-art--original" src="${book.image}" alt="" draggable="false" />`;
@@ -3035,7 +3104,7 @@ function createBook(book, index) {
   element.style.setProperty("--art-opacity", String(book.opacity ?? 1));
   element.style.setProperty("--art-filter", book.filter ?? "none");
 
-  const safeTitle = escapeHtml(book.title);
+  const safeTitle = escapeHtml(cleanBookTitle(book.title));
   element.innerHTML = `
     <span class="book-object" aria-hidden="true">
       <span class="book-back"></span>
@@ -3174,7 +3243,7 @@ function openBook(index, pin = false) {
   element.classList.add("is-open");
   element.setAttribute("aria-expanded", "true");
   applyBookShifts(index);
-  activeTitle.textContent = `${books[index].title} / ${books[index].author}`;
+  activeTitle.textContent = `${cleanBookTitle(books[index].title)} / ${books[index].author}`;
   activeNumber.textContent = String(referencePosition(index)).padStart(2, "0");
   keepCoverInView(index);
 }
@@ -3240,7 +3309,7 @@ function populateBookDetail(index) {
   detailNumber.textContent = isReferenceBook(book)
     ? `${String(referencePosition(index)).padStart(2, "0")} / ${formatReferenceCount()}`
     : "";
-  detailTitle.textContent = book.title;
+  detailTitle.textContent = cleanBookTitle(book.title);
   detailAuthor.textContent = book.author;
   renderDetailDescription(book);
   updateDetailShelfControls();
@@ -3421,6 +3490,18 @@ function wereadBookIdFor(book) {
 }
 
 // Placeholder lines written when a book was added without a real intro.
+// "窄门（足本无删减，名家经典译本）" -> "窄门": drop edition notes in
+// brackets for spines, captions and the detail heading. Search results keep
+// the full title so editions can be told apart.
+function cleanBookTitle(title) {
+  const full = String(title || "").trim();
+  const short = full
+    .replace(/\s*[（(【\[][^）)】\]]*[）)】\]]\s*$/g, "")
+    .replace(/\s*[（(【\[][^）)】\]]*[）)】\]]\s*$/g, "")
+    .trim();
+  return short || full;
+}
+
 const PLACEHOLDER_INTRO = /^(微信读书分类：|来自微信读书|这本书保留了微信读书|这本书由微信读书|来自 Google Books 搜索|这本书由你搜索加入|这是你自己加入书架的书|出版时间：)/;
 
 function needsRealIntro(book) {
@@ -3624,7 +3705,7 @@ function navigateTo(index, step = 1) {
 
 books.forEach(createBook);
 totalBooks.textContent = formatReferenceCount();
-activeTitle.textContent = books[0].title;
+activeTitle.textContent = cleanBookTitle(books[0].title);
 applyLanguage();
 measureShelf();
 
@@ -3753,7 +3834,13 @@ shelfOnboardingRoom.addEventListener("click", openMyRoomFromOnboarding);
 bookIndexToggle.addEventListener("click", openBookIndex);
 bookIndexClose.addEventListener("click", () => closeBookIndex());
 addBookToggle.addEventListener("click", () => requireAuth(openAddBookPanel));
-addBookClose.addEventListener("click", () => closeAddBookPanel());
+// Adding books is part of your own space, so closing returns to your room.
+addBookClose.addEventListener("click", () => {
+  // openMyShelf closes this panel itself, so the room appears straight away
+  // instead of the reference shelf flashing in between.
+  if (isSignedIn() || hasSavedBooks()) openMyShelf({ view: "room", restoreFocus: false });
+  else closeAddBookPanel({ restoreFocus: false });
+});
 addBookSearch.addEventListener("submit", (event) => {
   event.preventDefault();
   searchBooks(addBookQuery.value);
@@ -3864,7 +3951,12 @@ authGateGuest.addEventListener("click", () => {
   closeAuthGate({ restoreFocus: false, runPending: true });
 });
 myShelfToggle.addEventListener("click", () => requireAuth(() => openMyShelf({ view: "room" })));
-myShelfClose.addEventListener("click", () => closeMyShelf());
+// The list (我的书架) closes back into your room; leaving the room itself
+// happens through the top switch or the menu.
+myShelfClose.addEventListener("click", () => {
+  if (myShelfView === "list") openMyShelf({ view: "room", restoreFocus: false });
+  else closeMyShelf();
+});
 bookIndexList.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-book-index]") : null;
   if (!button) return;
@@ -4294,7 +4386,6 @@ function setupSiteMenu() {
     items: [
       {
         label: "参考空间",
-        isHidden: isSignedIn,
         onSelect: () => runAfterDetail(() => {
           closeBookIndex({ restoreFocus: false, immediate: true });
           openBrookeSpace({ restoreFocus: false });

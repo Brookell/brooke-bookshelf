@@ -662,8 +662,8 @@ h1 {
 
 .library.is-detail-open .shelf-onboarding {
   bottom: max(28px, calc(env(safe-area-inset-bottom) + 28px));
-  left: max(28px, env(safe-area-inset-left));
-  right: auto;
+  left: auto;
+  right: max(28px, env(safe-area-inset-right));
   display: grid;
   width: min(500px, calc(100% - 56px));
   padding: 14px 14px 14px 20px;
@@ -4728,6 +4728,18 @@ h1 {
   transition: color 0.3s ease, opacity 0.18s ease, visibility 0s 0.18s;
 }
 
+/* In your room the menu is how you get around, so it stays and the room's
+   close button goes. */
+.my-shelf.is-room-view #myShelfClose {
+  display: none;
+}
+
+.library.is-my-shelf-open.is-my-room-view:not(.is-detail-open, .is-index-open, .is-add-book-open, .is-reading-open, .is-auth-gate-open) > .sm-root .sm-toggle {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 /* The book counter sits beside the menu toggle, on the same line. */
 .masthead-meta {
   top: 16px;
@@ -4965,4 +4977,111 @@ button.flow.flow:disabled::after { opacity: 0.5; }
 @media (prefers-reduced-motion: reduce) {
   .rubber-segment__item { transition: opacity 160ms ease; }
   .rubber-segment[data-ready] .rubber-segment__thumb { transition: none; }
+}
+
+/* "怎么获取 API Key？" help under the WeRead key fields */
+.weread-howto {
+  color: rgba(21, 21, 21, 0.72);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.weread-howto summary {
+  width: fit-content;
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: rgba(21, 21, 21, 0.3);
+  text-underline-offset: 3px;
+}
+
+.weread-howto ol {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.weread-howto p { margin: 6px 0 0; color: var(--muted); }
+.weread-howto a { color: var(--ink); }
+.weread-howto code { font-size: 11px; }
+
+.reading-connect > .reading-note {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid rgba(21, 21, 21, 0.1);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* First-visit card on the reference shelf: on roomy screens it sits in the
+   empty corner under the menu instead of over the last spines. */
+@media (min-width: 900px) and (min-height: 700px) {
+  .library:not(.is-detail-open) .shelf-onboarding {
+    top: max(76px, calc(env(safe-area-inset-top) + 76px));
+    bottom: auto;
+    width: min(372px, calc(100% - 56px));
+  }
+}
+
+/* Search box: our own clear button instead of the browser's blue one. */
+.add-book-search input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  background: var(--muted);
+  cursor: pointer;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 6l12 12M18 6 6 18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.add-book-search input[type="search"]::-webkit-search-cancel-button:hover { background: var(--ink); }
+
+/* Search: placeholder cards while results load. */
+.add-book-skeleton { pointer-events: none; }
+.add-book-skeleton .add-book-cover,
+.add-book-skeleton-lines i {
+  background: linear-gradient(90deg, rgba(21, 21, 21, 0.06) 0%, rgba(21, 21, 21, 0.12) 50%, rgba(21, 21, 21, 0.06) 100%) 0 0 / 200% 100%;
+  animation: add-book-shimmer 1.3s ease-in-out infinite;
+}
+.add-book-skeleton-lines { display: grid; align-content: center; gap: 9px; min-width: 0; }
+.add-book-skeleton-lines i { display: block; height: 10px; border-radius: 5px; }
+.add-book-skeleton-lines i:nth-child(1) { width: 70%; height: 13px; }
+.add-book-skeleton-lines i:nth-child(2) { width: 40%; }
+.add-book-skeleton-lines i:nth-child(3) { width: 55%; }
+@keyframes add-book-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.add-book-status.is-loading::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border: 1.5px solid rgba(21, 21, 21, 0.2);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  vertical-align: -1px;
+  animation: add-book-spin 0.8s linear infinite;
+}
+@keyframes add-book-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .add-book-skeleton .add-book-cover, .add-book-skeleton-lines i, .add-book-status.is-loading::before { animation: none; }
+}
+
+/* Search results: 加入书架 is the main action. */
+.add-book-result-actions > button:not(.add-book-cover-choice):not(:disabled) {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (max-width: 720px) {
+  /* Room title fits the phone instead of touching both edges. */
+  .my-room-title-button { font-size: min(44px, 10.5vw); }
+  h1 { font-size: min(52px, 12.5vw); }
+
+  /* The room's book name gets its own line above the icon row. */
+  .my-room-caption {
+    bottom: max(58px, calc(env(safe-area-inset-bottom) + 58px));
+    max-width: calc(100% - 32px);
+  }
 }
