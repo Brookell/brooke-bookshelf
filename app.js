@@ -904,16 +904,25 @@ async function initializeSupabaseAuth() {
     await loadShelfFromSupabase();
     await syncLocalShelfToSupabase();
   }
-  client.auth.onAuthStateChange(async (_event, session) => {
+  let knownUserId = supabaseSession?.user?.id || null;
+  client.auth.onAuthStateChange((event, session) => {
     supabaseSession = session || null;
     updateAccountButton();
-    if (supabaseSession?.user) {
+    // Supabase also reports SIGNED_IN when it merely restores or refreshes
+    // the same session; only a different account needs the reload below.
+    if (event !== "SIGNED_IN" || !session?.user || session.user.id === knownUserId) return;
+    knownUserId = session.user.id;
+    // Supabase holds its auth lock while this callback runs, so calling other
+    // Supabase methods from inside it deadlocks every later request. Do the
+    // follow-up work after the callback has returned.
+    window.setTimeout(async () => {
       hasLoadedRemoteShelf = false;
+      reading.connected = null;
       await loadSettingsFromSupabase();
       await loadShelfFromSupabase();
       await syncLocalShelfToSupabase();
       if (!authGate.hidden) closeAuthGate({ restoreFocus: false, runPending: true });
-    }
+    }, 0);
   });
 }
 
@@ -1937,6 +1946,8 @@ const reading = {
   book: null,
   error: "",
   returnToShelf: false,
+  loading: null,
+  expanded: { progress: false, notes: false },
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2009,25 +2020,64 @@ function closeReadingPanel() {
   if (reading.returnToShelf) openMyShelf({ view: myShelfView, restoreFocus: false });
 }
 
+// Everything the dashboard needs is fetched first, behind a progress bar;
+// the dashboard is drawn only once it is all in (or something failed).
 async function refreshReadingPanel() {
   reading.error = "";
   try {
     if (reading.connected === null) {
-      reading.connected = (await callWereadMe("status")).connected;
+      reading.loading = { done: 0, total: 1 };
       renderReadingPanel();
+      reading.connected = (await callWereadMe("status")).connected;
     }
-    if (!reading.connected) return;
-    const tasks = [loadReadingStats(reading.mode)];
-    if (!reading.year) tasks.push(callWereadMe("stats", { mode: "annually" }).then((data) => { reading.year = data; }));
-    if (!reading.notebooks) tasks.push(callWereadMe("notebooks").then((data) => { reading.notebooks = data.books || []; }));
-    if (!reading.progress) tasks.push(loadReadingProgress());
-    await Promise.all(tasks);
+    if (!reading.connected) {
+      reading.loading = null;
+      renderReadingPanel();
+      return;
+    }
+    const tasks = [];
+    if (!reading.stats[reading.mode]) tasks.push(() => loadReadingStats(reading.mode));
+    if (!reading.year) tasks.push(() => callWereadMe("stats", { mode: "annually" }).then((data) => { reading.year = data; }));
+    if (!reading.notebooks) tasks.push(() => callWereadMe("notebooks").then((data) => { reading.notebooks = data.books || []; }));
+    if (!reading.progress) tasks.push(() => loadReadingProgress());
+    if (tasks.length) {
+      reading.loading = { done: 0, total: tasks.length };
+      renderReadingPanel();
+      await Promise.all(tasks.map((task) => task().then(() => {
+        reading.loading.done += 1;
+        updateReadingLoading();
+      })));
+    }
   } catch (error) {
     console.warn(error);
     if (error.code === "not_connected") reading.connected = false;
     reading.error = readingErrorText(error);
   }
+  reading.loading = null;
   renderReadingPanel();
+}
+
+function readingLoadingMarkup() {
+  const { done, total } = reading.loading;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  return `
+    <div class="rd-loading" role="status">
+      <p>正在读取你的阅读记录…</p>
+      <div class="weread-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
+        <i style="width: ${percent}%"></i>
+      </div>
+      <small>${done} / ${total}</small>
+    </div>`;
+}
+
+function updateReadingLoading() {
+  const box = readingPanelBody.querySelector(".rd-loading");
+  if (!box || !reading.loading) return;
+  const { done, total } = reading.loading;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+  box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(percent));
+  box.querySelector("i").style.width = `${percent}%`;
+  box.querySelector("small").textContent = `${done} / ${total}`;
 }
 
 async function loadReadingStats(mode) {
@@ -2069,26 +2119,57 @@ function readingConnectMarkup() {
   `;
 }
 
+// WeRead timestamps are documented as seconds; accept milliseconds too so a
+// unit mix-up can't push every day into a far-future (invisible) year.
+function wereadDate(value) {
+  const number = Number(value);
+  if (Number.isNaN(number)) {
+    const parsed = new Date(String(value));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (!number) return null;
+  return new Date(number > 1e12 ? number : number * 1000);
+}
+
+function readingYearNumber(year) {
+  const now = new Date().getFullYear();
+  const fromData = wereadDate(year?.baseTime)?.getFullYear();
+  return fromData && Math.abs(fromData - now) <= 1 ? fromData : now;
+}
+
+// Per-day reading seconds for the year: dailyReadTimes when WeRead sends
+// it, otherwise readTimes if those buckets are daily.
+function readingDailyMap(year) {
+  const yearNumber = readingYearNumber(year);
+  const source = Object.keys(year?.dailyReadTimes || {}).length
+    ? year.dailyReadTimes
+    : Object.keys(year?.readTimes || {}).length > 12 ? year.readTimes : {};
+  const map = new Map();
+  Object.entries(source).forEach(([key, value]) => {
+    const day = wereadDate(key);
+    if (!day || day.getFullYear() !== yearNumber) return;
+    const id = `${day.getMonth()}-${day.getDate()}`;
+    map.set(id, (map.get(id) || 0) + (Number(value) || 0));
+  });
+  return map;
+}
+
 function readingHeatmapMarkup(year) {
-  const daily = year?.dailyReadTimes || {};
-  const start = new Date(((year?.baseTime || 0) * 1000) || new Date(new Date().getFullYear(), 0, 1));
-  start.setHours(0, 0, 0, 0);
-  const byDay = new Map(Object.entries(daily).map(([key, value]) => {
-    const day = new Date(Number(key) * 1000);
-    return [`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`, Number(value) || 0];
-  }));
+  const yearNumber = readingYearNumber(year);
+  const byDay = readingDailyMap(year);
+  if (!byDay.size) return `<p class="reading-muted">微信读书这次没有返回每天的阅读数据。</p>`;
   const level = (seconds) => (!seconds ? 0 : seconds < 900 ? 1 : seconds < 1800 ? 2 : seconds < 3600 ? 3 : 4);
+  const start = new Date(yearNumber, 0, 1);
   const cells = [];
   const offset = (start.getDay() + 6) % 7; // weeks start on Monday
   for (let i = 0; i < offset; i += 1) cells.push('<span class="is-blank"></span>');
   const today = new Date();
-  for (let day = new Date(start); day.getFullYear() === start.getFullYear(); day.setDate(day.getDate() + 1)) {
-    const seconds = byDay.get(`${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`) || 0;
-    const future = day > today;
+  for (let day = new Date(start); day.getFullYear() === yearNumber; day.setDate(day.getDate() + 1)) {
+    const seconds = byDay.get(`${day.getMonth()}-${day.getDate()}`) || 0;
     const label = `${day.getMonth() + 1}月${day.getDate()}日：${seconds ? formatDuration(seconds) : "没有阅读"}`;
-    cells.push(`<span class="${future ? "is-future" : `level-${level(seconds)}`}" title="${label}"></span>`);
+    cells.push(`<span class="${day > today ? "is-future" : `level-${level(seconds)}`}" title="${label}"></span>`);
   }
-  return `<div class="reading-heatmap" role="img" aria-label="${start.getFullYear()} 年每天的阅读时长">${cells.join("")}</div>`;
+  return `<div class="reading-heatmap" role="img" aria-label="${yearNumber} 年每天的阅读时长">${cells.join("")}</div>`;
 }
 
 function readingCoverMarkup(cover, title = "") {
@@ -2130,11 +2211,16 @@ function readingStatusDonut() {
 
 // Reading time per month for the current year, as simple bars.
 function readingMonthBars(year) {
-  const buckets = Object.entries(year?.readTimes || {}).map(([key, value]) => [new Date(Number(key) * 1000).getMonth(), Number(value) || 0]);
-  const months = Array.from({ length: 12 }, (_, month) => buckets.filter(([m]) => m === month).reduce((sum, [, v]) => sum + v, 0));
+  const yearNumber = readingYearNumber(year);
+  const source = Object.keys(year?.dailyReadTimes || {}).length ? year.dailyReadTimes : year?.readTimes || {};
+  const months = Array(12).fill(0);
+  Object.entries(source).forEach(([key, value]) => {
+    const day = wereadDate(key);
+    if (day && day.getFullYear() === yearNumber) months[day.getMonth()] += Number(value) || 0;
+  });
   const max = Math.max(1, ...months);
   const now = new Date();
-  const thisYear = new Date((year?.baseTime || 0) * 1000 || now).getFullYear() === now.getFullYear();
+  const thisYear = yearNumber === now.getFullYear();
   return `
     <div class="rd-bars" role="img" aria-label="每月阅读时长">
       ${months.map((seconds, month) => `
@@ -2153,10 +2239,20 @@ function readingFocusBook() {
   return candidates[0] || null;
 }
 
+// Long lists show the first few rows with a 展开 / 收起 toggle.
+const READING_LIST_PREVIEW = 5;
+
+function readingToggleMarkup(key, count) {
+  if (count <= READING_LIST_PREVIEW) return "";
+  return `<button type="button" class="rd-toggle" data-reading-toggle="${key}" aria-expanded="${String(reading.expanded[key])}">
+    ${reading.expanded[key] ? "收起" : `展开全部 ${count} 本`}
+  </button>`;
+}
+
 function readingOverviewMarkup() {
   const stats = reading.stats[reading.mode];
   const year = reading.year;
-  const yearNumber = new Date((year?.baseTime || 0) * 1000 || Date.now()).getFullYear();
+  const yearNumber = readingYearNumber(year);
   const modeLabel = READING_MODES.find(([mode]) => mode === reading.mode)?.[1] || "";
   const tabs = READING_MODES.map(([mode, label]) => `
     <button type="button" data-reading-mode="${mode}" aria-pressed="${String(mode === reading.mode)}">${label}</button>
@@ -2245,7 +2341,7 @@ function readingOverviewMarkup() {
 
       <section class="rd-card">
         <h4>阅读进度 <small>${progressBooks.length ? `${progressBooks.length} 本` : ""}</small></h4>
-        ${progressBooks.length ? `<ul class="reading-progress">${progressBooks.map((book) => {
+        ${progressBooks.length ? `<ul class="reading-progress">${(reading.expanded.progress ? progressBooks : progressBooks.slice(0, READING_LIST_PREVIEW)).map((book) => {
           const item = reading.progress[wereadBookIdFor(book)];
           return `
           <li>
@@ -2253,7 +2349,7 @@ function readingOverviewMarkup() {
             <i style="--value: ${Math.min(100, Number(item.progress) || 0) / 100}"></i>
             <em>${Number(item.progress) || 0}%</em>
           </li>`;
-        }).join("")}</ul>` : `<p class="reading-muted">${reading.progress ? "书架上还没有来自微信读书的书。" : "正在读取…"}</p>`}
+        }).join("")}</ul>${readingToggleMarkup("progress", progressBooks.length)}` : `<p class="reading-muted">${reading.progress ? "书架上还没有来自微信读书的书。" : "正在读取…"}</p>`}
       </section>
 
       <section class="rd-card rd-span-2">
@@ -2261,7 +2357,7 @@ function readingOverviewMarkup() {
         ${reading.notebooks?.length ? `
           <table class="rd-table">
             <thead><tr><th>书名</th><th>作者</th><th class="num">划线</th><th class="num">想法</th><th></th></tr></thead>
-            <tbody>${reading.notebooks.map((item, index) => `
+            <tbody>${(reading.expanded.notes ? reading.notebooks : reading.notebooks.slice(0, READING_LIST_PREVIEW)).map((item, index) => `
               <tr data-reading-book="${index}" tabindex="0">
                 <td><span class="rd-table-title">${readingCoverMarkup(item.book?.cover, item.book?.title)}${escapeHtml(item.book?.title || "")}</span></td>
                 <td>${escapeHtml(item.book?.author || "")}</td>
@@ -2270,7 +2366,7 @@ function readingOverviewMarkup() {
                 <td class="num"><i data-lucide="arrow-up-right" aria-hidden="true"></i></td>
               </tr>`).join("")}
             </tbody>
-          </table>` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
+          </table>${readingToggleMarkup("notes", reading.notebooks.length)}` : `<p class="reading-muted">${reading.notebooks ? "还没有笔记。" : "正在读取…"}</p>`}
       </section>
     </div>
   `;
@@ -2310,7 +2406,8 @@ function readingBookMarkup() {
 
 function renderReadingPanel() {
   if (!readingPanelBody) return;
-  if (reading.connected === null) readingPanelBody.innerHTML = `<p class="reading-muted">正在读取…</p>${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}`;
+  if (reading.loading) readingPanelBody.innerHTML = readingLoadingMarkup();
+  else if (reading.connected === null) readingPanelBody.innerHTML = reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : "";
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
   else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup() : readingOverviewMarkup();
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
@@ -3614,6 +3711,16 @@ readingPanelBody.addEventListener("click", async (event) => {
       reading.error = readingErrorText(error);
     }
     renderReadingPanel();
+    return;
+  }
+  const toggle = target?.closest("[data-reading-toggle]");
+  if (toggle) {
+    const key = toggle.dataset.readingToggle;
+    reading.expanded[key] = !reading.expanded[key];
+    renderReadingPanel();
+    if (!reading.expanded[key]) {
+      readingPanelBody.querySelector(`[data-reading-toggle="${key}"]`)?.closest(".rd-card")?.scrollIntoView({ block: "nearest" });
+    }
     return;
   }
   const bookButton = target?.closest("[data-reading-book]");
