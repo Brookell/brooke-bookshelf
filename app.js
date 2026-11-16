@@ -1992,6 +1992,7 @@ const reading = {
   returnToShelf: false,
   loading: null,
   recommend: null,
+  monthTops: null,
 };
 
 async function callWereadMe(action, extra = {}) {
@@ -2084,6 +2085,11 @@ async function refreshReadingPanel() {
     const tasks = [];
     if (!reading.stats[reading.mode]) tasks.push(() => loadReadingStats(reading.mode));
     if (!reading.year) tasks.push(() => callWereadMe("stats", { mode: "annually" }).then((data) => { reading.year = data; }));
+    if (!reading.monthTops) {
+      tasks.push(() => callWereadMe("monthTops", { year: new Date().getFullYear() })
+        .then((data) => { reading.monthTops = data.months || []; })
+        .catch((error) => { console.warn(error); reading.monthTops = []; }));
+    }
     if (!reading.notebooks) tasks.push(() => callWereadMe("notebooks").then((data) => { reading.notebooks = data.books || []; }));
     if (!reading.progress) tasks.push(() => loadReadingProgress());
     if (!reading.recommend) {
@@ -2225,6 +2231,14 @@ function readingCoverMarkup(cover, title = "") {
   return `<span class="rd-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(title).slice(0, 2))}</span>`}</span>`;
 }
 
+// "3.5 小时" / "40 分钟": fits under a narrow month column.
+function shortDuration(seconds) {
+  const minutes = Math.round((Number(seconds) || 0) / 60);
+  if (minutes < 60) return `${minutes} 分钟`;
+  const hours = minutes / 60;
+  return `${hours >= 10 ? Math.round(hours) : Math.round(hours * 10) / 10} 小时`;
+}
+
 // Reading time per month for the current year, as simple bars.
 function readingMonthBars(year) {
   const yearNumber = readingYearNumber(year);
@@ -2237,13 +2251,34 @@ function readingMonthBars(year) {
   const max = Math.max(1, ...months);
   const now = new Date();
   const thisYear = yearNumber === now.getFullYear();
+  // Each month's most-read book (from WeRead), shown under its bar.
+  const tops = new Map((reading.monthTops || [])
+    .filter((item) => item.book?.title && item.readTime > 0)
+    .map((item) => [item.month, item]));
   return `
-    <div class="rd-bars" role="img" aria-label="每月阅读时长">
-      ${months.map((seconds, month) => `
-        <div class="rd-bar${thisYear && month === now.getMonth() ? " is-current" : ""}" title="${month + 1}月：${formatDuration(seconds)}">
-          <span style="height: ${Math.max(seconds ? 3 : 0, Math.round((seconds / max) * 100))}%"></span>
-          <small>${month + 1}</small>
-        </div>`).join("")}
+    <div class="rd-months">
+      <div class="rd-bars" role="img" aria-label="每月阅读时长">
+        ${months.map((seconds, month) => `
+          <div class="rd-bar${thisYear && month === now.getMonth() ? " is-current" : ""}" title="${month + 1}月：${formatDuration(seconds)}">
+            <span style="height: ${Math.max(seconds ? 3 : 0, Math.round((seconds / max) * 100))}%"></span>
+            <small>${month + 1}</small>
+          </div>`).join("")}
+      </div>
+      ${tops.size ? `
+        <p class="rd-month-tops-label">每月读得最久的书</p>
+        <ol class="rd-month-tops">
+          ${months.map((_, month) => {
+            const top = tops.get(month);
+            if (!top) return '<li class="is-empty" aria-hidden="true"></li>';
+            const label = `${month + 1}月读得最久：${top.book.title} · ${formatDuration(top.readTime)}`;
+            return `
+              <li title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">
+                ${readingCoverMarkup(top.book.cover, top.book.title)}
+                <b>${escapeHtml(top.book.title)}</b>
+                <small>${shortDuration(top.readTime)}</small>
+              </li>`;
+          }).join("")}
+        </ol>` : ""}
     </div>`;
 }
 
@@ -3791,7 +3826,7 @@ readingPanelBody.addEventListener("click", async (event) => {
     } catch (error) {
       console.warn(error);
     }
-    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, error: "" });
+    Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, error: "" });
     renderReadingPanel();
   }
 });

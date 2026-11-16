@@ -9,6 +9,7 @@
 // POST { action: "connect", wereadApiKey }      -> { connected: true }
 // POST { action: "disconnect" }                 -> { connected: false }
 // POST { action: "stats", mode }                -> reading statistics
+// POST { action: "monthTops", year }           -> the most-read book of each month
 // POST { action: "notebooks" }                  -> books with highlights / thoughts
 // POST { action: "highlights", bookId }         -> highlights + thoughts for one book
 // POST { action: "progress", bookIds }          -> reading progress per book (max 40)
@@ -262,6 +263,38 @@ async function progress(apiKey: string, bookIds: string[]) {
   return result;
 }
 
+// The most-read book of every month of a year (WeRead's 读得最多 for that
+// month). baseTime may be any moment inside the month; WeRead normalises it
+// to the month start. Months are Beijing time, like WeRead itself.
+// deno-lint-ignore no-explicit-any
+async function monthTops(apiKey: string, year: number): Promise<any[]> {
+  const nowBj = new Date(Date.now() + 8 * 3600 * 1000);
+  const lastMonth = year === nowBj.getUTCFullYear() ? nowBj.getUTCMonth() : 11;
+  const months = Array.from({ length: lastMonth + 1 }, (_, month) => month);
+  // deno-lint-ignore no-explicit-any
+  const result: any[] = [];
+  for (let i = 0; i < months.length; i += 4) {
+    const batch = await Promise.all(months.slice(i, i + 4).map(async (month) => {
+      const baseTime = Math.floor((Date.UTC(year, month, 15) - 8 * 3600 * 1000) / 1000);
+      try {
+        const data = await weread(apiKey, "/readdata/detail", { mode: "monthly", baseTime });
+        const top = (data.readLongest || [])[0];
+        // deno-lint-ignore no-explicit-any
+        const album = top?.albumInfo as any;
+        const book = top
+          ? bookSummary(top.book as Record<string, unknown>) ||
+            (album ? { bookId: String(album.albumId || ""), title: album.name || "", author: album.authorName || "", cover: album.cover || "" } : null)
+          : null;
+        return { month, totalReadTime: data.totalReadTime ?? 0, book, readTime: top?.readTime ?? 0 };
+      } catch {
+        return { month, totalReadTime: 0, book: null, readTime: 0 };
+      }
+    }));
+    result.push(...batch);
+  }
+  return result;
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
@@ -306,6 +339,11 @@ Deno.serve(async (request) => {
     if (action === "stats") {
       const mode = ["weekly", "monthly", "annually", "overall"].includes(body.mode) ? body.mode : "monthly";
       return jsonResponse(await stats(saved.key, mode));
+    }
+    if (action === "monthTops") {
+      const nowYear = new Date(Date.now() + 8 * 3600 * 1000).getUTCFullYear();
+      const year = Number.isInteger(body.year) && body.year >= 2015 && body.year <= nowYear ? body.year : nowYear;
+      return jsonResponse({ year, months: await monthTops(saved.key, year) });
     }
     if (action === "notebooks") return jsonResponse({ books: await notebooks(saved.key) });
     if (action === "highlights") {
