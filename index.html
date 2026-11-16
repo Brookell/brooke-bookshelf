@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#eeece8" />
   <meta name="description" content="A reading room for building your own bookshelf, with a reference shelf to start from." />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-17" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-18" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -111,7 +111,7 @@
       </header>
 
       <form class="add-book-search" id="addBookSearch">
-        <label for="addBookQuery">搜索书名、作者或 ISBN</label>
+        <label class="sr-only" for="addBookQuery">搜索书名、作者或 ISBN</label>
         <div>
           <input id="addBookQuery" type="search" autocomplete="off" placeholder="例如：献给阿尔吉侬的花束" />
           <button type="submit">
@@ -132,23 +132,20 @@
         <form id="wereadImportForm">
           <label for="wereadApiKey">输入你的微信读书 API Key</label>
           <input id="wereadApiKey" type="password" autocomplete="off" inputmode="text" placeholder="wrk-xxxxxxxx" />
-          <p class="weread-import-hint">API Key 只会发给 Supabase Edge Function。系统会随机导入 20 本书，后续增添与删除由你自己整理。</p>
+          <p class="weread-import-hint">API Key 只用来读取一次你的书架，不会被保存。读取后可以勾选想放进书架的书。</p>
           <button type="submit">
             <i data-lucide="refresh-cw"></i>
-            <span>随机导入 20 本</span>
+            <span>读取我的书架</span>
           </button>
         </form>
-        <details class="weread-manual-import">
-          <summary>没有 API Key？使用书名列表导入</summary>
-          <form id="wereadManualImportForm">
-            <label for="wereadImportText">粘贴微信读书书架里的书名，每行一本</label>
-            <textarea id="wereadImportText" rows="6" placeholder="例如：&#10;献给阿尔吉侬的花束&#10;可能性的艺术&#10;隐墙"></textarea>
-            <button type="submit">
-              <i data-lucide="import"></i>
-              <span>导入书名列表</span>
-            </button>
-          </form>
-        </details>
+        <div class="weread-pick" id="wereadPick" hidden>
+          <div class="weread-pick-bar">
+            <p id="wereadPickCount"></p>
+            <button type="button" id="wereadPickAll">全选</button>
+          </div>
+          <ul class="weread-pick-list" id="wereadPickList"></ul>
+          <button type="button" class="weread-pick-import" id="wereadPickImport" disabled>导入选中的书</button>
+        </div>
         <p class="weread-import-status" id="wereadImportStatus" aria-live="polite"></p>
       </section>
     </section>
@@ -357,6 +354,6 @@
   </main>
 
   <script defer src="./catalog.js?v=20260811-6"></script>
-  <script defer src="./app.js?v=20261116-22"></script>
+  <script defer src="./app.js?v=20261116-24"></script>
 </body>
 </html>

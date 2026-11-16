@@ -26,9 +26,12 @@ const addBookQuery = document.querySelector("#addBookQuery");
 const addBookStatus = document.querySelector("#addBookStatus");
 const addBookResults = document.querySelector("#addBookResults");
 const wereadImportForm = document.querySelector("#wereadImportForm");
-const wereadManualImportForm = document.querySelector("#wereadManualImportForm");
 const wereadApiKey = document.querySelector("#wereadApiKey");
-const wereadImportText = document.querySelector("#wereadImportText");
+const wereadPick = document.querySelector("#wereadPick");
+const wereadPickList = document.querySelector("#wereadPickList");
+const wereadPickCount = document.querySelector("#wereadPickCount");
+const wereadPickAll = document.querySelector("#wereadPickAll");
+const wereadPickImport = document.querySelector("#wereadPickImport");
 const wereadImportStatus = document.querySelector("#wereadImportStatus");
 const authGate = document.querySelector("#authGate");
 const authGateClose = document.querySelector("#authGateClose");
@@ -199,15 +202,16 @@ const I18N = {
     coverPickerFailed: "封面保存失败，请稍后再试。",
     addSearchResult: "加入书架",
     addedSearchResult: "已加入",
-    wereadImportIdle: "先从微信读书复制书名列表，再粘贴到这里导入。",
-    wereadSyncIdle: "输入 WeRead API Key 后，会从微信读书书架随机导入 20 本，先生成你的房间。",
-    wereadImportEmpty: "请先粘贴至少一本书名。",
     wereadApiKeyEmpty: "请先输入微信读书 API Key。",
-    wereadImportLoading: "正在匹配第 {current} / {total} 本...",
-    wereadSyncLoading: "正在从微信读书随机挑选 20 本...",
-    wereadImportDone: "已导入 {count} 本书到你的书架。",
-    wereadImportPartial: "已导入 {count} 本，{failed} 本暂时没有匹配到。",
-    wereadSyncDone: "已从微信读书随机导入 {count} 本书。后续增添与删除可以由你自己整理。",
+    wereadSyncLoading: "正在读取你的微信读书书架…",
+    wereadPickCount: "书架上有 {total} 本，已选 {selected} 本",
+    wereadPickEmpty: "微信读书书架是空的。",
+    wereadPickImport: "导入选中的 {count} 本",
+    wereadPickNone: "导入选中的书",
+    wereadPickSelectAll: "全选",
+    wereadPickClear: "全不选",
+    wereadPickOnShelf: "已在书架",
+    wereadSyncDone: "已导入 {count} 本书到你的书架。",
     wereadSyncError: "微信读书同步暂时失败，请确认 API Key 或 Edge Function 是否已部署。",
   },
   en: {
@@ -296,15 +300,16 @@ const I18N = {
     coverPickerFailed: "Could not save the cover. Please try again.",
     addSearchResult: "Add to shelf",
     addedSearchResult: "Added",
-    wereadImportIdle: "Copy book titles from WeRead, then paste them here to import.",
-    wereadSyncIdle: "Enter a WeRead API Key to randomly import 20 books from your WeRead shelf.",
-    wereadImportEmpty: "Paste at least one title first.",
     wereadApiKeyEmpty: "Enter your WeRead API Key first.",
-    wereadImportLoading: "Matching book {current} / {total}...",
-    wereadSyncLoading: "Randomly choosing 20 books from WeRead...",
-    wereadImportDone: "Imported {count} books to your shelf.",
-    wereadImportPartial: "Imported {count}; {failed} could not be matched yet.",
-    wereadSyncDone: "Randomly imported {count} books from WeRead. You can add or remove books manually afterward.",
+    wereadSyncLoading: "Reading your WeRead shelf…",
+    wereadPickCount: "{total} books on your shelf, {selected} selected",
+    wereadPickEmpty: "Your WeRead shelf is empty.",
+    wereadPickImport: "Import {count} selected",
+    wereadPickNone: "Import selected books",
+    wereadPickSelectAll: "Select all",
+    wereadPickClear: "Clear",
+    wereadPickOnShelf: "On your shelf",
+    wereadSyncDone: "Imported {count} books to your shelf.",
     wereadSyncError: "WeRead sync failed. Check the API key or Edge Function deployment.",
   },
 };
@@ -993,10 +998,7 @@ function updateStaticLanguage() {
   setText(".add-book-search label", t("searchBookLabel"));
   setText(".add-book-search button span", t("searchBookAction"));
   setText("#wereadImportForm label", "输入你的微信读书 API Key");
-  setText("#wereadImportForm button span", "同步微信读书书架");
-  setText("#wereadManualImportForm label", "粘贴微信读书书架里的书名，每行一本");
-  setText("#wereadManualImportForm button span", "导入书名列表");
-  if (wereadImportStatus && !wereadImportStatus.textContent.trim()) wereadImportStatus.textContent = t("wereadSyncIdle");
+  setText("#wereadImportForm button span", "读取我的书架");
   if (addBookQuery) addBookQuery.placeholder = t("searchBookPlaceholder");
   if (addBookStatus && !addBookStatus.textContent.trim()) addBookStatus.textContent = t("searchBookIdle");
   setText(".detail-kicker", t("detailKicker"));
@@ -1559,54 +1561,11 @@ async function fetchGoogleBooks(query, { limit = 8, signal = null } = {}) {
   return (data.items || []).filter((result) => result.volumeInfo?.title);
 }
 
-async function importWereadBooks(text) {
-  const titles = [...new Set(text
-    .split(/\n+/)
-    .map((line) => line.replace(/^\s*[\d*•\-、.]+/, "").trim())
-    .filter(Boolean))].slice(0, 20);
-  if (!titles.length) {
-    wereadImportStatus.textContent = t("wereadImportEmpty");
-    return;
-  }
-
-  let imported = 0;
-  let failed = 0;
-  wereadImportForm.querySelector("button").disabled = true;
-  for (const [index, title] of titles.entries()) {
-    wereadImportStatus.textContent = t("wereadImportLoading", { current: index + 1, total: titles.length });
-    try {
-      const [result] = await fetchBookSearch(title, { limit: 1 });
-      if (!result) {
-        failed += 1;
-        continue;
-      }
-      const book = customBookFromSearchResult(result, index);
-      if (!bookExists(book.id)) {
-        books.push(book);
-        writeCustomBooks();
-        createBook(book, books.length - 1);
-        imported += 1;
-      }
-      saveBookState(book, DEFAULT_STATUS);
-    } catch (error) {
-      console.error(error);
-      failed += 1;
-      if (error.name === "GoogleBooksQuotaError" || error.name === "SearchRateLimitError") break;
-    }
-  }
-  totalBooks.textContent = formatReferenceCount();
-  renderBookIndex();
-  renderMyShelf();
-  measureShelf();
-  wereadImportStatus.textContent = failed
-    ? t("wereadImportPartial", { count: imported, failed })
-    : t("wereadImportDone", { count: imported });
-  wereadImportForm.querySelector("button").disabled = false;
-  if (imported > 0) {
-    closeAddBookPanel({ restoreFocus: false });
-    window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
-  }
-}
+// Read the user's WeRead shelf with their own key (used once, not stored)
+// and let them tick which books to import, instead of importing a random
+// sample.
+let wereadPickItems = [];
+const wereadPicked = new Set();
 
 async function syncWereadShelf(apiKey) {
   const trimmed = apiKey.trim();
@@ -1631,38 +1590,86 @@ async function syncWereadShelf(apiKey) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `sync failed: ${response.status}`);
-
-    const items = Array.isArray(data.books) ? data.books : [];
-    let imported = 0;
-    items.forEach((item, index) => {
-      const { book, status } = customBookFromWereadItem(item, index);
-      if (!bookExists(book.id)) {
-        books.push(book);
-        writeCustomBooks();
-        createBook(book, books.length - 1);
-        imported += 1;
-      }
-      saveBookState(book, status || DEFAULT_STATUS);
-    });
-
-    totalBooks.textContent = formatReferenceCount();
-    renderBookIndex();
-    renderMyShelf();
-    measureShelf();
-    wereadImportStatus.textContent = t("wereadSyncDone", { count: items.length });
-    loadMissingCoverPalettes();
-    loadMissingIntros();
     wereadApiKey.value = "";
-    if (items.length > 0) {
-      closeAddBookPanel({ restoreFocus: false });
-      window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
-    }
+    wereadPickItems = (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
+      item,
+      book: customBookFromWereadItem(item, index).book,
+    }));
+    wereadPicked.clear();
+    wereadImportStatus.textContent = wereadPickItems.length ? "" : t("wereadPickEmpty");
+    renderWereadPick();
   } catch (error) {
     console.error(error);
     wereadImportStatus.textContent = t("wereadSyncError");
   } finally {
     button.disabled = false;
   }
+}
+
+function isOnShelf(book) {
+  return bookExists(book.id) && Boolean(getBookState(book));
+}
+
+// Counter and buttons only, so ticking a box never redraws (and scrolls)
+// the list.
+function updateWereadPickSummary() {
+  const available = wereadPickItems.filter(({ book }) => !isOnShelf(book));
+  wereadPickCount.textContent = t("wereadPickCount", { total: wereadPickItems.length, selected: wereadPicked.size });
+  wereadPickAll.textContent = available.length && wereadPicked.size === available.length ? t("wereadPickClear") : t("wereadPickSelectAll");
+  wereadPickImport.disabled = wereadPicked.size === 0;
+  wereadPickImport.textContent = wereadPicked.size ? t("wereadPickImport", { count: wereadPicked.size }) : t("wereadPickNone");
+}
+
+function renderWereadPick() {
+  wereadPick.hidden = wereadPickItems.length === 0;
+  if (wereadPick.hidden) return;
+  updateWereadPickSummary();
+  wereadPickList.innerHTML = wereadPickItems.map(({ item, book }, index) => {
+    const onShelf = isOnShelf(book);
+    const checked = onShelf || wereadPicked.has(index);
+    return `
+      <li>
+        <label class="weread-pick-item${onShelf ? " is-on-shelf" : ""}">
+          <input type="checkbox" data-weread-pick="${index}" ${checked ? "checked" : ""} ${onShelf ? "disabled" : ""} />
+          <span class="weread-pick-cover" style="--book-index-color: ${book.spine}">
+            ${item.cover ? `<img src="${escapeHtml(item.cover)}" alt="" loading="lazy" />` : ""}
+          </span>
+          <span class="weread-pick-copy">
+            <strong>${escapeHtml(book.title)}</strong>
+            <small>${escapeHtml(onShelf ? t("wereadPickOnShelf") : book.author)}</small>
+          </span>
+        </label>
+      </li>
+    `;
+  }).join("");
+}
+
+function importPickedWereadBooks() {
+  const picked = [...wereadPicked].map((index) => wereadPickItems[index]).filter(Boolean);
+  if (!picked.length) return;
+  picked.forEach(({ item, book: draft }, offset) => {
+    const existing = books.find((book) => book.id === draft.id);
+    const book = existing || draft;
+    if (!existing) {
+      books.push(book);
+      createBook(book, books.length - 1);
+    }
+    const { status } = customBookFromWereadItem(item, offset);
+    saveBookState(book, status || DEFAULT_STATUS);
+  });
+  writeCustomBooks();
+  totalBooks.textContent = formatReferenceCount();
+  renderBookIndex();
+  renderMyShelf();
+  measureShelf();
+  wereadImportStatus.textContent = t("wereadSyncDone", { count: picked.length });
+  wereadPicked.clear();
+  wereadPickItems = [];
+  renderWereadPick();
+  loadMissingCoverPalettes();
+  loadMissingIntros();
+  closeAddBookPanel({ restoreFocus: false });
+  window.setTimeout(() => openMyShelf({ view: "room", restoreFocus: false }), 240);
 }
 
 function addCustomBook(book) {
@@ -2893,10 +2900,27 @@ wereadImportForm.addEventListener("submit", (event) => {
   event.preventDefault();
   syncWereadShelf(wereadApiKey.value);
 });
-wereadManualImportForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  importWereadBooks(wereadImportText.value);
+wereadPickList.addEventListener("change", (event) => {
+  const box = event.target instanceof HTMLInputElement ? event.target : null;
+  if (!box?.dataset.wereadPick) return;
+  const index = Number(box.dataset.wereadPick);
+  if (box.checked) wereadPicked.add(index);
+  else wereadPicked.delete(index);
+  updateWereadPickSummary();
 });
+wereadPickAll.addEventListener("click", () => {
+  const available = wereadPickItems
+    .map(({ book }, index) => ({ book, index }))
+    .filter(({ book }) => !isOnShelf(book));
+  const selectAll = !(available.length && wereadPicked.size === available.length);
+  wereadPicked.clear();
+  if (selectAll) available.forEach(({ index }) => wereadPicked.add(index));
+  wereadPickList.querySelectorAll("input[data-weread-pick]:not(:disabled)").forEach((box) => {
+    box.checked = wereadPicked.has(Number(box.dataset.wereadPick));
+  });
+  updateWereadPickSummary();
+});
+wereadPickImport.addEventListener("click", importPickedWereadBooks);
 addBookResults.addEventListener("click", (event) => {
   const coverButton = event.target instanceof Element ? event.target.closest("[data-cover-result]") : null;
   if (coverButton) {

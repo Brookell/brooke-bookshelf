@@ -1,7 +1,6 @@
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // Must match the `version` in tencent/wechatreading skills/SKILL.md.
 const SKILL_VERSION = "1.0.5";
-const IMPORT_LIMIT = 20;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,73 +106,6 @@ function normalizeAlbum(item: WereadAlbum): NormalizedWereadItem {
   };
 }
 
-function unixToIso(value: number | null | undefined) {
-  return value ? new Date(value * 1000).toISOString() : null;
-}
-
-function sampleItems<T>(items: T[], limit: number) {
-  const shuffled = [...items];
-  for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
-    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
-  }
-  return shuffled.slice(0, limit);
-}
-
-async function getUserIdFromRequest(request: Request) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const authorization = request.headers.get("Authorization");
-  if (!supabaseUrl || !anonKey || !authorization) return null;
-
-  const response = await fetch(`${supabaseUrl}/auth/v1/user`, {
-    headers: {
-      Authorization: authorization,
-      apikey: anonKey,
-    },
-  });
-  if (!response.ok) return null;
-  const user = await response.json();
-  return typeof user.id === "string" ? user.id : null;
-}
-
-async function upsertUserBooks(request: Request, items: NormalizedWereadItem[]) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const userId = await getUserIdFromRequest(request);
-  if (!supabaseUrl || !serviceRoleKey || !userId || !items.length) return false;
-
-  const rows = items.map((item) => ({
-    user_id: userId,
-    source: "weread",
-    source_id: item.bookId || item.albumId,
-    title: item.title,
-    author: item.author,
-    cover_url: item.cover,
-    category: item.category,
-    status: item.finishReading ? "finished" : "want_to_read",
-    deep_link: item.deepLink,
-    read_update_time: unixToIso(item.readUpdateTime),
-    raw: item,
-  }));
-
-  const response = await fetch(`${supabaseUrl}/rest/v1/user_books?on_conflict=user_id,source,source_id`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
-      "Content-Type": "application/json",
-      Prefer: "resolution=merge-duplicates",
-    },
-    body: JSON.stringify(rows),
-  });
-  if (!response.ok) {
-    console.error("user_books upsert failed", await response.text());
-    return false;
-  }
-  return true;
-}
-
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
@@ -212,24 +144,16 @@ Deno.serve(async (request) => {
     const books = Array.isArray(wereadData.books) ? wereadData.books.map(normalizeBook) : [];
     const albums = Array.isArray(wereadData.albums) ? wereadData.albums.map(normalizeAlbum) : [];
     const allItems = [...books, ...albums];
-    const selectedItems = sampleItems(allItems, IMPORT_LIMIT);
-    const selectedBookCount = selectedItems.filter((item) => item.type === "book").length;
-    const selectedAlbumCount = selectedItems.filter((item) => item.type === "album").length;
-    const syncedToDatabase = await upsertUserBooks(request, selectedItems);
-    const mpCount = wereadData.mp ? 1 : 0;
-
+    // Most recently read first, so the list the user picks from starts with
+    // what they are reading now. Nothing is imported here: the site imports
+    // only the books the user ticks.
+    allItems.sort((a, b) => (b.readUpdateTime || b.updateTime || 0) - (a.readUpdateTime || a.updateTime || 0));
     return jsonResponse({
-      books: selectedItems,
-      syncedToDatabase,
+      items: allItems,
       summary: {
-        books: selectedBookCount,
-        albums: selectedAlbumCount,
-        availableBooks: books.length,
-        availableAlbums: albums.length,
-        mp: mpCount,
-        total: selectedItems.length,
-        availableTotal: books.length + albums.length + mpCount,
-        limit: IMPORT_LIMIT,
+        books: books.length,
+        albums: albums.length,
+        total: allItems.length,
       },
     });
   } catch (error) {
