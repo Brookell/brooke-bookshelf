@@ -5300,23 +5300,60 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   font-size: 13px;
 }
 
-.reading-panel .rd-quote {
-  margin: 0;
-  padding: 4px 0 4px 22px;
-  border-left: 3px solid var(--vermilion);
+/* Cover on the left, the sentence beside it; the bar between them takes
+   that book's cover colour. */
+.rd-quote-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 26px;
   transition: opacity 220ms ease, transform 220ms ease;
 }
 
-.reading-panel .rd-quote.is-changing {
+.rd-quote-card.has-cover {
+  grid-template-columns: clamp(78px, 9vw, 112px) minmax(0, 1fr);
+}
+
+.rd-quote-card.is-changing {
   opacity: 0;
   transform: translateY(6px);
+}
+
+.rd-quote-cover {
+  margin: 0;
+}
+
+.rd-quote-cover .rd-cover {
+  border-radius: 3px;
+  box-shadow: 0 14px 28px rgba(21, 21, 21, 0.16);
+}
+
+.reading-panel .rd-quote {
+  margin: 0;
+  padding: 4px 0 4px 22px;
+  border-left: 3px solid var(--quote-c, var(--vermilion));
+  transition: border-color 400ms ease;
 }
 
 .rd-quote-actions {
   display: flex;
   gap: 10px;
   margin-top: 18px;
-  padding-left: 25px;
+}
+
+.rd-quote-card.has-cover + .rd-quote-actions {
+  padding-left: calc(clamp(78px, 9vw, 112px) + 26px);
+}
+
+@media (max-width: 640px) {
+  .rd-quote-card.has-cover {
+    grid-template-columns: 64px minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .rd-quote-card.has-cover + .rd-quote-actions {
+    padding-left: 80px;
+  }
 }
 
 .rd-quote-shuffle {
@@ -5358,6 +5395,7 @@ button.flow.flow:disabled::after { opacity: 0.5; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .rd-quote-card,
   .reading-panel .rd-quote,
   .rd-quote-shuffle svg {
     transition: none;

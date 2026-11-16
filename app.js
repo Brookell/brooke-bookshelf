@@ -2534,7 +2534,9 @@ async function pickReadingQuote() {
     const choices = texts.filter((text) => text !== reading.quote?.text);
     if (!choices.length) continue;
     const text = choices[Math.floor(Math.random() * choices.length)];
-    return { text: text.length > 160 ? `${text.slice(0, 158)}…` : text, title: item.book.title, author: item.book.author || "" };
+    const quote = { text: text.length > 160 ? `${text.slice(0, 158)}…` : text, title: item.book.title, author: item.book.author || "", cover: item.book.cover || "" };
+    await loadQuoteColor(quote);
+    return quote;
   }
   return null;
 }
@@ -2549,6 +2551,33 @@ async function loadReadingQuote() {
   }
 }
 
+// The quote's bar takes its book's cover colour (shared cache with the
+// masthead); vermilion until the colour is known.
+async function loadQuoteColor(quote) {
+  const cover = quote?.cover;
+  if (!cover || reading.themeColors[cover]) return;
+  try {
+    const color = await Promise.race([
+      fetchCoverColor(sharpCover(cover)),
+      new Promise((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    if (color) reading.themeColors[cover] = color;
+  } catch (error) {
+    console.warn("Quote colour failed", error);
+  }
+}
+
+function quoteColorStyle(quote) {
+  const color = quote?.cover && reading.themeColors[quote.cover];
+  return color ? `--quote-c: ${color};` : "";
+}
+
+function readingQuoteCardInner(quote) {
+  return `
+    ${quote.cover ? `<figure class="rd-quote-cover">${readingCoverMarkup(quote.cover, quote.title)}</figure>` : ""}
+    <blockquote class="rd-quote">${readingQuoteInner(quote)}</blockquote>`;
+}
+
 function readingQuoteInner(quote) {
   return `
     <p>${escapeHtml(quote.text)}</p>
@@ -2557,7 +2586,7 @@ function readingQuoteInner(quote) {
 
 // 换一条: swap just the quote, with a short fade, without redrawing the panel.
 async function shuffleReadingQuote(button) {
-  const box = readingPanelBody.querySelector(".rd-quote");
+  const box = readingPanelBody.querySelector(".rd-quote-card");
   if (!box || button.disabled) return;
   button.disabled = true;
   box.classList.add("is-changing");
@@ -2565,7 +2594,9 @@ async function shuffleReadingQuote(button) {
     const [next] = await Promise.all([pickReadingQuote(), new Promise((resolve) => setTimeout(resolve, 220))]);
     if (next) {
       reading.quote = next;
-      box.innerHTML = readingQuoteInner(next);
+      box.setAttribute("style", quoteColorStyle(next));
+      box.classList.toggle("has-cover", Boolean(next.cover));
+      box.innerHTML = readingQuoteCardInner(next);
     }
   } catch (error) {
     console.warn("Reading quote failed", error);
@@ -2631,7 +2662,7 @@ function readingQuoteMarkup(number) {
   return `
     <section class="rd-section rd-span-3">
       ${readingSectionHead("摘录", number, "随机一条你划过的句子")}
-      <blockquote class="rd-quote" aria-live="polite">${readingQuoteInner(quote)}</blockquote>
+      <div class="rd-quote-card${quote.cover ? " has-cover" : ""}" style="${quoteColorStyle(quote)}" aria-live="polite">${readingQuoteCardInner(quote)}</div>
       <div class="rd-quote-actions">
         <button type="button" class="rd-quote-shuffle" data-quote-shuffle>
           <i data-lucide="shuffle" aria-hidden="true"></i><span>换一条</span>
