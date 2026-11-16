@@ -206,13 +206,14 @@ button:disabled { opacity: 0.5; cursor: default; }
 
 .sign-in { display: grid; gap: 6px; margin: 12px 0 10px; }
 .sign-in label { font-size: 13px; color: var(--muted); margin-top: 6px; }
-.sign-in input {
+.sign-in .cs-root { margin-top: 4px; justify-self: start; }
+.sign-in input:not(.cs-input) {
   padding: 11px 16px;
   border-radius: 999px;
   border: 1px solid var(--hairline);
   background: var(--canvas);
 }
-.sign-in input:focus { outline: 2px solid var(--lime); border-color: var(--ink); }
+.sign-in input:not(.cs-input):focus { outline: 2px solid var(--lime); border-color: var(--ink); }
 .sign-in button[type="submit"] {
   margin-top: 10px;
   background: var(--lime);

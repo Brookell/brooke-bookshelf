@@ -297,28 +297,77 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   }
 
+  // ---- Sign-in ----
+
+  let passcodeSlots = null;
+  let signingIn = false;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function signIn(passcode) {
+    if (signingIn) return;
+    signingIn = true;
+    const input = $("signInPasscode");
+    input.readOnly = true;
+    $("signInNote").textContent = "正在验证…";
+    let result = null;
+    try {
+      result = await callAdmin({ passcode });
+    } catch (error) {
+      passcodeSlots.setStatus("error");
+      $("signInNote").textContent = error.code === "wrong_passcode"
+        ? "密码不对。"
+        : error.code === "locked"
+          ? "错误次数太多，请一小时后再试。"
+          : `登录失败：${error.message}`;
+      // Let the shake play, then empty the slots for another try.
+      await wait(700);
+      if (passcodeSlots.status === "error") {
+        passcodeSlots.clear();
+        passcodeSlots.focus();
+      }
+      input.readOnly = false;
+      signingIn = false;
+      return;
+    }
+    writeToken(result.token);
+    $("signInNote").textContent = "";
+    passcodeSlots.setStatus("success");
+    await wait(500);
+    passcodeSlots.clear();
+    passcodeSlots.setStatus("idle");
+    input.readOnly = false;
+    signingIn = false;
+    showDashboard(result.data);
+  }
+
   // ---- Events ----
 
   function bindEvents() {
-    $("signInForm").addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const button = event.target.querySelector("button");
-      button.disabled = true;
-      $("signInNote").textContent = "正在验证…";
-      try {
-        const result = await callAdmin({ passcode: $("signInPasscode").value });
-        writeToken(result.token);
-        $("signInPasscode").value = "";
+    passcodeSlots = window.CodeSlots($("signInPasscode"), {
+      length: Number(window.BROOKE_ADMIN_PASSCODE_LENGTH) || 6,
+      onChange: () => {
+        passcodeSlots.setStatus("idle");
         $("signInNote").textContent = "";
-        showDashboard(result.data);
-      } catch (error) {
-        $("signInNote").textContent = error.code === "wrong_passcode"
-          ? "密码不对。"
-          : error.code === "locked"
-            ? "错误次数太多，请一小时后再试。"
-            : `登录失败：${error.message}`;
-      }
-      button.disabled = false;
+      },
+      onComplete: signIn,
+      // Page palette: ink slots on a white card, lime digits once accepted.
+      accentColor: "#100e19",
+      inkColor: "#100e19",
+      slotColor: "#f3f3f5",
+      digitColor: "#d8f275",
+      dangerColor: "#ff3b30",
+      slotSize: 44,
+      gap: 8,
+      radius: 12,
+      bounce: 0.2,
+      settle: 0.3,
+      rise: 8,
+      cascade: 20,
+    });
+
+    $("signInForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (passcodeSlots.value.length === Number(window.BROOKE_ADMIN_PASSCODE_LENGTH || 6)) signIn(passcodeSlots.value);
     });
 
     $("refreshButton").addEventListener("click", load);
