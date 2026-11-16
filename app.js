@@ -2420,7 +2420,7 @@ function applyCoverPalette(book, color) {
   book.detailColor = color;
   book.ink = inkForColor(color);
   book.spineInk = book.ink;
-  book.coverPalette = book.image;
+  book.coverPalette = `${COVER_PALETTE_VERSION}|${book.image}`;
   if (book.isCustom && bookExists(book.id)) writeCustomBooks();
   const index = books.indexOf(book);
   const element = index >= 0 ? bookElements[index] : null;
@@ -2435,11 +2435,24 @@ function applyCoverPalette(book, color) {
   if (getBookState(book)) syncBookStateToSupabase(book);
 }
 
+// Same rules as the search-books function: mostly-white covers become a
+// warm off-white instead of picking up their dark lettering.
+const LIGHT_COVER_COLOR = "#f3ecdf";
+// Bump when the colour rules change so already-coloured books are redone.
+const COVER_PALETTE_VERSION = "v2";
+
 function dominantColorFromPixels(data) {
   const buckets = new Map();
+  let total = 0;
+  let light = 0;
   for (let i = 0; i < data.length; i += 4) {
     const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
-    if (a < 128 || Math.min(r, g, b) > 232) continue;
+    if (a < 128) continue;
+    total += 1;
+    if (Math.min(r, g, b) > 232) {
+      light += 1;
+      continue;
+    }
     const max = Math.max(r, g, b);
     const saturation = max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
     const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
@@ -2451,6 +2464,7 @@ function dominantColorFromPixels(data) {
     bucket.w += 1 + saturation;
     buckets.set(key, bucket);
   }
+  if (total && light / total >= 0.45) return LIGHT_COVER_COLOR;
   let best = null;
   buckets.forEach((bucket) => {
     if (!best || bucket.w > best.w) best = bucket;
@@ -2497,10 +2511,11 @@ async function fetchCoverColor(url) {
 let paletteQueue = Promise.resolve();
 
 function loadCoverPalette(book) {
-  if (!book?.isCustom || !book.image || book.coverPalette === book.image) return;
+  const done = `${COVER_PALETTE_VERSION}|${book?.image}`;
+  if (!book?.isCustom || !book.image || book.coverPalette === done) return;
   const image = book.image;
   paletteQueue = paletteQueue.then(async () => {
-    if (book.image !== image || book.coverPalette === image) return;
+    if (book.image !== image || book.coverPalette === done) return;
     try {
       const color = await fetchCoverColor(image);
       if (color && book.image === image) applyCoverPalette(book, color);

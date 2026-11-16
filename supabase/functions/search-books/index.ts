@@ -219,7 +219,11 @@ function rgbToHex(r: number, g: number, b: number) {
 
 // Main colour of a cover: shrink it, group pixels into coarse colour
 // buckets, ignore near-white margins, and pick the bucket with the most
-// pixels (weighted a little towards saturated colours).
+// pixels (weighted a little towards saturated colours). Covers that are
+// mostly white get a warm off-white instead, so a white cover with black
+// lettering reads as cream, not black.
+const LIGHT_COVER_COLOR = "#f3ecdf";
+const LIGHT_COVER_SHARE = 0.45;
 async function coverColor(url: string): Promise<string | null> {
   let parsed: URL;
   try {
@@ -237,13 +241,19 @@ async function coverColor(url: string): Promise<string | null> {
   if (!image?.width) return null;
   image.resize(48, Math.max(1, Math.round((48 * image.height) / image.width)));
   const buckets = new Map<number, { r: number; g: number; b: number; n: number; w: number }>();
+  let total = 0;
+  let light = 0;
   for (let y = 1; y <= image.height; y += 1) {
     for (let x = 1; x <= image.width; x += 1) {
       const [r, g, b, a] = image.getRGBAAt(x, y);
       if (a < 128) continue;
       const max = Math.max(r, g, b);
       const min = Math.min(r, g, b);
-      if (min > 232) continue; // paper-white borders and backgrounds
+      total += 1;
+      if (min > 232) {
+        light += 1; // paper-white borders and backgrounds
+        continue;
+      }
       const saturation = max === 0 ? 0 : (max - min) / max;
       const key = ((r >> 5) << 6) | ((g >> 5) << 3) | (b >> 5);
       const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0, w: 0 };
@@ -255,6 +265,7 @@ async function coverColor(url: string): Promise<string | null> {
       buckets.set(key, bucket);
     }
   }
+  if (total && light / total >= LIGHT_COVER_SHARE) return LIGHT_COVER_COLOR;
   let best: { r: number; g: number; b: number; n: number; w: number } | null = null;
   for (const bucket of buckets.values()) {
     if (!best || bucket.w > best.w) best = bucket;
@@ -306,7 +317,7 @@ Deno.serve(async (request) => {
 
     if (body.coverColor !== undefined) {
       const url = String(body.coverColor || "").slice(0, 600);
-      const cacheKey = `color|${url}`;
+      const cacheKey = `color2|${url}`;
       const cached = await readCache(cacheKey);
       if (cached) return jsonResponse({ color: cached.color ?? null, cached: true });
       if (await overRateLimit(userId)) return jsonResponse({ error: "rate_limited" }, 429);
