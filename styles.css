@@ -6363,3 +6363,25 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     font-size: 11px;
   }
 }
+
+/* Home-screen app (app.js adds .is-standalone): the page itself never
+   bounces or scrolls, and taps never zoom. Panels still scroll inside. */
+html.is-standalone,
+html.is-standalone body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
+  overscroll-behavior: contain;
+}
+
+@media (max-width: 720px) {
+  /* The shelf's floor line sits under the books, above the tab bar. */
+  .shelf-rule,
+  .my-room-rule {
+    bottom: max(136px, calc(env(safe-area-inset-bottom) + 128px));
+  }
+}

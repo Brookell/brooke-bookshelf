@@ -2708,7 +2708,8 @@ function readingMastheadMarkup(stats) {
 
 function readingQuoteMarkup(number) {
   const quote = reading.quote;
-  if (!quote) return "";
+  // Phones have 摘录 as its own tab, so the reading record leaves it out.
+  if (!quote || !number) return "";
   return `
     <section class="rd-section rd-span-3">
       ${readingSectionHead("摘录", number, "随机一条你划过的句子", `
@@ -2760,7 +2761,7 @@ function readingOverviewMarkup() {
         ${year && readingDailyMap(year).size ? `<div class="rd-legend"><span>少</span><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i><span>多</span></div>` : ""}
       </section>
 
-      ${readingQuoteMarkup(reading.quote ? next() : 0)}
+      ${readingQuoteMarkup(reading.quote && !window.matchMedia("(max-width: 720px)").matches ? next() : 0)}
 
       <section class="rd-section">
         ${readingSectionHead("阅读进度", next(), `最近在读的 ${progressBooks.length} 本`)}
@@ -4749,6 +4750,20 @@ document.querySelector("#setupCard")?.addEventListener("click", (event) => {
 
 setupReady = true;
 updateSetupCard();
+
+// Opened from the home screen it should feel like an app: no pinch or
+// double-tap zoom, no rubber-band bounce (CSS .is-standalone).
+if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true) {
+  document.documentElement.classList.add("is-standalone");
+  document.querySelector('meta[name="viewport"]')?.setAttribute(
+    "content",
+    "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+  );
+  // iOS Safari ignores user-scalable in some versions; stop pinch directly.
+  ["gesturestart", "gesturechange"].forEach((type) => {
+    document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+  });
+}
 
 // ---- Add to home screen (phones) ----
 // Shown once the visitor has looked around for a bit, never when the site
