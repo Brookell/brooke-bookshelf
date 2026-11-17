@@ -7134,3 +7134,176 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     color: rgba(21, 21, 21, 0.42);
   }
 }
+
+/* ---- 我的, in the reading-record style ----
+   Wide uppercase room name, two rounded number pills, a plain list of
+   what the tab bar doesn't reach, and a quiet 退出登录 at the end. */
+@media (max-width: 720px) {
+  .profile-panel .book-index-header {
+    display: none;
+  }
+}
+
+.pf {
+  display: grid;
+  gap: 34px;
+  padding-bottom: 12px;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+}
+
+.pf-title {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  text-align: center;
+}
+
+.pf-title p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.pf-title h3 {
+  max-width: 86%;
+  margin: 0;
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(34px, 11vw, 50px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+  transform: scaleX(1.12);
+}
+
+.pf-title span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-pills {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pf-pill {
+  display: grid;
+  min-height: 112px;
+  place-content: center;
+  gap: 10px;
+  padding: 16px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pf-pill:active {
+  background: rgba(21, 21, 21, 0.05);
+}
+
+.pf-pill small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.pf-pill b {
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  transform: scaleX(1.12);
+}
+
+.pf-pill b.pf-pill-text {
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  transform: none;
+}
+
+.pf-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--hairline);
+}
+
+.pf-list button {
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pf-list span {
+  flex: 1;
+}
+
+.pf-list small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.pf-list .profile-chevron {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pf-signin {
+  justify-self: center;
+  min-height: 48px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font: 600 15px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+.pf-signout {
+  justify-self: center;
+  padding: 8px 14px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
