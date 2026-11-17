@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="Reading Room" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-75" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-80" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -360,6 +360,13 @@
         <span class="sr-only">Return to shelf</span>
       </button>
 
+      <div class="detail-bg-next" id="detailBgNext" aria-hidden="true"></div>
+      <div class="detail-peek" id="detailPeek" aria-hidden="true" hidden>
+        <div class="detail-book">
+          <div class="detail-face detail-front" id="detailPeekFront"></div>
+        </div>
+      </div>
+
       <div class="detail-book-shell" id="detailBookShell" aria-hidden="true">
         <div class="detail-book">
           <div class="detail-face detail-front" id="detailFront"></div>
@@ -456,6 +463,6 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261116-91"></script>
+  <script defer src="./app.js?v=20261116-93"></script>
 </body>
 </html>

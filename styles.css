@@ -6485,27 +6485,457 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   display: none;
 }
 
-/* Detail page: swipe (or arrow keys) to the next / previous book. The cover
-   follows the finger; the words under it drift half as far and fade. */
-.detail-book {
+/* Detail page: swipe (or arrow keys) to the next / previous book, like a
+   carousel. The neighbour's cover (#detailPeek) waits one step to the side
+   and moves with the finger; its colour (#detailBgNext) fades in behind;
+   the words under the cover drift and fade, then the new ones slide in. */
+.detail-bg-next {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: var(--swipe-progress, 0);
+  pointer-events: none;
+}
+
+.book-detail:not(.is-visible) .detail-bg-next,
+.book-detail.is-returning .detail-bg-next {
+  display: none;
+}
+
+.detail-peek {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.detail-peek .detail-book {
+  translate: calc(var(--swipe-x, 0px) + var(--peek-offset, 0px)) 0;
+}
+
+.detail-book-shell .detail-book {
   translate: var(--swipe-x, 0px) 0;
 }
 
 .detail-copy > * {
-  translate: calc(var(--swipe-x, 0px) * 0.5) 0;
-  opacity: var(--swipe-fade, 1);
+  translate: calc(var(--swipe-x, 0px) * 0.35) 0;
+  opacity: calc(1 - var(--swipe-progress, 0) * 1.6);
 }
 
-.book-detail.is-swipe-animating .detail-book {
-  transition: translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
+.book-detail.is-swipe-animating .detail-book,
 .book-detail.is-swipe-animating .detail-copy > * {
-  transition: translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+  transition: translate 340ms cubic-bezier(0.22, 0.8, 0.24, 1), opacity 240ms ease;
+}
+
+.book-detail.is-swipe-animating .detail-bg-next {
+  transition: opacity 340ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+
+.book-detail.is-swipe-swap .detail-book-shell,
+.book-detail.is-swipe-swap .detail-book,
+.book-detail.is-swipe-swap .detail-copy > *,
+.book-detail.is-swipe-swap::before {
+  transition: none !important;
+}
+
+.book-detail.is-swipe-copy-in .detail-copy > * {
+  animation: detail-copy-swap-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes detail-copy-swap-in {
+  from { opacity: 0; translate: var(--copy-from, 0px) 0; }
+  to { opacity: 1; translate: 0 0; }
 }
 
 @media (max-width: 720px) {
   .book-detail {
     touch-action: pan-y;
   }
+}
+
+/* ---- Phones: the reading record as one coloured poster (.ri) ----
+   The whole page takes the cover colour of the period's most-read book
+   (--rd-c) with ink that reads on it (--rd-on). Big wide title, thin
+   monthly bars, photo cards for each month's longest read, a week-by-week
+   heat grid, and the period's numbers in rounded pills. */
+.reading-panel[data-insights] {
+  --ri-soft: color-mix(in srgb, var(--rd-on, #fff) 62%, transparent);
+  --ri-line: color-mix(in srgb, var(--rd-on, #fff) 34%, transparent);
+  background: var(--rd-c);
+  color: var(--rd-on, #fff);
+  transition: background-color 400ms ease;
+}
+
+/* Phones reach this page from the tab bar, so no header or close button. */
+.reading-panel[data-insights] .book-index-header {
+  display: none;
+}
+
+.reading-panel[data-insights] .reading-panel-body {
+  margin-top: 0;
+}
+
+.ri {
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  padding-bottom: 12px;
+}
+
+.ri-title {
+  margin: 26px 0 46px;
+  text-align: center;
+}
+
+.ri-title p {
+  margin: 0 0 10px;
+  color: var(--ri-soft);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+}
+
+.ri-title h3 {
+  margin: 0;
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: clamp(40px, 13vw, 58px);
+  font-weight: 900;
+  font-stretch: expanded;
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transform: scaleX(1.18);
+}
+
+.ri-section {
+  margin: 0 0 54px;
+}
+
+.ri-section h4 {
+  margin: 0 0 26px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.ri-empty {
+  margin: 0;
+  color: var(--ri-soft);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Monthly bars: value on top, thin rounded bar, month underneath. */
+.ri-bars {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  height: 210px;
+}
+
+.ri-bar {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ri-bar b,
+.ri-bar small {
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ri-bar span {
+  position: relative;
+  width: 100%;
+}
+
+.ri-bar i {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 5px;
+  height: var(--h);
+  border-radius: 3px;
+  background: var(--rd-on, #fff);
+  transform: translateX(-50%);
+  transform-origin: bottom;
+  animation: ri-grow 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.ri-bar i { animation-delay: calc(var(--i, 0) * 30ms); }
+
+.ri-bar.is-future small,
+.ri-bar.is-future b {
+  opacity: 0.4;
+}
+
+@keyframes ri-grow {
+  from { transform: translateX(-50%) scaleY(0); }
+  to { transform: translateX(-50%) scaleY(1); }
+}
+
+.ri-unit {
+  margin: 14px 0 0;
+  color: var(--ri-soft);
+  font-size: 10px;
+  text-align: right;
+}
+
+/* Card rows (每月最长阅读, 正在读, 为你推荐) run edge to edge. */
+.ri-cards {
+  display: flex;
+  gap: 16px;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.ri-cards::-webkit-scrollbar,
+.ri-heat::-webkit-scrollbar {
+  display: none;
+}
+
+.ri-cards li {
+  display: grid;
+  flex: 0 0 116px;
+  justify-items: center;
+  gap: 4px;
+  scroll-snap-align: center;
+  text-align: center;
+}
+
+.ri-cards .rd-cover {
+  display: grid;
+  width: 116px;
+  height: 168px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--rd-on, #fff) 16%, transparent);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
+  color: var(--rd-on, #fff);
+}
+
+.ri-cards .rd-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ri-cards b {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.ri-cards small {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ri-soft);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ri-recommend b {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ri-recommend button {
+  margin-top: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--ri-line);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+}
+
+.ri-recommend button:disabled {
+  opacity: 0.5;
+}
+
+/* Heat grid: one column per week, rounded squares, month over its week. */
+.ri-heat {
+  display: flex;
+  gap: 4px;
+  margin: 0 -16px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ri-week {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-rows: 22px repeat(7, 15px);
+  gap: 4px;
+}
+
+.ri-week em {
+  color: var(--rd-on, #fff);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ri-week span {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: var(--rd-on, #fff);
+}
+
+.ri-week .level-0 { opacity: 0.12; }
+.ri-week .level-1 { opacity: 0.3; }
+.ri-week .level-2 { opacity: 0.5; }
+.ri-week .level-3 { opacity: 0.75; }
+.ri-week .level-4 { opacity: 1; }
+.ri-week .is-blank { visibility: hidden; }
+
+/* Period switch and the numbers. */
+.ri .reading-tabs.rubber-segment {
+  --rs-ink: var(--rd-on, #fff);
+  --rs-idle: 0.6;
+  display: grid;
+  width: max-content;
+  margin: 0 auto 22px;
+  box-shadow: inset 0 -1px 0 var(--ri-line);
+}
+
+.ri .reading-tabs .rubber-segment__thumb {
+  background: linear-gradient(var(--rd-on, #fff), var(--rd-on, #fff)) bottom / 100% var(--rs-line) no-repeat;
+  color: var(--rd-on, #fff);
+}
+
+.ri .reading-tabs .rubber-segment__item:focus-visible {
+  outline-color: var(--rd-on, #fff);
+}
+
+.ri-pills {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ri-pill {
+  display: grid;
+  min-height: 112px;
+  place-content: center;
+  gap: 10px;
+  padding: 16px 10px;
+  border: 1px solid var(--ri-line);
+  border-radius: 999px;
+  text-align: center;
+}
+
+.ri-pill small {
+  color: var(--ri-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.ri-pill b {
+  font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  line-height: 1;
+  transform: scaleX(1.18);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 划线和想法: plain rows. */
+.ri-notes {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ri-line);
+}
+
+.ri-notes button {
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ri-line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.ri-notes .rd-cover {
+  display: grid;
+  width: 38px;
+  height: 54px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--rd-on, #fff) 16%, transparent);
+  font-size: 10px;
+}
+
+.ri-notes .rd-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ri-notes span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ri-notes b {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ri-notes small {
+  color: var(--ri-soft);
+  font-size: 11px;
+}
+
+.ri-notes svg {
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+.ri-disconnect {
+  display: block;
+  margin: 0 auto;
+  padding: 8px 14px;
+  border: 0;
+  background: none;
+  color: var(--ri-soft);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ri-bar i { animation: none; }
 }

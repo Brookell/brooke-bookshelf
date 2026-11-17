@@ -2813,6 +2813,200 @@ function readingOverviewMarkup() {
   `;
 }
 
+// ---- Phones: the reading record as one coloured poster ----
+// Big title, monthly bars, each month's longest read as photo cards, the
+// year as a week-by-week heat grid, then the period's numbers in pills.
+
+const isCompactScreen = () => window.matchMedia("(max-width: 720px)").matches;
+
+// "12h 30m" / "45m": short enough for a card caption.
+function compactDuration(seconds) {
+  const minutes = Math.round((Number(seconds) || 0) / 60);
+  const hours = Math.floor(minutes / 60);
+  if (!hours) return `${minutes}m`;
+  return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
+}
+
+function readingMonthSeconds(year) {
+  const yearNumber = readingYearNumber(year);
+  const source = Object.keys(year?.dailyReadTimes || {}).length ? year.dailyReadTimes : year?.readTimes || {};
+  const months = Array(12).fill(0);
+  Object.entries(source).forEach(([key, value]) => {
+    const day = wereadDay(key);
+    if (day && day.year === yearNumber) months[day.month] += Number(value) || 0;
+  });
+  return months;
+}
+
+function insightsBarsMarkup(year) {
+  const months = readingMonthSeconds(year);
+  const max = Math.max(1, ...months);
+  // Hours, unless the whole year is under three hours a month.
+  const inHours = max >= 3 * 3600;
+  const now = new Date();
+  const thisYear = readingYearNumber(year) === now.getFullYear();
+  return `
+    <div class="ri-bars" role="img" aria-label="每月阅读时长">
+      ${months.map((seconds, month) => {
+        const future = thisYear && month > now.getMonth();
+        const value = inHours ? Math.round(seconds / 3600) : Math.round(seconds / 60);
+        return `
+          <div class="ri-bar${future ? " is-future" : ""}${thisYear && month === now.getMonth() ? " is-current" : ""}" style="--i: ${month}" title="${month + 1}月：${formatDuration(seconds)}">
+            <b>${future ? "" : value}</b>
+            <span><i style="--h: ${seconds ? Math.max(4, Math.round((seconds / max) * 100)) : 0}%"></i></span>
+            <small>${month + 1}</small>
+          </div>`;
+      }).join("")}
+    </div>
+    <p class="ri-unit">${inHours ? "单位：小时" : "单位：分钟"}</p>`;
+}
+
+function insightsMonthTopsMarkup() {
+  const tops = (reading.monthTops || []).filter((item) => item.book?.title && item.readTime > 0)
+    .sort((a, b) => a.month - b.month);
+  if (!tops.length) return `<p class="ri-empty">这一年还没有阅读记录。</p>`;
+  return `
+    <ol class="ri-cards" data-scroll-end>
+      ${tops.map((top) => `
+        <li title="${escapeHtml(cleanBookTitle(top.book.title))}">
+          ${readingCoverMarkup(top.book.cover, top.book.title)}
+          <b>${top.month + 1}月</b>
+          <small>${compactDuration(top.readTime)}</small>
+        </li>`).join("")}
+    </ol>`;
+}
+
+// Columns are weeks (Monday first), rows are days; month numbers sit over
+// the week each month starts in. Scrolled so today is in view.
+function insightsHeatmapMarkup(year) {
+  const yearNumber = readingYearNumber(year);
+  const byDay = readingDailyMap(year);
+  if (!byDay.size) return `<p class="ri-empty">微信读书这次没有返回每天的阅读数据。</p>`;
+  const level = (seconds) => (!seconds ? 0 : seconds < 900 ? 1 : seconds < 1800 ? 2 : seconds < 3600 ? 3 : 4);
+  const today = new Date();
+  const start = new Date(yearNumber, 0, 1);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = yearNumber === today.getFullYear() ? today : new Date(yearNumber, 11, 31);
+  const weeks = [];
+  for (let monday = new Date(start); monday <= end; monday.setDate(monday.getDate() + 7)) {
+    const days = [];
+    let label = "";
+    for (let i = 0; i < 7; i += 1) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      if (day.getFullYear() !== yearNumber || day > end) {
+        days.push('<span class="is-blank"></span>');
+        continue;
+      }
+      if (day.getDate() === 1) label = String(day.getMonth() + 1);
+      const seconds = byDay.get(`${day.getMonth()}-${day.getDate()}`) || 0;
+      days.push(`<span class="level-${level(seconds)}" title="${day.getMonth() + 1}月${day.getDate()}日：${seconds ? formatDuration(seconds) : "没有阅读"}"></span>`);
+    }
+    weeks.push(`<div class="ri-week"><em>${label}</em>${days.join("")}</div>`);
+  }
+  return `<div class="ri-heat" data-scroll-end role="img" aria-label="${yearNumber} 年每天的阅读时长">${weeks.join("")}</div>`;
+}
+
+function hoursText(seconds) {
+  const hours = (Number(seconds) || 0) / 3600;
+  return hours >= 10 ? String(Math.round(hours)) : String(Math.round(hours * 10) / 10);
+}
+
+function insightsStatsMarkup(stats) {
+  const books = (stats?.readStat || []).find((item) => /读过/.test(item.stat))?.counts;
+  const bookCount = books ? Number.parseInt(books, 10) : (stats?.readLongest || []).length;
+  const pills = [
+    ["总时长（小时）", stats ? hoursText(stats.totalReadTime) : "—"],
+    ["阅读天数", stats ? stats.readDays : "—"],
+    ["日均分钟", stats ? Math.round((stats.dayAverageReadTime || 0) / 60) : "—"],
+    ["读过的书", Number.isFinite(bookCount) ? bookCount : "—"],
+  ];
+  return `
+    <div class="ri-pills">
+      ${pills.map(([label, value]) => `
+        <div class="ri-pill"><small>${label}</small><b>${escapeHtml(String(value))}</b></div>`).join("")}
+    </div>`;
+}
+
+function readingInsightsMarkup() {
+  const stats = reading.stats[reading.mode];
+  const year = reading.year;
+  const yearNumber = readingYearNumber(year);
+  const progressBooks = reading.progress || [];
+  return `
+    <div class="ri">
+      <header class="ri-title">
+        <p>${yearNumber}</p>
+        <h3>Reading<br />Record</h3>
+      </header>
+      ${reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : ""}
+
+      <section class="ri-section">
+        <h4>月度阅读时长</h4>
+        ${year ? insightsBarsMarkup(year) : `<p class="ri-empty">没有读取到全年数据。</p>`}
+      </section>
+
+      <section class="ri-section">
+        <h4>每月最长阅读</h4>
+        ${insightsMonthTopsMarkup()}
+      </section>
+
+      <section class="ri-section">
+        <h4>阅读日历热力图</h4>
+        ${year ? insightsHeatmapMarkup(year) : `<p class="ri-empty">没有读取到全年数据。</p>`}
+      </section>
+
+      <section class="ri-section">
+        ${readingSegmentMarkup()}
+        ${insightsStatsMarkup(stats)}
+      </section>
+
+      ${progressBooks.length ? `
+      <section class="ri-section">
+        <h4>正在读</h4>
+        <ol class="ri-cards">
+          ${progressBooks.map((item) => `
+            <li title="${escapeHtml(cleanBookTitle(item.title))}">
+              ${readingCoverMarkup(item.cover, item.title)}
+              <b>${Number(item.progress) || 0}%</b>
+              <small>${escapeHtml(cleanBookTitle(item.title))}</small>
+            </li>`).join("")}
+        </ol>
+      </section>` : ""}
+
+      ${reading.notebooks?.length ? `
+      <section class="ri-section">
+        <h4>划线和想法</h4>
+        <ul class="ri-notes">
+          ${reading.notebooks.map((item, index) => `
+            <li><button type="button" data-reading-book="${index}">
+              ${readingCoverMarkup(item.book?.cover, item.book?.title)}
+              <span><b>${escapeHtml(cleanBookTitle(item.book?.title || ""))}</b><small>${item.highlights} 条划线${item.thoughts ? ` · ${item.thoughts} 条想法` : ""}</small></span>
+              <i data-lucide="arrow-up-right" aria-hidden="true"></i>
+            </button></li>`).join("")}
+        </ul>
+      </section>` : ""}
+
+      ${reading.recommend?.length ? `
+      <section class="ri-section">
+        <h4>为你推荐</h4>
+        <ol class="ri-cards ri-recommend">
+          ${reading.recommend.map((item, index) => {
+            const added = isRecommendAdded(item);
+            return `
+            <li>
+              ${readingCoverMarkup(item.cover, item.title)}
+              <b>${escapeHtml(cleanBookTitle(item.title))}</b>
+              <button type="button" data-reading-recommend="${index}" ${added ? "disabled" : ""}>${added ? "已加入" : "加入书架"}</button>
+            </li>`;
+          }).join("")}
+        </ol>
+      </section>` : ""}
+
+      <button type="button" class="ri-disconnect" id="readingDisconnect">断开微信读书</button>
+    </div>`;
+}
+
 function readingBookMarkup() {
   const data = reading.book;
   if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>← 返回阅读记录</button><p class="reading-muted">正在读取划线…</p>`;
@@ -3017,12 +3211,19 @@ function renderReadingPanel() {
   if (reading.loading) readingPanelBody.innerHTML = readingLoadingMarkup();
   else if (reading.connected === null) readingPanelBody.innerHTML = reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : "";
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
-  else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup() : readingOverviewMarkup();
+  else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup()
+    : isCompactScreen() ? readingInsightsMarkup() : readingOverviewMarkup();
+  readingPanel.toggleAttribute("data-insights", Boolean(readingPanelBody.querySelector(".ri")));
+  // Card rows and the heat grid start at the latest month / today.
+  readingPanelBody.querySelectorAll("[data-scroll-end]").forEach((row) => { row.scrollLeft = row.scrollWidth; });
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
   // Charts and calendar take the masthead's cover colour.
   const themed = reading.connected && !reading.loading && reading.view !== "book";
   readingPanel.toggleAttribute("data-themed", Boolean(themed));
-  if (themed) readingPanel.style.setProperty("--rd-c", readingThemeColor());
+  if (themed) {
+    readingPanel.style.setProperty("--rd-c", readingThemeColor());
+    readingPanel.style.setProperty("--rd-on", inkForColor(readingThemeColor()));
+  }
   setupReadingSegment();
   updateSetupCard();
 }
@@ -3938,8 +4139,9 @@ function openBookDetail(index, { sourceElement = null, sourceMode = "shelf" } = 
   detailIndex = index;
   detailOriginStale = false;
   detailSwipeBusy = false;
-  detail.classList.remove("is-swipe-animating");
-  setDetailSwipe(0, 1);
+  detail.classList.remove("is-swipe-animating", "is-swipe-swap", "is-swipe-copy-in");
+  setDetailSwipe(0, 0);
+  resetDetailPeek();
   detailSourceElement = sourceMode === "my-room" ? source.closest(".my-room-book") : bookElements[index];
   detailSourceMode = sourceMode;
   populateBookDetail(index);
@@ -4079,36 +4281,81 @@ function showDetailNeighbor(neighbor) {
 }
 
 let detailSwipeBusy = false;
+let detailPeekStep = 0;
+let detailPeekNeighbor = null;
+const detailPeek = document.querySelector("#detailPeek");
+const detailPeekFront = document.querySelector("#detailPeekFront");
+const detailBgNext = document.querySelector("#detailBgNext");
 
-function setDetailSwipe(offset, fade) {
-  detail.style.setProperty("--swipe-x", `${offset}px`);
-  detail.style.setProperty("--swipe-fade", String(fade));
+function detailSwipeSpacing() {
+  return Math.min(window.innerWidth * 0.78, 420);
 }
 
-// Slide the current book out toward the finger, swap in the neighbour from
-// the other side.
-function stepDetail(step) {
-  if (detailSwipeBusy || !detail.classList.contains("is-settled")) return false;
+function setDetailSwipe(offset, progress) {
+  detail.style.setProperty("--swipe-x", `${offset}px`);
+  detail.style.setProperty("--swipe-progress", String(progress));
+}
+
+// The neighbouring cover waits just off-centre and moves with the finger,
+// like a carousel; the next book's colour fades in behind it.
+function prepareDetailPeek(step) {
+  if (detailPeekStep === step && detailPeekNeighbor) return detailPeekNeighbor;
   const neighbor = detailNeighbor(step);
+  detailPeekStep = step;
+  detailPeekNeighbor = neighbor;
+  if (!neighbor || !detailPeek) return neighbor;
+  const book = books[neighbor.index];
+  const rect = getDetailBookRect(neighbor.index);
+  getDetailBookRect(detailIndex);
+  detailPeekFront.innerHTML = coverMarkup(book, neighbor.index);
+  detailPeek.style.width = `${rect.width}px`;
+  detailPeek.style.height = `${rect.height}px`;
+  detailPeek.style.transform = `translate3d(${rect.left}px, ${rect.top}px, 0)`;
+  detailPeek.style.setProperty("--peek-offset", `${step * detailSwipeSpacing()}px`);
+  detailPeek.style.setProperty("--cover", book.color);
+  detailPeek.style.setProperty("--cover-ink", book.ink);
+  detailPeek.style.setProperty("--art-opacity", String(book.opacity ?? 1));
+  detailPeek.style.setProperty("--art-filter", book.filter ?? "none");
+  detailBgNext.style.background = book.detailColor ?? book.color;
+  detailPeek.hidden = false;
+  return neighbor;
+}
+
+function resetDetailPeek() {
+  detailPeekStep = 0;
+  detailPeekNeighbor = null;
+  if (detailPeek) detailPeek.hidden = true;
+}
+
+// Glide both covers one step, then hand the centre over to the neighbour.
+function commitDetailStep(step) {
+  const neighbor = prepareDetailPeek(step);
   if (!neighbor) return false;
   detailSwipeBusy = true;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const distance = Math.min(window.innerWidth * 0.7, 360);
   detail.classList.add("is-swipe-animating");
-  setDetailSwipe(-step * distance, 0);
+  setDetailSwipe(-step * detailSwipeSpacing(), 1);
   window.setTimeout(() => {
     detail.classList.remove("is-swipe-animating");
+    detail.classList.add("is-swipe-swap");
     showDetailNeighbor(neighbor);
-    setDetailSwipe(step * distance * 0.6, 0);
+    resetDetailPeek();
+    setDetailSwipe(0, 0);
+    detail.style.setProperty("--copy-from", `${step * 28}px`);
     detail.getBoundingClientRect();
-    detail.classList.add("is-swipe-animating");
-    setDetailSwipe(0, 1);
+    detail.classList.remove("is-swipe-swap");
+    detail.classList.add("is-swipe-copy-in");
     window.setTimeout(() => {
-      detail.classList.remove("is-swipe-animating");
+      detail.classList.remove("is-swipe-copy-in");
       detailSwipeBusy = false;
-    }, reduced ? 20 : 300);
-  }, reduced ? 20 : 200);
+    }, reduced ? 20 : 420);
+  }, reduced ? 20 : 340);
   return true;
+}
+
+function stepDetail(step) {
+  if (detailSwipeBusy || !detail.classList.contains("is-settled")) return false;
+  return commitDetailStep(step);
 }
 
 let detailTouch = null;
@@ -4116,7 +4363,7 @@ let detailTouch = null;
 detail.addEventListener("touchstart", (event) => {
   if (detailSwipeBusy || event.touches.length !== 1 || !detail.classList.contains("is-settled")) return;
   const touch = event.touches[0];
-  detailTouch = { x: touch.clientX, y: touch.clientY, time: Date.now(), dx: 0, horizontal: null };
+  detailTouch = { x: touch.clientX, y: touch.clientY, lastX: touch.clientX, lastTime: Date.now(), velocity: 0, dx: 0, horizontal: null };
 }, { passive: true });
 
 detail.addEventListener("touchmove", (event) => {
@@ -4127,20 +4374,33 @@ detail.addEventListener("touchmove", (event) => {
   if (detailTouch.horizontal === null && Math.hypot(dx, dy) > 8) detailTouch.horizontal = Math.abs(dx) > Math.abs(dy) * 1.2;
   if (!detailTouch.horizontal) return;
   event.preventDefault();
+  const now = Date.now();
+  detailTouch.velocity = (touch.clientX - detailTouch.lastX) / Math.max(1, now - detailTouch.lastTime);
+  detailTouch.lastX = touch.clientX;
+  detailTouch.lastTime = now;
   detailTouch.dx = dx;
-  setDetailSwipe(dx, Math.max(0.15, 1 - Math.abs(dx) / (window.innerWidth * 0.8)));
+  const step = dx < 0 ? 1 : -1;
+  const spacing = detailSwipeSpacing();
+  // No neighbour (a one-book room): resist instead of moving freely.
+  const hasNeighbor = dx !== 0 && prepareDetailPeek(step);
+  const offset = hasNeighbor ? dx : dx * 0.25;
+  setDetailSwipe(offset, hasNeighbor ? Math.min(1, Math.abs(dx) / spacing) : 0);
 }, { passive: false });
 
 function endDetailTouch() {
   if (!detailTouch) return;
-  const { dx, horizontal, time } = detailTouch;
+  const { dx, horizontal, velocity } = detailTouch;
   detailTouch = null;
   if (!horizontal) return;
-  const fast = Math.abs(dx) > 30 && Math.abs(dx) / Math.max(1, Date.now() - time) > 0.45;
-  if ((Math.abs(dx) > 70 || fast) && stepDetail(dx < 0 ? 1 : -1)) return;
+  const step = dx < 0 ? 1 : -1;
+  const flick = Math.abs(velocity) > 0.35 && Math.sign(velocity) === Math.sign(dx);
+  if ((Math.abs(dx) > detailSwipeSpacing() * 0.28 || flick) && commitDetailStep(step)) return;
   detail.classList.add("is-swipe-animating");
-  setDetailSwipe(0, 1);
-  window.setTimeout(() => detail.classList.remove("is-swipe-animating"), 300);
+  setDetailSwipe(0, 0);
+  window.setTimeout(() => {
+    detail.classList.remove("is-swipe-animating");
+    resetDetailPeek();
+  }, 340);
 }
 
 detail.addEventListener("touchend", endDetailTouch);
