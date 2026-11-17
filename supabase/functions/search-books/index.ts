@@ -8,7 +8,7 @@
 // falls back to Google Books. Both upstream keys live in Supabase secrets:
 //   WEREAD_API_KEY        (required for WeRead; the site owner's personal key)
 //   GOOGLE_BOOKS_API_KEY  (optional; keyless Google is heavily rate limited)
-//   WEREAD_SKILL_VERSION  (optional; defaults to SKILL_VERSION below)
+//   WEREAD_SKILL_VERSION  (optional; starting version, see callGateway)
 //
 // Because WEREAD_API_KEY belongs to one person's account, every search is:
 // - only allowed for signed-in users (JWT verified by the gateway + /auth/v1/user)
@@ -20,7 +20,7 @@ import { decode } from "https://deno.land/x/imagescript@1.2.17/mod.ts";
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
 // Must match the `version` in tencent/wechatreading skills/SKILL.md; the
 // gateway refuses older versions with an upgrade_info message.
-const SKILL_VERSION = "1.0.5";
+const INITIAL_SKILL_VERSION = Deno.env.get("WEREAD_SKILL_VERSION") || "1.0.6";
 const MAX_LIMIT = 12;
 // Enough for a user to fill intros for a few dozen saved books in one go.
 const RATE_LIMIT_PER_HOUR = 120;
@@ -119,21 +119,56 @@ function largerWereadCover(url: string) {
   return url.replace(/\/s_([^/]+)$/, "/t9_$1").replace(/^http:/, "https:");
 }
 
+// WeRead refuses calls made with an outdated skill version (upgrade_info).
+// Start from the version we know and, if refused, read the current one from
+// the official skill file (Tencent/wechatreading skills/SKILL.md) and retry
+// once. The version is kept for the life of this function instance.
+const SKILL_FILE_URL = "https://raw.githubusercontent.com/Tencent/wechatreading/main/skills/SKILL.md";
+let currentSkillVersion = "";
+
+async function latestSkillVersion(): Promise<string> {
+  try {
+    const response = await fetch(SKILL_FILE_URL, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return "";
+    const match = (await response.text()).match(/^version:\s*([0-9][0-9.]*)\s*$/m);
+    return match ? match[1] : "";
+  } catch {
+    return "";
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function callGateway(apiKey: string, body: Record<string, unknown>): Promise<{ response: Response; data: any }> {
+  if (!currentSkillVersion) currentSkillVersion = INITIAL_SKILL_VERSION;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(WEREAD_GATEWAY_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, skill_version: currentSkillVersion }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (data.upgrade_info && attempt === 0) {
+      const latest = await latestSkillVersion();
+      if (latest && latest !== currentSkillVersion) {
+        console.log("weread skill version", currentSkillVersion, "->", latest);
+        currentSkillVersion = latest;
+        continue;
+      }
+    }
+    return { response, data };
+  }
+  throw new Error("unreachable");
+}
+
 async function searchWeread(query: string, limit: number): Promise<SearchResult[]> {
   const apiKey = env("WEREAD_API_KEY");
   if (!apiKey) return [];
-  const response = await fetch(WEREAD_GATEWAY_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_name: "/store/search",
-      skill_version: env("WEREAD_SKILL_VERSION") || SKILL_VERSION,
-      keyword: query,
-      scope: 10,
-      count: limit,
-    }),
+  const { response, data } = await callGateway(apiKey, {
+    api_name: "/store/search",
+    keyword: query,
+    scope: 10,
+    count: limit,
   });
-  const data = await response.json().catch(() => ({}));
   if (!response.ok || data.errcode || data.upgrade_info) {
     console.error("weread search failed", response.status, data.errcode, data.errmsg || data.upgrade_info?.message);
     return [];
@@ -175,16 +210,7 @@ type BookInfo = {
 async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
   const apiKey = env("WEREAD_API_KEY");
   if (!apiKey) return null;
-  const response = await fetch(WEREAD_GATEWAY_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_name: "/book/info",
-      skill_version: env("WEREAD_SKILL_VERSION") || SKILL_VERSION,
-      bookId,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
+  const { response, data } = await callGateway(apiKey, { api_name: "/book/info", bookId });
   if (!response.ok || data.errcode || data.upgrade_info) {
     console.error("weread book info failed", response.status, data.errcode, data.errmsg || data.upgrade_info?.message);
     return null;

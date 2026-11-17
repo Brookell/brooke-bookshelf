@@ -19,8 +19,8 @@
 //                                                  read books on the WeRead shelf
 
 const WEREAD_GATEWAY_URL = "https://i.weread.qq.com/api/agent/gateway";
-// Must match the `version` in tencent/wechatreading skills/SKILL.md.
-const SKILL_VERSION = "1.0.5";
+// The `version` in Tencent/wechatreading skills/SKILL.md; see callGateway.
+const INITIAL_SKILL_VERSION = "1.0.6";
 const RATE_LIMIT_PER_HOUR = 200;
 
 const corsHeaders = {
@@ -119,14 +119,51 @@ async function loadSavedKey(userId: string) {
 
 // ---- WeRead gateway ----
 
+// WeRead refuses calls made with an outdated skill version (upgrade_info).
+// Start from the version we know and, if refused, read the current one from
+// the official skill file (Tencent/wechatreading skills/SKILL.md) and retry
+// once. The version is kept for the life of this function instance.
+const SKILL_FILE_URL = "https://raw.githubusercontent.com/Tencent/wechatreading/main/skills/SKILL.md";
+let currentSkillVersion = "";
+
+async function latestSkillVersion(): Promise<string> {
+  try {
+    const response = await fetch(SKILL_FILE_URL, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return "";
+    const match = (await response.text()).match(/^version:\s*([0-9][0-9.]*)\s*$/m);
+    return match ? match[1] : "";
+  } catch {
+    return "";
+  }
+}
+
+// deno-lint-ignore no-explicit-any
+async function callGateway(apiKey: string, body: Record<string, unknown>): Promise<{ response: Response; data: any }> {
+  if (!currentSkillVersion) currentSkillVersion = INITIAL_SKILL_VERSION;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(WEREAD_GATEWAY_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, skill_version: currentSkillVersion }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (data.upgrade_info && attempt === 0) {
+      const latest = await latestSkillVersion();
+      if (latest && latest !== currentSkillVersion) {
+        console.log("weread skill version", currentSkillVersion, "->", latest);
+        currentSkillVersion = latest;
+        continue;
+      }
+    }
+    return { response, data };
+  }
+  throw new Error("unreachable");
+}
+
+
 // deno-lint-ignore no-explicit-any
 async function weread(apiKey: string, apiName: string, params: Record<string, unknown> = {}): Promise<any> {
-  const response = await fetch(WEREAD_GATEWAY_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ api_name: apiName, skill_version: SKILL_VERSION, ...params }),
-  });
-  const data = await response.json().catch(() => ({}));
+  const { response, data } = await callGateway(apiKey, { api_name: apiName, ...params });
   if (data.upgrade_info) throw new WereadError("weread_upgrade_required", data.upgrade_info.message || "");
   if (data.errcode === -2012) throw new WereadError("weread_key_expired", data.errmsg || "");
   if (!response.ok || data.errcode) {
