@@ -6939,3 +6939,123 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 @media (prefers-reduced-motion: reduce) {
   .ri-bar i { animation: none; }
 }
+
+/* ---- 笔记: every book with notes under the random one ---- */
+.notes-all {
+  margin-top: 18px;
+  padding-top: 26px;
+  border-top: 1px solid var(--hairline);
+}
+
+.notes-all h3 {
+  margin: 0 0 6px;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.notes-all h3 small {
+  margin-left: 6px;
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.notes-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notes-list button {
+  display: grid;
+  grid-template-columns: 46px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 1px solid var(--hairline);
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.notes-list .rd-cover {
+  display: grid;
+  width: 46px;
+  height: 66px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 3px;
+  background: rgba(21, 21, 21, 0.08);
+  box-shadow: 0 6px 14px rgba(21, 21, 21, 0.14);
+  font-size: 11px;
+}
+
+.notes-list .rd-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.notes-list span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.notes-list b {
+  overflow: hidden;
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 16px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-list small,
+.notes-list em {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes-list svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+}
+
+/* One book's notes, opened from the list. */
+.notes-book .reading-back {
+  margin-left: -14px;
+}
+
+.notes-book .reading-section h3 {
+  margin: 28px 0 4px;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 17px;
+}
+
+.notes-book blockquote {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid rgba(21, 21, 21, 0.25);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.notes-book .reading-thought blockquote {
+  margin: 0;
+  color: rgba(21, 21, 21, 0.62);
+  font-size: 14px;
+}

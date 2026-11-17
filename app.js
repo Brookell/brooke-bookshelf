@@ -2711,7 +2711,7 @@ function readingMastheadMarkup(stats) {
 
 function readingQuoteMarkup(number) {
   const quote = reading.quote;
-  // Phones have 摘录 as its own tab, so the reading record leaves it out.
+  // Phones have 笔记 as its own tab, so the reading record leaves it out.
   if (!quote || !number) return "";
   return `
     <section class="rd-section rd-span-3">
@@ -2974,19 +2974,6 @@ function readingInsightsMarkup() {
         </ol>
       </section>` : ""}
 
-      ${reading.notebooks?.length ? `
-      <section class="ri-section">
-        <h4>划线和想法</h4>
-        <ul class="ri-notes">
-          ${reading.notebooks.map((item, index) => `
-            <li><button type="button" data-reading-book="${index}">
-              ${readingCoverMarkup(item.book?.cover, item.book?.title)}
-              <span><b>${escapeHtml(cleanBookTitle(item.book?.title || ""))}</b><small>${item.highlights} 条划线${item.thoughts ? ` · ${item.thoughts} 条想法` : ""}</small></span>
-              <i data-lucide="arrow-up-right" aria-hidden="true"></i>
-            </button></li>`).join("")}
-        </ul>
-      </section>` : ""}
-
       ${reading.recommend?.length ? `
       <section class="ri-section">
         <h4>为你推荐</h4>
@@ -3007,9 +2994,8 @@ function readingInsightsMarkup() {
     </div>`;
 }
 
-function readingBookMarkup() {
-  const data = reading.book;
-  if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>← 返回阅读记录</button><p class="reading-muted">正在读取划线…</p>`;
+function readingBookMarkup(data = reading.book, backText = "← 返回阅读记录") {
+  if (!data?.loaded) return `<button type="button" class="reading-back" data-reading-back>${backText}</button><p class="reading-muted">正在读取划线…</p>`;
   const chapters = new Map((data.chapters || []).map((chapter) => [String(chapter.chapterUid), chapter]));
   const start = (range) => Number(String(range || "").split("-")[0]) || 0;
   const groups = new Map();
@@ -3031,7 +3017,7 @@ function readingBookMarkup() {
       <small>${escapeHtml(item.chapterName || "")}${item.createTime ? ` · ${new Date(item.createTime * 1000).toLocaleDateString("zh-CN")}` : ""}</small>
     </article>`).join("");
   return `
-    <button type="button" class="reading-back" data-reading-back>← 返回阅读记录</button>
+    <button type="button" class="reading-back" data-reading-back>${backText}</button>
     <h3 class="reading-book-title">${escapeHtml(data.title || "")}</h3>
     ${thoughts ? `<section class="reading-section"><h3>我的想法 <small>${data.thoughts.filter((item) => item.content).length} 条</small></h3>${thoughts}</section>` : ""}
     ${highlights ? `<section class="reading-section"><h3>我的划线 <small>${data.highlights.length} 条</small></h3>${highlights}</section>` : ""}
@@ -5400,9 +5386,33 @@ function runProfileAction(action) {
   }
 }
 
-// ---- 摘录 page (phone tab): one highlight at a time, 换一条 for another ----
+// ---- 笔记 page (phone tab) ----
+// A random highlight on top (换一条 for another), then every book with
+// highlights or thoughts; tapping one shows that book's notes here.
 
 let quotePanelTimer = 0;
+const notes = { view: "list", book: null };
+
+function notesListMarkup() {
+  const list = reading.notebooks || [];
+  if (!list.length) return "";
+  return `
+    <section class="notes-all">
+      <h3>全部笔记 <small>${list.length} 本书</small></h3>
+      <ul class="notes-list">
+        ${list.map((item, index) => `
+          <li><button type="button" data-notes-book="${index}">
+            ${readingCoverMarkup(item.book?.cover, item.book?.title)}
+            <span>
+              <b>${escapeHtml(cleanBookTitle(item.book?.title || ""))}</b>
+              <small>${escapeHtml(item.book?.author || "")}</small>
+              <em>${item.highlights} 条划线${item.thoughts ? ` · ${item.thoughts} 条想法` : ""}</em>
+            </span>
+            <i data-lucide="chevron-right" aria-hidden="true"></i>
+          </button></li>`).join("")}
+      </ul>
+    </section>`;
+}
 
 function renderQuotePanel(state = "ready") {
   if (!quotePanelBody) return;
@@ -5411,20 +5421,48 @@ function renderQuotePanel(state = "ready") {
   } else if (state === "connect") {
     quotePanelBody.innerHTML = `
       <div class="quote-panel-empty">
-        <p>摘录来自你在微信读书里划过的句子。连接微信读书后，这里每次会随机给你一句。</p>
+        <p>笔记来自你在微信读书里的划线和想法。连接微信读书后，这里会随机给你一句，下面是每本书的笔记。</p>
         <button type="button" class="quote-panel-button" data-quote-connect>去连接微信读书</button>
       </div>`;
+  } else if (notes.view === "book") {
+    quotePanelBody.innerHTML = `<div class="notes-book">${readingBookMarkup(notes.book, "← 全部笔记")}</div>`;
   } else if (!reading.quote) {
-    quotePanelBody.innerHTML = `<div class="quote-panel-empty"><p>还没有找到你的划线。在微信读书里划过句子之后，这里就会出现。</p></div>`;
+    quotePanelBody.innerHTML = `<div class="quote-panel-empty"><p>还没有找到你的划线。在微信读书里划过句子之后，这里就会出现。</p></div>${notesListMarkup()}`;
   } else {
     const quote = reading.quote;
     quotePanelBody.innerHTML = `
       <div class="rd-quote-card quote-panel-card${quote.cover ? " has-cover" : ""}" style="${quoteColorStyle(quote)}" aria-live="polite">${readingQuoteCardInner(quote)}</div>
       <button type="button" class="quote-panel-button" data-quote-shuffle>
         <i data-lucide="shuffle" aria-hidden="true"></i><span>换一条</span>
-      </button>`;
+      </button>
+      ${notesListMarkup()}`;
   }
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+async function openNotesBook(index) {
+  const item = reading.notebooks?.[index];
+  if (!item?.book?.bookId) return;
+  notes.listScroll = quotePanel.scrollTop;
+  notes.view = "book";
+  notes.book = { title: item.book.title, loaded: false };
+  renderQuotePanel();
+  quotePanel.scrollTop = 0;
+  try {
+    const data = await callWereadMe("highlights", { bookId: item.book.bookId });
+    notes.book = { ...data, title: item.book.title, loaded: true };
+  } catch (error) {
+    console.warn(error);
+    notes.book = { title: item.book.title, loaded: true, highlights: [], thoughts: [] };
+  }
+  if (notes.view === "book") renderQuotePanel();
+}
+
+function closeNotesBook() {
+  notes.view = "list";
+  notes.book = null;
+  renderQuotePanel();
+  quotePanel.scrollTop = notes.listScroll || 0;
 }
 
 async function openQuotePanel() {
@@ -5496,7 +5534,14 @@ quotePanelBody?.addEventListener("click", (event) => {
   if (target?.closest("[data-quote-connect]")) {
     closeQuotePanel({ immediate: true });
     openReadingPanel();
+    return;
   }
+  const bookButton = target?.closest("[data-notes-book]");
+  if (bookButton) {
+    openNotesBook(Number(bookButton.dataset.notesBook));
+    return;
+  }
+  if (target?.closest("[data-reading-back]")) closeNotesBook();
 });
 
 // Which tab is lit follows whatever is on screen.
@@ -5542,7 +5587,11 @@ tabBar?.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-tab]") : null;
   if (!button) return;
   if (button.dataset.tab === "shelf") goToShelf();
-  else if (button.dataset.tab === "quote") openQuotePanel();
+  else if (button.dataset.tab === "quote") {
+    // Tapping 笔记 again from inside a book goes back to the list.
+    if (!quotePanel.hidden && notes.view === "book") closeNotesBook();
+    else openQuotePanel();
+  }
   else if (button.dataset.tab === "reading") {
     closeProfile({ immediate: true });
     closeQuotePanel({ immediate: true });
