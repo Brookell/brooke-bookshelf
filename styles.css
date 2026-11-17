@@ -6005,3 +6005,125 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     display: none;
   }
 }
+
+/* ---- 摘录 page (phone tab) ---- */
+.quote-panel {
+  z-index: 85;
+}
+
+.library.is-quote-open,
+.library.is-quote-open .my-shelf.is-room-view {
+  background-color: var(--paper);
+}
+
+.quote-panel-body {
+  display: grid;
+  max-width: 640px;
+  gap: 28px;
+  padding-top: 34px;
+}
+
+.quote-panel .rd-quote-card {
+  display: grid;
+  gap: 22px;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+
+.quote-panel .rd-quote-card.has-cover {
+  grid-template-columns: 1fr;
+}
+
+.quote-panel .rd-quote-card.is-changing {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.quote-panel .rd-quote-cover {
+  width: 116px;
+  margin: 0;
+}
+
+.quote-panel .rd-quote-cover .rd-cover {
+  border-radius: 3px;
+  box-shadow: 0 16px 32px rgba(21, 21, 21, 0.18);
+}
+
+.quote-panel .rd-quote {
+  margin: 0;
+  padding: 2px 0 2px 20px;
+  border-left: 3px solid var(--quote-c, var(--ink));
+  transition: border-color 400ms ease;
+}
+
+.quote-panel .rd-quote p {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 21px;
+  line-height: 1.75;
+}
+
+.quote-panel .rd-quote p::before { content: "“"; }
+.quote-panel .rd-quote p::after { content: "”"; }
+
+.quote-panel .rd-quote cite {
+  display: block;
+  margin-top: 14px;
+  color: var(--muted);
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 13px;
+  font-style: normal;
+}
+
+.quote-panel-button {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  font: 600 13px Arial, Helvetica, "Songti SC", "STSong", serif;
+}
+
+.quote-panel-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.quote-panel-button:disabled {
+  opacity: 0.6;
+}
+
+.quote-panel-button:disabled svg {
+  animation: add-book-spin 0.8s linear infinite;
+}
+
+.quote-panel-note,
+.quote-panel-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.quote-panel-empty {
+  display: grid;
+  gap: 18px;
+}
+
+@media (max-width: 720px) {
+  .tab-bar {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+
+  .quote-panel {
+    padding-bottom: max(112px, calc(env(safe-area-inset-bottom) + 104px));
+  }
+}

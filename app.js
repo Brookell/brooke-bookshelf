@@ -57,6 +57,9 @@ const profilePanel = document.querySelector("#profilePanel");
 const profileBody = document.querySelector("#profileBody");
 const profileClose = document.querySelector("#profileClose");
 const tabBar = document.querySelector("#tabBar");
+const quotePanel = document.querySelector("#quotePanel");
+const quotePanelBody = document.querySelector("#quotePanelBody");
+const quotePanelClose = document.querySelector("#quotePanelClose");
 const readingPanelClose = document.querySelector("#readingPanelClose");
 const readingPanelToggle = document.querySelector("#readingPanelToggle");
 const coverPicker = document.querySelector("#coverPicker");
@@ -1006,7 +1009,7 @@ function updateOnboarding() {
   // Not on a book's detail page: its own 加入我的书架 switch is right there,
   // and a second "add" card would only cover the cover.
   const shouldShow = !hasSavedBooks() && bookIndex.hidden && myShelf.hidden && shelfHelp.hidden && addBookPanel.hidden
-    && (!readingPanel || readingPanel.hidden) && (!profilePanel || profilePanel.hidden) && detailIndex === null;
+    && (!readingPanel || readingPanel.hidden) && (!profilePanel || profilePanel.hidden) && (!quotePanel || quotePanel.hidden) && detailIndex === null;
   if (!shouldShow) {
     shelfOnboarding.classList.remove("is-visible");
     onboardingCloseTimer = window.setTimeout(() => {
@@ -2590,8 +2593,8 @@ function readingQuoteInner(quote) {
 }
 
 // 换一条: swap just the quote, with a short fade, without redrawing the panel.
-async function shuffleReadingQuote(button) {
-  const box = readingPanelBody.querySelector(".rd-quote-card");
+async function shuffleReadingQuote(button, root = readingPanelBody) {
+  const box = root.querySelector(".rd-quote-card");
   if (!box || button.disabled) return;
   button.disabled = true;
   box.classList.add("is-changing");
@@ -4377,6 +4380,7 @@ readingPanelBody.addEventListener("click", async (event) => {
       console.warn(error);
     }
     Object.assign(reading, { connected: false, stats: {}, year: null, notebooks: null, progress: null, recommend: null, monthTops: null, quote: undefined, highlightCache: {}, error: "" });
+    closeQuotePanel({ immediate: true });
     renderReadingPanel();
   }
 });
@@ -4788,12 +4792,112 @@ function runProfileAction(action) {
   else if (action === "help" && shelfHelp.hidden) toggleShelfHelp();
 }
 
+// ---- 摘录 page (phone tab): one highlight at a time, 换一条 for another ----
+
+let quotePanelTimer = 0;
+
+function renderQuotePanel(state = "ready") {
+  if (!quotePanelBody) return;
+  if (state === "loading") {
+    quotePanelBody.innerHTML = `<p class="quote-panel-note">正在翻你的笔记…</p>`;
+  } else if (state === "connect") {
+    quotePanelBody.innerHTML = `
+      <div class="quote-panel-empty">
+        <p>摘录来自你在微信读书里划过的句子。连接微信读书后，这里每次会随机给你一句。</p>
+        <button type="button" class="quote-panel-button" data-quote-connect>去连接微信读书</button>
+      </div>`;
+  } else if (!reading.quote) {
+    quotePanelBody.innerHTML = `<div class="quote-panel-empty"><p>还没有找到你的划线。在微信读书里划过句子之后，这里就会出现。</p></div>`;
+  } else {
+    const quote = reading.quote;
+    quotePanelBody.innerHTML = `
+      <div class="rd-quote-card quote-panel-card${quote.cover ? " has-cover" : ""}" style="${quoteColorStyle(quote)}" aria-live="polite">${readingQuoteCardInner(quote)}</div>
+      <button type="button" class="quote-panel-button" data-quote-shuffle>
+        <i data-lucide="shuffle" aria-hidden="true"></i><span>换一条</span>
+      </button>`;
+  }
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+async function openQuotePanel() {
+  if (!isSignedIn()) {
+    openAuthGate(() => openQuotePanel());
+    return;
+  }
+  if (detailIndex !== null) closeBookDetail();
+  closeProfile({ immediate: true });
+  closeReadingPanel({ immediate: true, returnToShelf: false });
+  closeShelfHelp({ immediate: true });
+  closeBookIndex({ restoreFocus: false, immediate: true });
+  closeAddBookPanel({ restoreFocus: false, immediate: true, targetSpace: activeSpace });
+  window.clearTimeout(quotePanelTimer);
+  quotePanel.hidden = false;
+  quotePanel.setAttribute("aria-hidden", "false");
+  updateOnboarding();
+  requestAnimationFrame(() => {
+    library.classList.add("is-quote-open");
+    quotePanel.classList.add("is-visible");
+  });
+  if (reading.quote) {
+    renderQuotePanel();
+    return;
+  }
+  renderQuotePanel("loading");
+  try {
+    if (reading.connected === null) reading.connected = Boolean((await callWereadMe("status")).connected);
+    if (!reading.connected) {
+      renderQuotePanel("connect");
+      return;
+    }
+    if (!reading.notebooks) reading.notebooks = (await callWereadMe("notebooks")).books || [];
+    reading.quote = undefined;
+    await loadReadingQuote();
+  } catch (error) {
+    console.warn(error);
+    if (error.code === "not_connected") {
+      reading.connected = false;
+      renderQuotePanel("connect");
+      return;
+    }
+  }
+  renderQuotePanel();
+}
+
+function closeQuotePanel({ immediate = false } = {}) {
+  if (!quotePanel || quotePanel.hidden) return;
+  window.clearTimeout(quotePanelTimer);
+  library.classList.remove("is-quote-open");
+  quotePanel.classList.remove("is-visible");
+  quotePanel.setAttribute("aria-hidden", "true");
+  const finish = () => {
+    if (!quotePanel.classList.contains("is-visible")) quotePanel.hidden = true;
+    updateOnboarding();
+  };
+  if (immediate) finish();
+  else quotePanelTimer = window.setTimeout(finish, 480);
+}
+
+quotePanelClose?.addEventListener("click", () => closeQuotePanel());
+quotePanelBody?.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  const shuffle = target?.closest("[data-quote-shuffle]");
+  if (shuffle) {
+    shuffleReadingQuote(shuffle, quotePanelBody);
+    return;
+  }
+  if (target?.closest("[data-quote-connect]")) {
+    closeQuotePanel({ immediate: true });
+    openReadingPanel();
+  }
+});
+
 // Which tab is lit follows whatever is on screen.
 function updateTabBar() {
   if (!tabBar) return;
   const current = !readingPanel.hidden && library.classList.contains("is-reading-open") ? "reading"
     : !profilePanel.hidden && library.classList.contains("is-profile-open") ? "profile"
-      : "shelf";
+      : quotePanel && !quotePanel.hidden && library.classList.contains("is-quote-open") ? "quote"
+        : "shelf";
   tabBar.querySelectorAll("[data-tab]").forEach((button) => {
     if (button.dataset.tab === current) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
@@ -4802,6 +4906,7 @@ function updateTabBar() {
 
 function goToShelf() {
   closeProfile({ immediate: true });
+  closeQuotePanel({ immediate: true });
   closeReadingPanel({ immediate: true, returnToShelf: false });
   closeShelfHelp({ immediate: true });
   closeBookIndex({ restoreFocus: false, immediate: true });
@@ -4820,10 +4925,15 @@ tabBar?.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-tab]") : null;
   if (!button) return;
   if (button.dataset.tab === "shelf") goToShelf();
+  else if (button.dataset.tab === "quote") openQuotePanel();
   else if (button.dataset.tab === "reading") {
     closeProfile({ immediate: true });
+    closeQuotePanel({ immediate: true });
     openReadingPanel();
-  } else openProfile();
+  } else {
+    closeQuotePanel({ immediate: true });
+    openProfile();
+  }
 });
 new MutationObserver(updateTabBar).observe(library, { attributes: true, attributeFilter: ["class"] });
 
