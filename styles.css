@@ -6322,3 +6322,44 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     top: max(16px, env(safe-area-inset-top));
   }
 }
+
+/* Setup card collapsed: a small hint button under the title; tap to see
+   the three steps. */
+@media (max-width: 720px) {
+  .setup-card.is-collapsed {
+    right: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .setup-pill {
+    display: inline-flex;
+    min-height: 38px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px 0 12px;
+    border: 1px solid rgba(21, 21, 21, 0.12);
+    border-radius: 999px;
+    background: rgba(250, 249, 246, 0.9);
+    box-shadow: 0 6px 18px rgba(21, 21, 21, 0.08);
+    color: var(--ink);
+    font: 600 13px Arial, Helvetica, "Songti SC", serif;
+  }
+
+  .setup-pill svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .setup-pill b {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 11px;
+  }
+}

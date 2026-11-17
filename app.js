@@ -4659,6 +4659,8 @@ function logVisit() {
 var SETUP_DISMISSED_KEY = "brooke-bookshelf:setup-dismissed";
 var setupStatusRequested = false;
 var setupReady = false;
+// Collapsed to a small hint button until tapped.
+var setupOpen = false;
 
 function setupDismissed() {
   try { return window.localStorage.getItem(SETUP_DISMISSED_KEY) === "1"; } catch { return false; }
@@ -4676,7 +4678,7 @@ function updateSetupCard() {
   if (!card || !setupReady) return;
   const signedIn = isSignedIn();
   const hasBooks = hasSavedBooks();
-  if ((signedIn && hasBooks) || setupDismissed()) {
+  if (signedIn && hasBooks) {
     card.hidden = true;
     return;
   }
@@ -4694,6 +4696,16 @@ function updateSetupCard() {
   ];
   const done = steps.filter((step) => step[3]).length;
   const current = steps.findIndex((step) => !step[3]);
+  card.classList.toggle("is-collapsed", !setupOpen);
+  if (!setupOpen) {
+    card.innerHTML = `
+      <button type="button" class="setup-pill" data-setup="open" aria-expanded="false">
+        <i data-lucide="list-checks"></i><span>打造你的书架</span><b>${done}/${steps.length}</b>
+      </button>`;
+    card.hidden = false;
+    window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+    return;
+  }
   card.innerHTML = `
     <header>
       <h2 id="setupCardTitle">打造你的书架</h2>
@@ -4718,8 +4730,8 @@ document.querySelector("#setupCard")?.addEventListener("click", (event) => {
   const button = event.target instanceof Element ? event.target.closest("[data-setup]") : null;
   if (!button) return;
   const step = button.dataset.setup;
-  if (step === "close") {
-    setSetupDismissed(true);
+  if (step === "close" || step === "open") {
+    setupOpen = step === "open";
     updateSetupCard();
   } else if (step === "account") {
     openAuthGate(() => updateSetupCard());
@@ -4929,7 +4941,7 @@ function runProfileAction(action) {
   else if (action === "reference") openBrookeSpace({ restoreFocus: false });
   else if (action === "help" && shelfHelp.hidden) toggleShelfHelp();
   else if (action === "setup") {
-    setSetupDismissed(false);
+    setupOpen = true;
     goToShelf();
     updateSetupCard();
   }
