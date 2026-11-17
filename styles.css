@@ -6303,3 +6303,22 @@ button.flow.flow:disabled::after { opacity: 0.5; }
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Phones: the tab bar is the navigation, so no top switch or menu. 参考书架,
+   退出登录 and the rest live in 我的. Panels use the freed space. */
+@media (max-width: 720px) {
+  .space-switch,
+  .library > .sm-root {
+    display: none !important;
+  }
+
+  .book-index,
+  .add-book-panel {
+    top: 0;
+    padding-top: max(28px, calc(env(safe-area-inset-top) + 16px));
+  }
+
+  .my-shelf:not(.is-room-view) > .panel-scroll {
+    top: max(16px, env(safe-area-inset-top));
+  }
+}

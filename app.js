@@ -4696,7 +4696,7 @@ function updateSetupCard() {
   const current = steps.findIndex((step) => !step[3]);
   card.innerHTML = `
     <header>
-      <h2 id="setupCardTitle">做你的书房</h2>
+      <h2 id="setupCardTitle">打造你的书架</h2>
       <span class="setup-count">${done} / ${steps.length}</span>
       <button type="button" class="setup-close" data-setup="close" aria-label="收起"><i data-lucide="x"></i></button>
     </header>
@@ -4842,7 +4842,7 @@ function renderProfile() {
       <ul class="profile-list">
         ${profileRow("index", "list", "全部书目")}
         ${profileRow("help", "info", "操作提示")}
-        ${profileRow("setup", "list-checks", "做书房的三个步骤")}
+        ${profileRow("setup", "list-checks", "打造你的书架")}
       </ul>`;
   } else {
     const joined = user.created_at ? new Date(user.created_at) : null;
@@ -4862,9 +4862,10 @@ function renderProfile() {
         ${profileRow("shelf", "rows-3", "我的书架", `${saved} 本`)}
         ${profileRow("add", "plus", "增添书籍")}
         ${profileRow("reading", "bar-chart-3", "阅读记录")}
-        ${profileRow("index", "list", "全部书目", "参考空间")}
+        ${profileRow("reference", "library", "参考书架", "范例")}
+        ${profileRow("index", "list", "全部书目")}
         ${profileRow("help", "info", "操作提示")}
-        ${hasSavedBooks() ? "" : profileRow("setup", "list-checks", "做书房的三个步骤")}
+        ${hasSavedBooks() ? "" : profileRow("setup", "list-checks", "打造你的书架")}
       </ul>
       <ul class="profile-list">
         ${profileRow("signout", "log-out", "退出登录")}
@@ -4925,6 +4926,7 @@ function runProfileAction(action) {
   else if (action === "add") requireAuth(openAddBookPanel);
   else if (action === "reading") openReadingPanel();
   else if (action === "index") openBookIndex();
+  else if (action === "reference") openBrookeSpace({ restoreFocus: false });
   else if (action === "help" && shelfHelp.hidden) toggleShelfHelp();
   else if (action === "setup") {
     setSetupDismissed(false);
@@ -5046,6 +5048,15 @@ function updateTabBar() {
 }
 
 function goToShelf() {
+  const somethingOpen = !profilePanel.hidden || (quotePanel && !quotePanel.hidden) || !readingPanel.hidden
+    || !shelfHelp.hidden || !bookIndex.hidden || !addBookPanel.hidden || detailIndex !== null
+    || (!myShelf.hidden && myShelfView === "list");
+  // Phones have no top switch: tapping 书架 on the example shelf takes you
+  // to your own room.
+  if (!somethingOpen && activeSpace === "brooke" && isSignedIn() && hasSavedBooks()) {
+    openUserSpace({ restoreFocus: false });
+    return;
+  }
   closeProfile({ immediate: true });
   closeQuotePanel({ immediate: true });
   closeReadingPanel({ immediate: true, returnToShelf: false });
