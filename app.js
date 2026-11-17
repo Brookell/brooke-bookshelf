@@ -2646,6 +2646,7 @@ async function shuffleReadingQuote(button, root = readingPanelBody) {
     const [next] = await Promise.all([pickReadingQuote(), new Promise((resolve) => setTimeout(resolve, 220))]);
     if (next) {
       reading.quote = next;
+      if (root === quotePanelBody) applyNotesColor(next);
       box.setAttribute("style", quoteColorStyle(next));
       box.classList.toggle("has-cover", Boolean(next.cover));
       box.innerHTML = readingQuoteCardInner(next);
@@ -5421,8 +5422,23 @@ function notesListMarkup() {
     </section>`;
 }
 
+// The whole 笔记 page takes the colour of the book the random note is
+// from, with ink that reads on it; plain paper until a colour is known.
+function applyNotesColor(quote = reading.quote) {
+  if (!quotePanel) return;
+  const color = quote?.cover && reading.themeColors[quote.cover];
+  quotePanel.toggleAttribute("data-coloured", Boolean(color));
+  library.classList.toggle("has-coloured-notes", Boolean(color));
+  if (!color) return;
+  const ink = inkForColor(color);
+  quotePanel.style.setProperty("--notes-bg", color);
+  quotePanel.style.setProperty("--notes-ink", ink);
+  library.style.setProperty("--notes-ink", ink);
+}
+
 function renderQuotePanel(state = "ready") {
   if (!quotePanelBody) return;
+  applyNotesColor(state === "ready" ? reading.quote : null);
   if (state === "loading") {
     quotePanelBody.innerHTML = `<p class="quote-panel-note">正在翻你的笔记…</p>`;
   } else if (state === "connect") {

@@ -7390,3 +7390,63 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     padding-top: 18px;
   }
 }
+
+/* ---- 笔记 in the colour of the note's book ----
+   The page's own ink, paper, muted and hairline colours are redefined from
+   the cover colour, so everything on it (quote, list, one book's notes)
+   follows; 换一条 fades to the next book's colour. */
+.quote-panel {
+  transition: opacity 380ms ease, transform 560ms cubic-bezier(0.22, 0.8, 0.2, 1), visibility 0s linear 560ms, background-color 600ms ease;
+}
+
+.quote-panel[data-coloured] {
+  --ink: var(--notes-ink);
+  --paper: var(--notes-bg);
+  --muted: color-mix(in srgb, var(--notes-ink) 62%, transparent);
+  --hairline: color-mix(in srgb, var(--notes-ink) 22%, transparent);
+  background: var(--notes-bg);
+  color: var(--notes-ink);
+}
+
+.quote-panel[data-coloured] .rd-quote {
+  border-left-color: var(--notes-ink);
+}
+
+.quote-panel[data-coloured] .rd-quote-cover .rd-cover {
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.22);
+}
+
+.quote-panel[data-coloured] .notes-list .rd-cover {
+  background: color-mix(in srgb, var(--notes-ink) 14%, transparent);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+}
+
+.quote-panel[data-coloured] .notes-book blockquote {
+  border-left-color: color-mix(in srgb, var(--notes-ink) 40%, transparent);
+}
+
+.quote-panel[data-coloured] .notes-book .reading-thought blockquote {
+  color: var(--muted);
+}
+
+.library.is-quote-open.has-coloured-notes {
+  background-color: var(--notes-bg, var(--paper));
+}
+
+@media (max-width: 720px) {
+  .library.is-quote-open.has-coloured-notes .tab-bar {
+    border-color: color-mix(in srgb, var(--notes-ink, #fff) 24%, transparent);
+    background: color-mix(in srgb, var(--notes-ink, #fff) 10%, transparent);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(24px) saturate(1.1);
+    -webkit-backdrop-filter: blur(24px) saturate(1.1);
+  }
+
+  .library.is-quote-open.has-coloured-notes .tab-bar button:not([aria-current="page"]) {
+    color: color-mix(in srgb, var(--notes-ink, #fff) 55%, transparent);
+  }
+
+  .library.is-quote-open.has-coloured-notes .tab-bar button[aria-current="page"] {
+    color: var(--notes-ink, #fff);
+  }
+}
