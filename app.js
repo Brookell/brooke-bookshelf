@@ -5269,65 +5269,64 @@ window.setTimeout(showInstallHint, 12000);
 
 let profileCloseTimer = 0;
 
-// 我的: the room's name as a big title, two number pills, then a short
-// list of what the tab bar doesn't already reach. 书架 and 阅读记录 have
-// their own tabs, so they aren't repeated here.
-function profileRow(action, label, note = "") {
+// 我的: a card with the room (initial, name, email, when you joined), two
+// number boxes, then a numbered list of what the tab bar doesn't reach.
+// 书架 and 阅读记录 have their own tabs, so they aren't repeated here.
+function profileRows(rows) {
   return `
-    <li><button type="button" data-profile-action="${action}">
-      <span>${label}</span>
-      ${note ? `<small>${escapeHtml(note)}</small>` : ""}
-      <svg class="profile-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
-    </button></li>`;
+    <ol class="pf-list">
+      ${rows.map(([action, label, note = ""], index) => `
+        <li><button type="button" data-profile-action="${action}">
+          <em>${String(index + 1).padStart(2, "0")}</em>
+          <span>${label}</span>
+          ${note ? `<small>${escapeHtml(note)}</small>` : ""}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M14 6l6 6-6 6"/></svg>
+        </button></li>`).join("")}
+    </ol>`;
 }
 
 function renderProfile() {
   if (!profileBody) return;
   const user = supabaseSession?.user;
-  const saved = books.filter((book) => getBookState(book)).length;
   if (!user) {
     profileBody.innerHTML = `
       <div class="pf">
-        <header class="pf-title">
-          <p>Reading Room</p>
-          <h3>Your<br />Room</h3>
-          <span>登录后，你的书架和阅读记录会保存在账号里。</span>
-        </header>
-        <button type="button" class="pf-signin" data-profile-action="signin">登录 / 注册</button>
-        <ul class="pf-list">
-          ${profileRow("index", "全部书目")}
-          ${profileRow("help", "操作提示")}
-          ${profileRow("setup", "打造你的书架")}
-        </ul>
+        <section class="pf-card">
+          <span class="pf-avatar" aria-hidden="true">R</span>
+          <h3>Reading Room</h3>
+          <p>登录后，你的书架和阅读记录会保存在账号里。</p>
+          <button type="button" class="pf-signin" data-profile-action="signin">登录 / 注册</button>
+        </section>
+        ${profileRows([["index", "全部书目"], ["help", "操作提示"], ["setup", "打造你的书架"]])}
       </div>`;
     return;
   }
+  const saved = books.filter((book) => getBookState(book)).length;
   const joined = user.created_at ? new Date(user.created_at) : null;
   const connected = reading.connected;
+  const rows = [["add", "增添书籍"], ["reference", "参考书架", "范例"], ["index", "全部书目"], ["help", "操作提示"]];
+  if (!hasSavedBooks()) rows.push(["setup", "打造你的书架"]);
   profileBody.innerHTML = `
     <div class="pf">
-      <header class="pf-title">
-        <p>${joined ? `${joined.getFullYear()} 年 ${joined.getMonth() + 1} 月加入` : "Reading Room"}</p>
+      <section class="pf-card">
+        <span class="pf-avatar" aria-hidden="true">${escapeHtml(String(user.email || "?").slice(0, 1).toUpperCase())}</span>
         <h3>${escapeHtml(myRoomName)}</h3>
-        <span>${escapeHtml(user.email || "")}</span>
-      </header>
+        <p>${escapeHtml(user.email || "")}</p>
+        ${joined ? `<small>${joined.getFullYear()} 年 ${joined.getMonth() + 1} 月加入</small>` : ""}
+      </section>
 
-      <div class="pf-pills">
-        <button type="button" class="pf-pill" data-profile-action="shelf">
-          <small>书架上的书</small><b>${saved}</b>
+      <div class="pf-stats">
+        <button type="button" data-profile-action="shelf">
+          <b>${saved}<small>本</small></b>
+          <span>书架上的书</span>
         </button>
-        <button type="button" class="pf-pill" data-profile-action="reading">
-          <small>微信读书</small><b class="pf-pill-text">${connected === true ? "已连接" : connected === false ? "去连接" : "—"}</b>
+        <button type="button" data-profile-action="reading">
+          <b class="pf-weread${connected === true ? " is-on" : ""}">${connected === true ? "已连接" : connected === false ? "去连接" : "—"}</b>
+          <span>微信读书</span>
         </button>
       </div>
 
-      <ul class="pf-list">
-        ${profileRow("add", "增添书籍")}
-        ${profileRow("reference", "参考书架", "范例")}
-        ${profileRow("index", "全部书目")}
-        ${profileRow("help", "操作提示")}
-        ${hasSavedBooks() ? "" : profileRow("setup", "打造你的书架")}
-      </ul>
+      ${profileRows(rows)}
 
       <button type="button" class="pf-signout" data-profile-action="signout">退出登录</button>
     </div>`;
