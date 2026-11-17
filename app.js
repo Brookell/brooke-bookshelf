@@ -4688,30 +4688,28 @@ function updateSetupCard() {
   }
   const connected = reading.connected === true;
   const steps = [
-    ["account", "注册账号", "保存你的书房，换手机也在", signedIn],
-    ["weread", "连接微信读书", "一次导入书架、阅读时长和划线", connected],
-    ["pick", "挑选要放进房间的书", connected ? "从你的微信读书书架里勾选" : "连接后从书架里勾选", hasBooks],
+    ["account", "注册账号", "注册", signedIn],
+    ["weread", "连接微信读书", "连接", connected],
+    ["pick", "挑选书籍", "去挑书", hasBooks],
   ];
+  const done = steps.filter((step) => step[3]).length;
   const current = steps.findIndex((step) => !step[3]);
   card.innerHTML = `
     <header>
-      <div>
-        <p>这是一个范例书架</p>
-        <h2 id="setupCardTitle">做一间你自己的书房</h2>
-      </div>
-      <button type="button" class="setup-close" data-setup="close" aria-label="收起">
-        <i data-lucide="x"></i>
-      </button>
+      <h2 id="setupCardTitle">做你的书房</h2>
+      <span class="setup-count">${done} / ${steps.length}</span>
+      <button type="button" class="setup-close" data-setup="close" aria-label="收起"><i data-lucide="x"></i></button>
     </header>
+    <div class="setup-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}"><i style="width: ${(done / steps.length) * 100}%"></i></div>
     <ol>
-      ${steps.map(([key, title, note, done], index) => `
-        <li class="${done ? "is-done" : index === current ? "is-current" : ""}">
-          <span class="setup-num" aria-hidden="true">${done ? '<i data-lucide="check"></i>' : index + 1}</span>
-          <span class="setup-copy"><b>${title}</b><small>${note}</small></span>
-          ${!done && index === current ? `<button type="button" data-setup="${key}">${key === "account" ? "注册" : key === "weread" ? "连接" : "去挑书"}</button>` : ""}
+      ${steps.map(([key, title, action, isDone], index) => `
+        <li class="${isDone ? "is-done" : index === current ? "is-current" : ""}">
+          <span class="setup-mark" aria-hidden="true">${isDone ? '<i data-lucide="check"></i>' : ""}</span>
+          <span class="setup-label">${title}</span>
+          ${!isDone && index === current ? `<button type="button" data-setup="${key}">${action}</button>` : ""}
         </li>`).join("")}
     </ol>
-    <button type="button" class="setup-alt" data-setup="search">不用微信读书？搜书添加 →</button>`;
+    <button type="button" class="setup-alt" data-setup="search">不用微信读书？搜书添加</button>`;
   card.hidden = false;
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
 }
