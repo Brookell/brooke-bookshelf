@@ -5272,7 +5272,8 @@ let profileCloseTimer = 0;
 
 // 我的: a card with the room (initial, name, email, when you joined), two
 // number boxes, then a numbered list of what the tab bar doesn't reach.
-// 书架 and 阅读记录 have their own tabs, so they aren't repeated here.
+// 阅读记录 has its own tab, so it isn't repeated. 我的空间 is listed: phones
+// have no top switch, and signed-out visitors had no way in otherwise.
 function profileRows(rows) {
   return `
     <ol class="pf-list">
@@ -5298,14 +5299,14 @@ function renderProfile() {
           <p>登录后，你的书架和阅读记录会保存在账号里。</p>
           <button type="button" class="pf-signin" data-profile-action="signin">登录 / 注册</button>
         </section>
-        ${profileRows([["index", "全部书目"], ["help", "操作提示"], ["setup", "打造你的书架"]])}
+        ${profileRows([["room", "我的空间", "登录后进入"], ["index", "全部书目"], ["help", "操作提示"], ["setup", "打造你的书架"]])}
       </div>`;
     return;
   }
   const saved = books.filter((book) => getBookState(book)).length;
   const joined = user.created_at ? new Date(user.created_at) : null;
   const connected = reading.connected;
-  const rows = [["add", "增添书籍"], ["reference", "参考书架", "范例"], ["index", "全部书目"], ["help", "操作提示"]];
+  const rows = [["room", "我的空间"], ["add", "增添书籍"], ["reference", "参考书架", "范例"], ["index", "全部书目"], ["help", "操作提示"]];
   if (!hasSavedBooks()) rows.push(["setup", "打造你的书架"]);
   profileBody.innerHTML = `
     <div class="pf">
@@ -5381,7 +5382,8 @@ function runProfileAction(action) {
     return;
   }
   closeProfile({ immediate: true });
-  if (action === "shelf") requireAuth(() => openMyShelf({ view: "list", restoreFocus: false }));
+  if (action === "room") requireAuth(() => openUserSpace({ restoreFocus: false }));
+  else if (action === "shelf") requireAuth(() => openMyShelf({ view: "list", restoreFocus: false }));
   else if (action === "add") requireAuth(openAddBookPanel);
   else if (action === "reading") openReadingPanel();
   else if (action === "index") openBookIndex();
