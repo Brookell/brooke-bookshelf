@@ -6407,40 +6407,8 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     display: none;
   }
 
-  /* Intro at the top of the page. */
+  /* No intro on phones: the book speaks through its title and a highlight. */
   .detail-description {
-    position: absolute;
-    top: max(20px, calc(env(safe-area-inset-top) + 12px));
-    right: 72px;
-    left: 22px;
-    display: block;
-  }
-
-  .detail-description::before {
-    content: attr(data-about);
-    display: block;
-    margin-bottom: 8px;
-    overflow: hidden;
-    font-family: Arial, Helvetica, "Songti SC", sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .detail-description p {
-    display: -webkit-box;
-    margin: 0;
-    overflow: hidden;
-    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
-    font-size: 12px;
-    line-height: 1.55;
-    opacity: 0.82;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
-  }
-
-  .detail-description p + p {
     display: none;
   }
 
@@ -6474,13 +6442,32 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   }
 
   .detail-author {
-    margin: 6px 0 0;
-    padding-bottom: 16px;
-    border-bottom: 1px solid color-mix(in srgb, var(--detail-ink) 22%, transparent);
-    font-size: 12px;
+    margin: 8px 0 0;
+    font-size: 13px;
     text-transform: none;
-    opacity: 0.8;
+    opacity: 0.85;
   }
+
+  .detail-year:not([hidden]) {
+    display: block;
+    margin: 4px 0 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    opacity: 0.65;
+  }
+
+  .detail-highlight:not([hidden]) {
+    display: block;
+    margin: 20px 0 0;
+    padding: 16px 0 0;
+    border-top: 1px solid color-mix(in srgb, var(--detail-ink) 22%, transparent);
+    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .detail-highlight::before { content: "“"; }
+  .detail-highlight::after { content: "”"; }
 
   /* Just the book: no 加入我的书架 switch on phones. */
   .detail-shelf-actions {
@@ -6490,4 +6477,10 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   .detail-footer {
     margin-top: 20px;
   }
+}
+
+/* Year and highlight are phone-only for now. */
+.detail-year,
+.detail-highlight {
+  display: none;
 }

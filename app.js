@@ -107,6 +107,8 @@ const detailNumber = document.querySelector("#detailNumber");
 const detailTitle = document.querySelector("#detailTitle");
 const detailAuthor = document.querySelector("#detailAuthor");
 const detailDescription = document.querySelector("#detailDescription");
+const detailYear = document.querySelector("#detailYear");
+const detailHighlight = document.querySelector("#detailHighlight");
 const detailSave = document.querySelector("#detailSave");
 const detailSaveLabel = document.querySelector("#detailSaveLabel");
 const detailStatus = document.querySelector("#detailStatus");
@@ -3567,7 +3569,7 @@ function getDetailBookRect(index = detailIndex ?? activeIndex ?? 0) {
     // larger; the page's CSS lines the counter and title up with it.
     const phoneWidth = Math.min(236, window.innerWidth * 0.6);
     const phoneHeight = Math.min(phoneWidth / coverRatio, window.innerHeight * (shortCompact ? 0.36 : 0.43));
-    const phoneTop = Math.round(Math.max(shortCompact ? 132 : 150, window.innerHeight * 0.19));
+    const phoneTop = Math.round(Math.max(shortCompact ? 60 : 72, window.innerHeight * 0.1));
     const rect = { left: (window.innerWidth - phoneHeight * coverRatio) / 2, top: phoneTop, width: phoneHeight * coverRatio, height: phoneHeight };
     detail?.style.setProperty("--detail-cover-bottom", `${Math.round(rect.top + rect.height)}px`);
     return rect;
@@ -3603,10 +3605,48 @@ function populateBookDetail(index) {
     : "";
   detailTitle.textContent = cleanBookTitle(book.title);
   detailAuthor.textContent = book.author;
-  detailDescription.dataset.about = `关于《${cleanBookTitle(book.title)}》`;
+  renderDetailExtras(book);
+  loadBookExtras(book);
   renderDetailDescription(book);
   updateDetailShelfControls();
   loadRealIntro(book);
+}
+
+// Under the cover on phones: publish year and one sentence readers
+// highlighted most (from WeRead via search-books { bookId }).
+function renderDetailExtras(book) {
+  if (!detailYear || !detailHighlight) return;
+  detailYear.textContent = book.year ? `${book.year} 年` : "";
+  detailYear.hidden = !book.year;
+  detailHighlight.textContent = book.highlight || "";
+  detailHighlight.hidden = !book.highlight;
+}
+
+const extrasRequests = new Set();
+
+async function loadBookExtras(book) {
+  if (book.extrasLoaded || extrasRequests.has(book.id)) return;
+  if (!(await getSupabaseAccessToken())) return;
+  extrasRequests.add(book.id);
+  try {
+    let bookId = wereadBookIdFor(book);
+    if (!bookId) {
+      bookId = await findWereadBookId(book);
+      if (!bookId) return;
+      book.wereadBookId = bookId;
+    }
+    const info = (await callBookFunction({ bookId }))?.info;
+    if (!info) return;
+    book.year = /^\d{4}/.test(info.publishTime || "") ? info.publishTime.slice(0, 4) : "";
+    book.highlight = String(info.highlight || "");
+    book.extrasLoaded = true;
+    if (book.isCustom) writeCustomBooks();
+    if (detailIndex === books.indexOf(book)) renderDetailExtras(book);
+  } catch (error) {
+    console.warn("WeRead book extras failed", error);
+  } finally {
+    extrasRequests.delete(book.id);
+  }
 }
 
 function renderDetailDescription(book) {

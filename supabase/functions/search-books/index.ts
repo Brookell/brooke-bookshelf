@@ -200,12 +200,29 @@ async function searchWeread(query: string, limit: number): Promise<SearchResult[
 type BookInfo = {
   bookId: string;
   intro: string;
+  // The book's most-highlighted sentence on WeRead (热门划线), if any.
+  highlight: string;
   publisher: string;
   publishTime: string;
   category: string;
   isbn: string;
   rating: number | null;
 };
+
+// One sentence readers highlighted most (/book/bestbookmarks), short enough
+// to sit under a cover. Empty when WeRead has none.
+async function wereadTopHighlight(apiKey: string, bookId: string): Promise<string> {
+  try {
+    const { response, data } = await callGateway(apiKey, { api_name: "/book/bestbookmarks", bookId });
+    if (!response.ok || data.errcode) return "";
+    const texts = (Array.isArray(data.items) ? data.items : [])
+      .map((item: { markText?: string }) => String(item.markText || "").replace(/\s+/g, " ").trim())
+      .filter((text: string) => text.length >= 8);
+    return texts.find((text: string) => text.length <= 70) || (texts[0] ? `${texts[0].slice(0, 68)}…` : "");
+  } catch {
+    return "";
+  }
+}
 
 async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
   const apiKey = env("WEREAD_API_KEY");
@@ -220,6 +237,7 @@ async function wereadBookInfo(bookId: string): Promise<BookInfo | null> {
   return {
     bookId,
     intro: String(info.intro || "").replace(/\r/g, "").trim(),
+    highlight: await wereadTopHighlight(apiKey, bookId),
     publisher: String(info.publisher || "").trim(),
     publishTime: String(info.publishTime || "").slice(0, 10),
     category: String(info.category || "").trim(),
@@ -360,7 +378,7 @@ Deno.serve(async (request) => {
     if (body.bookId !== undefined) {
       const bookId = String(body.bookId || "").trim().slice(0, 40);
       if (!/^[\w-]+$/.test(bookId)) return jsonResponse({ error: "invalid_book_id" }, 400);
-      const cacheKey = `info|${bookId}`;
+      const cacheKey = `info2|${bookId}`;
       const cached = await readCache(cacheKey);
       if (cached) return jsonResponse({ info: cached, cached: true });
       if (await overRateLimit(userId)) return jsonResponse({ error: "rate_limited" }, 429);
