@@ -6387,9 +6387,9 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 }
 
 /* ---- Phones: book detail like a book page ----
-   关于《书名》 and a short intro at the top, the cover in the middle with
-   two paper layers fanned out behind it, the "08 / 20" counter as a pill on
-   the cover's lower edge, then title, author and the shelf button. The
+   关于《书名》 and a short intro at the top, the cover alone in the middle,
+   the "08 / 20" counter as a pill on the cover's lower edge, then title and
+   author. The
    cover's place comes from app.js (getDetailBookRect, --detail-cover-bottom). */
 @media (max-width: 720px) {
   .detail-copy {
@@ -6444,26 +6444,6 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     display: none;
   }
 
-  /* Pages fanned out behind the cover. */
-  .detail-book::before,
-  .detail-book::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: 3px;
-  }
-
-  .detail-book::before {
-    background: color-mix(in srgb, var(--detail-bg) 55%, #fffaf2);
-    transform: translate(9px, -9px) rotate(3deg);
-  }
-
-  .detail-book::after {
-    background: color-mix(in srgb, var(--detail-bg) 30%, #fffaf2);
-    transform: translate(-8px, -14px) rotate(-3.5deg);
-  }
-
   /* "08 / 20" as a pill on the cover's lower edge. */
   .detail-copy-meta {
     position: absolute;
@@ -6502,7 +6482,12 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     opacity: 0.8;
   }
 
+  /* Just the book: no 加入我的书架 switch on phones. */
   .detail-shelf-actions {
-    margin-top: 18px;
+    display: none;
+  }
+
+  .detail-footer {
+    margin-top: 20px;
   }
 }
