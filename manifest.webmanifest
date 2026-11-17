@@ -1,0 +1,16 @@
+{
+  "name": "Reading Room",
+  "short_name": "Reading Room",
+  "description": "一间可以慢慢布置的书房：收藏喜欢的书，回看你的阅读记录。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eeece8",
+  "theme_color": "#eeece8",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

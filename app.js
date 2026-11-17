@@ -4600,6 +4600,78 @@ function logVisit() {
   }
 }
 
+// ---- Add to home screen (phones) ----
+// Shown once the visitor has looked around for a bit, never when the site
+// already runs from the home screen. Android/Chrome gets a real 添加 button
+// (beforeinstallprompt); iPhone Safari can't be prompted, so it gets the
+// two taps to make. Closing it hides it for 30 days.
+const INSTALL_HINT_KEY = "brooke-bookshelf:install-hint-dismissed";
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function installHintDismissedRecently() {
+  try {
+    const at = Number(window.localStorage.getItem(INSTALL_HINT_KEY)) || 0;
+    return Date.now() - at < 30 * 86400000;
+  } catch {
+    return false;
+  }
+}
+
+function showInstallHint() {
+  const hint = document.querySelector("#installHint");
+  if (!hint || isStandalone() || installHintDismissedRecently()) return;
+  if (!window.matchMedia("(max-width: 720px)").matches) return;
+  const ua = window.navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  const steps = document.querySelector("#installHintSteps");
+  const action = document.querySelector("#installHintAction");
+  if (deferredInstallPrompt) {
+    steps.textContent = "像 App 一样从桌面打开，全屏阅读。";
+    action.hidden = false;
+  } else if (ios) {
+    const inSafari = /safari/i.test(ua) && !/crios|fxios|edgios|micromessenger/i.test(ua);
+    steps.innerHTML = inSafari
+      ? "点底部的 <b>分享</b> 按钮，再选 <b>添加到主屏幕</b>。"
+      : "请先用 Safari 打开本页，再点 <b>分享</b> → <b>添加到主屏幕</b>。";
+    action.hidden = true;
+  } else {
+    steps.innerHTML = "点浏览器右上角的 <b>⋮</b> 菜单，选 <b>添加到主屏幕</b>。";
+    action.hidden = true;
+  }
+  hint.hidden = false;
+  requestAnimationFrame(() => hint.classList.add("is-visible"));
+}
+
+function hideInstallHint({ remember = true } = {}) {
+  const hint = document.querySelector("#installHint");
+  if (!hint || hint.hidden) return;
+  hint.classList.remove("is-visible");
+  window.setTimeout(() => { hint.hidden = true; }, 320);
+  if (remember) {
+    try { window.localStorage.setItem(INSTALL_HINT_KEY, String(Date.now())); } catch {}
+  }
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+});
+window.addEventListener("appinstalled", () => hideInstallHint());
+document.querySelector("#installHintClose")?.addEventListener("click", () => hideInstallHint());
+document.querySelector("#installHintAction")?.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  const choice = await deferredInstallPrompt.userChoice.catch(() => null);
+  deferredInstallPrompt = null;
+  if (choice) hideInstallHint();
+});
+// Give people a moment with the shelf first.
+window.setTimeout(showInstallHint, 12000);
+
 // ---- 我的 (profile) page and the phone tab bar ----
 
 let profileCloseTimer = 0;
