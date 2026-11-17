@@ -3562,12 +3562,18 @@ function getDetailBookRect(index = detailIndex ?? activeIndex ?? 0) {
     : window.innerHeight * 0.7;
   const height = Math.min(idealWidth / coverRatio, maxHeight);
   const width = height * coverRatio;
-  const left = compact
-    ? (window.innerWidth - width) / 2
-    : window.innerWidth * 0.25 - width / 2;
-  const top = compact
-    ? Math.max(shortCompact ? 56 : 72, window.innerHeight * (shortCompact ? 0.08 : 0.11))
-    : window.innerHeight * 0.53 - height / 2;
+  if (compact) {
+    // Phones: the intro sits above, so the cover starts lower and a little
+    // larger; the page's CSS lines the counter and title up with it.
+    const phoneWidth = Math.min(236, window.innerWidth * 0.6);
+    const phoneHeight = Math.min(phoneWidth / coverRatio, window.innerHeight * (shortCompact ? 0.36 : 0.43));
+    const phoneTop = Math.round(Math.max(shortCompact ? 132 : 150, window.innerHeight * 0.19));
+    const rect = { left: (window.innerWidth - phoneHeight * coverRatio) / 2, top: phoneTop, width: phoneHeight * coverRatio, height: phoneHeight };
+    detail?.style.setProperty("--detail-cover-bottom", `${Math.round(rect.top + rect.height)}px`);
+    return rect;
+  }
+  const left = window.innerWidth * 0.25 - width / 2;
+  const top = window.innerHeight * 0.53 - height / 2;
   return { left, top, width, height };
 }
 
@@ -3597,6 +3603,7 @@ function populateBookDetail(index) {
     : "";
   detailTitle.textContent = cleanBookTitle(book.title);
   detailAuthor.textContent = book.author;
+  detailDescription.dataset.about = `关于《${cleanBookTitle(book.title)}》`;
   renderDetailDescription(book);
   updateDetailShelfControls();
   loadRealIntro(book);

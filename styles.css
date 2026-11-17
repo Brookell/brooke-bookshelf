@@ -6385,3 +6385,124 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     bottom: max(136px, calc(env(safe-area-inset-bottom) + 128px));
   }
 }
+
+/* ---- Phones: book detail like a book page ----
+   关于《书名》 and a short intro at the top, the cover in the middle with
+   two paper layers fanned out behind it, the "08 / 20" counter as a pill on
+   the cover's lower edge, then title, author and the shelf button. The
+   cover's place comes from app.js (getDetailBookRect, --detail-cover-bottom). */
+@media (max-width: 720px) {
+  .detail-copy {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    max-height: none;
+    padding: calc(var(--detail-cover-bottom, 430px) + 40px) 22px max(40px, calc(env(safe-area-inset-bottom) + 28px));
+    border-top: 0;
+    overflow-y: auto;
+  }
+
+  .detail-kicker {
+    display: none;
+  }
+
+  /* Intro at the top of the page. */
+  .detail-description {
+    position: absolute;
+    top: max(20px, calc(env(safe-area-inset-top) + 12px));
+    right: 72px;
+    left: 22px;
+    display: block;
+  }
+
+  .detail-description::before {
+    content: attr(data-about);
+    display: block;
+    margin-bottom: 8px;
+    overflow: hidden;
+    font-family: Arial, Helvetica, "Songti SC", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .detail-description p {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+    font-size: 12px;
+    line-height: 1.55;
+    opacity: 0.82;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+  }
+
+  .detail-description p + p {
+    display: none;
+  }
+
+  /* Pages fanned out behind the cover. */
+  .detail-book::before,
+  .detail-book::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: 3px;
+  }
+
+  .detail-book::before {
+    background: color-mix(in srgb, var(--detail-bg) 55%, #fffaf2);
+    transform: translate(9px, -9px) rotate(3deg);
+  }
+
+  .detail-book::after {
+    background: color-mix(in srgb, var(--detail-bg) 30%, #fffaf2);
+    transform: translate(-8px, -14px) rotate(-3.5deg);
+  }
+
+  /* "08 / 20" as a pill on the cover's lower edge. */
+  .detail-copy-meta {
+    position: absolute;
+    top: calc(var(--detail-cover-bottom, 430px) - 15px);
+    left: 50%;
+    z-index: 6;
+    margin: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--detail-ink) 22%, rgba(0, 0, 0, 0.35));
+    color: #fff;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    transform: translateX(-50%);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .detail-copy-meta:empty,
+  .detail-copy-meta:has(span:empty) {
+    display: none;
+  }
+
+  .detail-copy h2 {
+    max-width: none;
+    font-size: 24px;
+    line-height: 1.15;
+  }
+
+  .detail-author {
+    margin: 6px 0 0;
+    padding-bottom: 16px;
+    border-bottom: 1px solid color-mix(in srgb, var(--detail-ink) 22%, transparent);
+    font-size: 12px;
+    text-transform: none;
+    opacity: 0.8;
+  }
+
+  .detail-shelf-actions {
+    margin-top: 18px;
+  }
+}
