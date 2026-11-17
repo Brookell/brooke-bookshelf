@@ -107,7 +107,6 @@ const detailNumber = document.querySelector("#detailNumber");
 const detailTitle = document.querySelector("#detailTitle");
 const detailAuthor = document.querySelector("#detailAuthor");
 const detailDescription = document.querySelector("#detailDescription");
-const detailYear = document.querySelector("#detailYear");
 const detailHighlight = document.querySelector("#detailHighlight");
 const detailSave = document.querySelector("#detailSave");
 const detailSaveLabel = document.querySelector("#detailSaveLabel");
@@ -3805,12 +3804,10 @@ function populateBookDetail(index) {
   loadRealIntro(book);
 }
 
-// Under the cover on phones: publish year and one sentence readers
-// highlighted most (from WeRead via search-books { bookId }).
+// Under the cover on phones: the sentence readers highlighted most (from
+// WeRead via search-books { bookId }).
 function renderDetailExtras(book) {
-  if (!detailYear || !detailHighlight) return;
-  detailYear.textContent = book.year ? `${book.year} 年` : "";
-  detailYear.hidden = !book.year;
+  if (!detailHighlight) return;
   detailHighlight.textContent = book.highlight || "";
   detailHighlight.hidden = !book.highlight;
 }
@@ -3830,7 +3827,6 @@ async function loadBookExtras(book) {
     }
     const info = (await callBookFunction({ bookId }))?.info;
     if (!info) return;
-    book.year = /^\d{4}/.test(info.publishTime || "") ? info.publishTime.slice(0, 4) : "";
     book.highlight = String(info.highlight || "");
     book.extrasLoaded = true;
     if (book.isCustom) writeCustomBooks();
