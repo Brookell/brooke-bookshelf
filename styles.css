@@ -6484,3 +6484,28 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 .detail-highlight {
   display: none;
 }
+
+/* Detail page: swipe (or arrow keys) to the next / previous book. The cover
+   follows the finger; the words under it drift half as far and fade. */
+.detail-book {
+  translate: var(--swipe-x, 0px) 0;
+}
+
+.detail-copy > * {
+  translate: calc(var(--swipe-x, 0px) * 0.5) 0;
+  opacity: var(--swipe-fade, 1);
+}
+
+.book-detail.is-swipe-animating .detail-book {
+  transition: translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.book-detail.is-swipe-animating .detail-copy > * {
+  transition: translate 260ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+}
+
+@media (max-width: 720px) {
+  .book-detail {
+    touch-action: pan-y;
+  }
+}

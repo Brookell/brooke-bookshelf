@@ -368,6 +368,7 @@ let didSetInitialScroll = false;
 let detailIndex = null;
 let detailOriginRect = null;
 let detailSourceElement = null;
+let detailOriginStale = false;
 let detailSourceMode = "shelf";
 let detailOpenTimer = 0;
 let detailCopyTimer = 0;
@@ -3935,6 +3936,10 @@ function openBookDetail(index, { sourceElement = null, sourceMode = "shelf" } = 
   window.clearTimeout(detailSettleTimer);
   window.clearTimeout(detailCloseTimer);
   detailIndex = index;
+  detailOriginStale = false;
+  detailSwipeBusy = false;
+  detail.classList.remove("is-swipe-animating");
+  setDetailSwipe(0, 1);
   detailSourceElement = sourceMode === "my-room" ? source.closest(".my-room-book") : bookElements[index];
   detailSourceMode = sourceMode;
   populateBookDetail(index);
@@ -3988,6 +3993,15 @@ function closeBookDetail() {
   detailCopy.classList.remove("is-visible");
   library.classList.remove("is-detail-open");
   notifyParentTheme();
+  if (detailOriginStale) {
+    // Swiped to another book: fly back to where that one sits now.
+    const source = detailSourceMode === "my-room"
+      ? detailSourceElement?.querySelector(".my-room-book-cover") || detailSourceElement
+      : bookElements[returnIndex]?.querySelector(".book-object");
+    const rect = source?.getBoundingClientRect();
+    if (rect?.width) detailOriginRect = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    detailOriginStale = false;
+  }
   if (detailOriginRect) detailBookShell.style.transform = getShellTransform(detailOriginRect, target);
 
   detailCloseTimer = window.setTimeout(() => {
@@ -4017,6 +4031,120 @@ function closeBookDetail() {
     updateOnboarding();
   }, prefersReducedMotion ? 20 : 1040);
 }
+
+// Next / previous book while the detail page is open: swipe on phones,
+// arrow keys elsewhere. Shelf books step through the shelf (reference
+// books only when a reference book is open); 我的书架 books step through
+// that room. Both wrap around.
+function detailNeighbor(step) {
+  if (detailIndex === null) return null;
+  if (detailSourceMode === "my-room") {
+    const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
+    const current = roomBooks.indexOf(detailSourceElement);
+    if (current < 0 || roomBooks.length < 2) return null;
+    const roomIndex = (current + step + roomBooks.length) % roomBooks.length;
+    const index = Number(roomBooks[roomIndex].dataset.myShelfIndex);
+    return Number.isInteger(index) && books[index] ? { index, roomIndex, element: roomBooks[roomIndex] } : null;
+  }
+  const referenceOnly = isReferenceBook(books[detailIndex]);
+  const order = books.map((book, index) => index).filter((index) => !referenceOnly || isReferenceBook(books[index]));
+  const current = order.indexOf(detailIndex);
+  if (current < 0 || order.length < 2) return null;
+  const index = order[(current + step + order.length) % order.length];
+  return { index, element: bookElements[index] };
+}
+
+function showDetailNeighbor(neighbor) {
+  const previous = detailIndex;
+  detailSourceElement?.classList.remove("is-detail-source");
+  if (detailSourceMode === "my-room") {
+    openMyRoomBook(neighbor.roomIndex);
+    detailSourceElement = neighbor.element;
+  } else {
+    closeBook(previous, true);
+    pinnedIndex = neighbor.index;
+    openBook(neighbor.index, true);
+    const viewBounds = viewport.getBoundingClientRect();
+    const bounds = neighbor.element.getBoundingClientRect();
+    viewport.scrollBy({ left: bounds.left - viewBounds.left - viewBounds.width / 2 + bounds.width / 2 });
+    detailSourceElement = neighbor.element;
+  }
+  detailSourceElement.classList.add("is-detail-source");
+  detailOriginStale = true;
+  detailIndex = neighbor.index;
+  populateBookDetail(neighbor.index);
+  notifyParentTheme(books[neighbor.index]);
+  detailCopy.scrollTop = 0;
+  positionDetailBook(neighbor.index);
+}
+
+let detailSwipeBusy = false;
+
+function setDetailSwipe(offset, fade) {
+  detail.style.setProperty("--swipe-x", `${offset}px`);
+  detail.style.setProperty("--swipe-fade", String(fade));
+}
+
+// Slide the current book out toward the finger, swap in the neighbour from
+// the other side.
+function stepDetail(step) {
+  if (detailSwipeBusy || !detail.classList.contains("is-settled")) return false;
+  const neighbor = detailNeighbor(step);
+  if (!neighbor) return false;
+  detailSwipeBusy = true;
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const distance = Math.min(window.innerWidth * 0.7, 360);
+  detail.classList.add("is-swipe-animating");
+  setDetailSwipe(-step * distance, 0);
+  window.setTimeout(() => {
+    detail.classList.remove("is-swipe-animating");
+    showDetailNeighbor(neighbor);
+    setDetailSwipe(step * distance * 0.6, 0);
+    detail.getBoundingClientRect();
+    detail.classList.add("is-swipe-animating");
+    setDetailSwipe(0, 1);
+    window.setTimeout(() => {
+      detail.classList.remove("is-swipe-animating");
+      detailSwipeBusy = false;
+    }, reduced ? 20 : 300);
+  }, reduced ? 20 : 200);
+  return true;
+}
+
+let detailTouch = null;
+
+detail.addEventListener("touchstart", (event) => {
+  if (detailSwipeBusy || event.touches.length !== 1 || !detail.classList.contains("is-settled")) return;
+  const touch = event.touches[0];
+  detailTouch = { x: touch.clientX, y: touch.clientY, time: Date.now(), dx: 0, horizontal: null };
+}, { passive: true });
+
+detail.addEventListener("touchmove", (event) => {
+  if (!detailTouch || event.touches.length !== 1) return;
+  const touch = event.touches[0];
+  const dx = touch.clientX - detailTouch.x;
+  const dy = touch.clientY - detailTouch.y;
+  if (detailTouch.horizontal === null && Math.hypot(dx, dy) > 8) detailTouch.horizontal = Math.abs(dx) > Math.abs(dy) * 1.2;
+  if (!detailTouch.horizontal) return;
+  event.preventDefault();
+  detailTouch.dx = dx;
+  setDetailSwipe(dx, Math.max(0.15, 1 - Math.abs(dx) / (window.innerWidth * 0.8)));
+}, { passive: false });
+
+function endDetailTouch() {
+  if (!detailTouch) return;
+  const { dx, horizontal, time } = detailTouch;
+  detailTouch = null;
+  if (!horizontal) return;
+  const fast = Math.abs(dx) > 30 && Math.abs(dx) / Math.max(1, Date.now() - time) > 0.45;
+  if ((Math.abs(dx) > 70 || fast) && stepDetail(dx < 0 ? 1 : -1)) return;
+  detail.classList.add("is-swipe-animating");
+  setDetailSwipe(0, 1);
+  window.setTimeout(() => detail.classList.remove("is-swipe-animating"), 300);
+}
+
+detail.addEventListener("touchend", endDetailTouch);
+detail.addEventListener("touchcancel", endDetailTouch);
 
 function navigateTo(index, step = 1) {
   let normalized = ((index % books.length) + books.length) % books.length;
@@ -4571,6 +4699,9 @@ document.addEventListener("keydown", (event) => {
     } else if (event.key === "Escape") {
       event.preventDefault();
       closeBookDetail();
+    } else if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && !event.repeat) {
+      event.preventDefault();
+      stepDetail(event.key === "ArrowRight" ? 1 : -1);
     }
     return;
   }
