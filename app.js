@@ -1354,10 +1354,10 @@ function renderMyShelf() {
     // the mouse is over its cover. Hover never scrolls the room (that made
     // it keep sliding as each newly centred book came under the mouse).
     element.querySelector(".my-room-book-spine")?.addEventListener("mouseenter", () => {
-      if (roomHasDragged || stackedShelves()) return;
+      if (roomHasDragged) return;
       openMyRoomBook(roomIndex, { scroll: false });
     });
-    element.addEventListener("focus", () => { if (!stackedShelves()) openMyRoomBook(roomIndex); });
+    element.addEventListener("focus", () => openMyRoomBook(roomIndex));
   });
   myShelfFilters.querySelectorAll("[data-shelf-filter]").forEach((button) => {
     const pressed = button.dataset.shelfFilter === myShelfFilter;
@@ -1403,14 +1403,6 @@ function switchMyShelfView(nextView) {
 // the reference shelf starts.
 function centerMyRoom() {
   resetMyRoomBooks();
-  if (stackedShelves()) {
-    const count = myShelfRoom.querySelectorAll(".my-room-book").length;
-    myShelfRoom.style.setProperty("--room-cols", String(Math.max(1, Math.ceil(count / STACKED_ROWS))));
-    myShelfRoom.style.paddingLeft = "";
-    myShelfRoom.scrollLeft = 0;
-    updateMyRoomCaption(0);
-    return;
-  }
   // Centre the row of spines. Each book's box is as wide as its (closed)
   // cover, so the last one sticks out past its spine; measuring the
   // scroll width would push short rows left of centre.
@@ -3330,12 +3322,6 @@ function openBookFromMyRoom(index, sourceButton) {
   const sourceElement = sourceButton.querySelector(".my-room-book-cover") || sourceButton;
   const roomBooks = [...myShelfRoom.querySelectorAll(".my-room-book")];
   const roomIndex = roomBooks.indexOf(sourceButton);
-  if (stackedShelves()) {
-    window.clearTimeout(detailOpenTimer);
-    updateMyRoomCaption(roomIndex);
-    openBookDetail(index, { sourceElement: sourceButton.querySelector(".my-room-book-spine") || sourceButton, sourceMode: "my-room" });
-    return;
-  }
   const wasOpen = sourceButton.classList.contains("is-open");
   if (roomIndex >= 0) openMyRoomBook(roomIndex);
   window.clearTimeout(detailOpenTimer);
@@ -3410,7 +3396,7 @@ function createBook(book, index) {
 
   const hitArea = element.querySelector(".book-hit-area");
   hitArea.addEventListener("mouseenter", (event) => {
-    if (isDragging || stackedShelves()) return;
+    if (isDragging) return;
     if (pinnedIndex !== null && pinnedIndex !== index) {
       // A click is about to open the detail page: keep that book.
       if (detailOpenTimer || detailIndex !== null) return;
@@ -3433,17 +3419,6 @@ function createBook(book, index) {
       return;
     }
 
-    if (stackedShelves()) {
-      // Three shelves leave no room to pull a book out: go straight to it.
-      window.clearTimeout(detailOpenTimer);
-      if (activeIndex !== null && activeIndex !== index) closeBook(activeIndex, true);
-      activeIndex = index;
-      pinnedIndex = index;
-      setShelfCaption(activeTitle, books[index], referencePosition(index));
-      setAmbientColor(library, books[index]);
-      openBookDetail(index, { sourceElement: element.querySelector(".book-spine") || element });
-      return;
-    }
     const wasOpen = activeIndex === index && element.classList.contains("is-open");
     window.clearTimeout(detailOpenTimer);
     pinnedIndex = index;
@@ -3459,58 +3434,7 @@ function createBook(book, index) {
   bookElements.push(element);
 }
 
-// Phones show the shelf as three stacked shelves instead of one long one.
-function stackedShelves() {
-  return window.matchMedia("(max-width: 720px)").matches;
-}
-
-const STACKED_ROWS = 3;
-
-function measureStackedShelf() {
-  const rowHeight = viewport.clientHeight / STACKED_ROWS;
-  const maximumHeight = Math.max(80, rowHeight - 18);
-  const reference = books.map((book, index) => ({ book, index })).filter(({ book }) => isReferenceBook(book));
-  const widthOf = ({ book, index }) => book.spineWidth + Math.min(18, shelfGaps[index] ?? book.shelfGap ?? 14);
-  const total = reference.reduce((sum, entry) => sum + widthOf(entry), 0);
-  // Fill the shelves in order, each about a third of the total width.
-  let row = 0;
-  let cursor = 0;
-  let widest = 0;
-  reference.forEach((entry) => {
-    if (row < STACKED_ROWS - 1 && cursor > 0 && cursor + widthOf(entry) / 2 > total / STACKED_ROWS) {
-      widest = Math.max(widest, cursor);
-      row += 1;
-      cursor = 0;
-    }
-    const element = bookElements[entry.index];
-    element.style.setProperty("--book-height", `${Math.round(maximumHeight * entry.book.height)}px`);
-    element.style.setProperty("--x", `${cursor}px`);
-    element.style.setProperty("--shift", "0px");
-    element.style.setProperty("--hit-gap", "0px");
-    element.style.setProperty("--hit-width", `${entry.book.spineWidth}px`);
-    element.style.bottom = `${Math.round((STACKED_ROWS - 1 - row) * rowHeight)}px`;
-    element.dataset.row = String(row);
-    cursor += widthOf(entry);
-  });
-  widest = Math.max(widest, cursor);
-  const sidePadding = 20;
-  track.style.setProperty("--track-pad", `${sidePadding}px`);
-  track.style.setProperty("--track-width", `${Math.ceil(widest + sidePadding * 2)}px`);
-  track.style.setProperty("--row-h", `${rowHeight}px`);
-  track.classList.add("is-stacked");
-  if (!didSetInitialScroll) {
-    didSetInitialScroll = true;
-    requestAnimationFrame(() => { viewport.scrollLeft = 0; });
-  }
-}
-
 function measureShelf() {
-  if (stackedShelves()) {
-    measureStackedShelf();
-    return;
-  }
-  track.classList.remove("is-stacked");
-  bookElements.forEach((element) => { element.style.bottom = ""; });
   const availableHeight = viewport.clientHeight;
   // Phones: shorter books with air above them, instead of spines that reach
   // up to the title.
@@ -3560,7 +3484,6 @@ function getOpenSide(index) {
 }
 
 function applyBookShifts(index) {
-  if (stackedShelves()) return;
   const book = books[index];
   const openSide = bookElements[index].dataset.openSide;
   const extra = book.width - book.spineWidth;
