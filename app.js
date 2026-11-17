@@ -931,6 +931,8 @@ function isSignedIn() {
 
 function updateAccountButton() {
   updateSpaceSwitch();
+  if (!isSignedIn()) setupStatusRequested = false;
+  updateSetupCard();
   if (!accountButton) return;
   const user = supabaseSession?.user;
   accountButton.hidden = !getSupabaseClient();
@@ -1005,6 +1007,7 @@ function setOnboardingContent({ kicker, title, copy, primary, secondary = t("onb
 }
 
 function updateOnboarding() {
+  updateSetupCard();
   window.clearTimeout(onboardingCloseTimer);
   // Not on a book's detail page: its own 加入我的书架 switch is right there,
   // and a second "add" card would only cover the cover.
@@ -1759,6 +1762,44 @@ async function syncWereadShelf(apiKey) {
     wereadImportStatus.textContent = t("wereadSyncError");
   } finally {
     button.disabled = false;
+  }
+}
+
+// After WeRead is connected (key saved by weread-me), the shelf can be
+// listed without typing the key again.
+function updateWereadImportMode() {
+  wereadImportForm.classList.toggle("is-connected", reading.connected === true);
+}
+
+async function loadWereadPickFromSavedKey() {
+  updateWereadImportMode();
+  wereadImportStatus.textContent = t("wereadSyncLoading");
+  try {
+    const data = await callWereadMe("shelf");
+    const books = (data.books || []).map((book) => ({ ...book, type: "book" }));
+    const albums = (data.albums || []).map((album) => {
+      const info = album.albumInfo || {};
+      return {
+        type: "album",
+        albumId: info.albumId || "",
+        title: info.name || "未命名有声书",
+        author: info.authorName || "作者未知",
+        cover: info.cover || "",
+        category: "有声书",
+        finishReading: info.finish || 0,
+        readUpdateTime: album.albumInfoExtra?.lectureReadUpdateTime || null,
+      };
+    });
+    const items = [...books, ...albums]
+      .sort((a, b) => (b.readUpdateTime || b.updateTime || 0) - (a.readUpdateTime || a.updateTime || 0));
+    wereadPickItems = items.map((item, index) => ({ item, book: customBookFromWereadItem(item, index).book }));
+    wereadPicked.clear();
+    wereadImportStatus.textContent = wereadPickItems.length ? "" : t("wereadPickEmpty");
+    renderWereadPick();
+    document.querySelector("#wereadPick")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    console.error(error);
+    wereadImportStatus.textContent = t("wereadSyncError");
   }
 }
 
@@ -2979,6 +3020,7 @@ function renderReadingPanel() {
   readingPanel.toggleAttribute("data-themed", Boolean(themed));
   if (themed) readingPanel.style.setProperty("--rd-c", readingThemeColor());
   setupReadingSegment();
+  updateSetupCard();
 }
 
 async function openReadingBook(index) {
@@ -3122,6 +3164,7 @@ function openAddBookPanel() {
   window.clearTimeout(addBookCloseTimer);
   pinnedIndex = null;
   if (activeIndex !== null) closeBook(activeIndex, true);
+  updateWereadImportMode();
   addBookPanel.hidden = false;
   addBookPanel.setAttribute("aria-hidden", "false");
   addBookToggle.setAttribute("aria-expanded", "true");
@@ -4089,7 +4132,9 @@ addBookSearch.addEventListener("submit", (event) => {
 });
 wereadImportForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  syncWereadShelf(wereadApiKey.value);
+  // Connected accounts read the shelf with the saved key.
+  if (reading.connected && !wereadApiKey.value.trim()) loadWereadPickFromSavedKey();
+  else syncWereadShelf(wereadApiKey.value);
 });
 wereadPickList.addEventListener("change", (event) => {
   const box = event.target instanceof HTMLInputElement ? event.target : null;
@@ -4604,6 +4649,97 @@ function logVisit() {
   }
 }
 
+// ---- Phones: "做一间你自己的书房" — three steps over the example shelf ----
+// Replaces the browse-first onboarding card on phones. The reference shelf
+// behind it is the example; the steps are: account, connect WeRead,
+// pick books. It goes away once the user is signed in with books on the
+// shelf, or when closed (我的 can bring it back).
+// var, not const/let: updateOnboarding() calls updateSetupCard() during
+// start-up, before this point runs; it waits for setupReady.
+var SETUP_DISMISSED_KEY = "brooke-bookshelf:setup-dismissed";
+var setupStatusRequested = false;
+var setupReady = false;
+
+function setupDismissed() {
+  try { return window.localStorage.getItem(SETUP_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+
+function setSetupDismissed(value) {
+  try {
+    if (value) window.localStorage.setItem(SETUP_DISMISSED_KEY, "1");
+    else window.localStorage.removeItem(SETUP_DISMISSED_KEY);
+  } catch {}
+}
+
+function updateSetupCard() {
+  const card = document.querySelector("#setupCard");
+  if (!card || !setupReady) return;
+  const signedIn = isSignedIn();
+  const hasBooks = hasSavedBooks();
+  if ((signedIn && hasBooks) || setupDismissed()) {
+    card.hidden = true;
+    return;
+  }
+  if (signedIn && reading.connected === null && !setupStatusRequested) {
+    setupStatusRequested = true;
+    callWereadMe("status")
+      .then((data) => { reading.connected = Boolean(data.connected); updateSetupCard(); })
+      .catch(() => {});
+  }
+  const connected = reading.connected === true;
+  const steps = [
+    ["account", "注册账号", "保存你的书房，换手机也在", signedIn],
+    ["weread", "连接微信读书", "一次导入书架、阅读时长和划线", connected],
+    ["pick", "挑选要放进房间的书", connected ? "从你的微信读书书架里勾选" : "连接后从书架里勾选", hasBooks],
+  ];
+  const current = steps.findIndex((step) => !step[3]);
+  card.innerHTML = `
+    <header>
+      <div>
+        <p>这是一个范例书架</p>
+        <h2 id="setupCardTitle">做一间你自己的书房</h2>
+      </div>
+      <button type="button" class="setup-close" data-setup="close" aria-label="收起">
+        <i data-lucide="x"></i>
+      </button>
+    </header>
+    <ol>
+      ${steps.map(([key, title, note, done], index) => `
+        <li class="${done ? "is-done" : index === current ? "is-current" : ""}">
+          <span class="setup-num" aria-hidden="true">${done ? '<i data-lucide="check"></i>' : index + 1}</span>
+          <span class="setup-copy"><b>${title}</b><small>${note}</small></span>
+          ${!done && index === current ? `<button type="button" data-setup="${key}">${key === "account" ? "注册" : key === "weread" ? "连接" : "去挑书"}</button>` : ""}
+        </li>`).join("")}
+    </ol>
+    <button type="button" class="setup-alt" data-setup="search">不用微信读书？搜书添加 →</button>`;
+  card.hidden = false;
+  window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
+}
+
+document.querySelector("#setupCard")?.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-setup]") : null;
+  if (!button) return;
+  const step = button.dataset.setup;
+  if (step === "close") {
+    setSetupDismissed(true);
+    updateSetupCard();
+  } else if (step === "account") {
+    openAuthGate(() => updateSetupCard());
+  } else if (step === "weread") {
+    requireAuth(openReadingPanel);
+  } else if (step === "pick") {
+    requireAuth(() => {
+      openAddBookPanel();
+      if (reading.connected) loadWereadPickFromSavedKey();
+    });
+  } else if (step === "search") {
+    requireAuth(openAddBookPanel);
+  }
+});
+
+setupReady = true;
+updateSetupCard();
+
 // ---- Add to home screen (phones) ----
 // Shown once the visitor has looked around for a bit, never when the site
 // already runs from the home screen. Android/Chrome gets a real 添加 button
@@ -4708,6 +4844,7 @@ function renderProfile() {
       <ul class="profile-list">
         ${profileRow("index", "list", "全部书目")}
         ${profileRow("help", "info", "操作提示")}
+        ${profileRow("setup", "list-checks", "做书房的三个步骤")}
       </ul>`;
   } else {
     const joined = user.created_at ? new Date(user.created_at) : null;
@@ -4729,6 +4866,7 @@ function renderProfile() {
         ${profileRow("reading", "bar-chart-3", "阅读记录")}
         ${profileRow("index", "list", "全部书目", "参考空间")}
         ${profileRow("help", "info", "操作提示")}
+        ${hasSavedBooks() ? "" : profileRow("setup", "list-checks", "做书房的三个步骤")}
       </ul>
       <ul class="profile-list">
         ${profileRow("signout", "log-out", "退出登录")}
@@ -4790,6 +4928,11 @@ function runProfileAction(action) {
   else if (action === "reading") openReadingPanel();
   else if (action === "index") openBookIndex();
   else if (action === "help" && shelfHelp.hidden) toggleShelfHelp();
+  else if (action === "setup") {
+    setSetupDismissed(false);
+    goToShelf();
+    updateSetupCard();
+  }
 }
 
 // ---- 摘录 page (phone tab): one highlight at a time, 换一条 for another ----

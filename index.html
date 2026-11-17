@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="Reading Room" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-60" />
+  <link rel="stylesheet" href="./styles.css?v=20261116-62" />
   <script src="./config.js"></script>
   <script>
     if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) {
@@ -427,6 +427,9 @@
       <div class="quote-panel-body" id="quotePanelBody"></div>
     </section>
 
+    <!-- Phones only: the three steps to a room of your own. -->
+    <aside class="setup-card" id="setupCard" aria-labelledby="setupCardTitle" hidden></aside>
+
     <!-- Phones only: suggest adding the site to the home screen. -->
     <aside class="install-hint" id="installHint" aria-labelledby="installHintTitle" hidden>
       <img src="./assets/icons/icon-192.png" alt="" width="44" height="44" />
@@ -451,6 +454,6 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261116-77"></script>
+  <script defer src="./app.js?v=20261116-80"></script>
 </body>
 </html>

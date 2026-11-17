@@ -6127,3 +6127,188 @@ button.flow.flow:disabled::after { opacity: 0.5; }
     padding-bottom: max(112px, calc(env(safe-area-inset-bottom) + 104px));
   }
 }
+
+/* ---- Phones: "做一间你自己的书房" step card ----
+   Replaces the browse-first card on phones. Sits under the title, over
+   the top of the example shelf. */
+.setup-card {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .shelf-onboarding {
+    display: none !important;
+  }
+
+  .setup-card {
+    position: fixed;
+    top: max(172px, calc(env(safe-area-inset-top) + 158px));
+    right: 16px;
+    left: 16px;
+    z-index: 60;
+    display: grid;
+    gap: 12px;
+    padding: 16px 16px 12px;
+    border: 1px solid rgba(21, 21, 21, 0.08);
+    border-radius: 22px;
+    background: rgba(250, 249, 246, 0.9);
+    box-shadow: 0 18px 44px rgba(21, 21, 21, 0.12);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .setup-card[hidden],
+  .library:is(.is-detail-open, .is-index-open, .is-add-book-open, .is-reading-open, .is-profile-open, .is-quote-open, .is-auth-gate-open) .setup-card,
+  .library.is-my-shelf-open:not(.is-my-room-view) .setup-card {
+    display: none;
+  }
+
+  .setup-card header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .setup-card header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .setup-card h2 {
+    margin: 2px 0 0;
+    font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .setup-close {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+  }
+
+  .setup-close svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .setup-card ol {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    gap: 2px;
+    list-style: none;
+  }
+
+  .setup-card li {
+    display: grid;
+    min-height: 48px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    color: var(--muted);
+  }
+
+  .setup-card li + li {
+    border-top: 1px solid rgba(21, 21, 21, 0.08);
+  }
+
+  .setup-num {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    place-items: center;
+    border: 1px solid rgba(21, 21, 21, 0.2);
+    border-radius: 50%;
+    font: 600 12px Arial, Helvetica, sans-serif;
+  }
+
+  .setup-num svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .setup-card li.is-current {
+    color: var(--ink);
+  }
+
+  .setup-card li.is-current .setup-num {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .setup-card li.is-done .setup-num {
+    border-color: transparent;
+    background: rgba(21, 21, 21, 0.08);
+    color: var(--ink);
+  }
+
+  .setup-card li.is-done .setup-copy b {
+    text-decoration: line-through;
+    text-decoration-color: rgba(21, 21, 21, 0.3);
+  }
+
+  .setup-copy {
+    display: grid;
+    min-width: 0;
+  }
+
+  .setup-copy b {
+    font-family: "Songti SC", "STSong", serif;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .setup-copy small {
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .setup-card li button {
+    min-height: 34px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font: 600 12px Arial, Helvetica, "Songti SC", serif;
+  }
+
+  .setup-alt {
+    justify-self: start;
+    padding: 2px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: 12px Arial, Helvetica, "Songti SC", serif;
+    text-decoration: underline;
+    text-decoration-color: rgba(21, 21, 21, 0.25);
+    text-underline-offset: 3px;
+  }
+}
+
+/* WeRead already connected: no key needed to read the shelf. */
+#wereadImportForm.is-connected > label,
+#wereadImportForm.is-connected > input,
+#wereadImportForm.is-connected > .weread-import-hint,
+#wereadImportForm.is-connected > .weread-howto {
+  display: none;
+}
+
+#wereadImportForm.is-connected::before {
+  content: "已连接微信读书，可以直接读取你的书架。";
+  color: var(--muted);
+  font-size: 12px;
+}
