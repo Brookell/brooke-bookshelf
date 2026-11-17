@@ -121,6 +121,23 @@ const DEFAULT_SUPABASE_URL = "https://oipsefmckxyojnntiaax.supabase.co";
 const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
+const THEME_STORAGE_KEY = "brooke-bookshelf:theme:v1";
+
+// Theme colour for 阅读记录, 笔记 and 我的 (picked on 我的). Each colour is
+// tuned so its ink reads on it. 'follow' keeps the old behaviour: each page
+// takes the colour of the book it is about. The book detail page and the
+// shelf always use the book's own colour.
+const THEMES = [
+  { id: "pine", name: "墨绿", color: "#2f4a3a" },
+  { id: "navy", name: "深蓝", color: "#253a55" },
+  { id: "wine", name: "酒红", color: "#6b2632" },
+  { id: "ochre", name: "赭石", color: "#9b5a26" },
+  { id: "plum", name: "灰紫", color: "#574f6e" },
+  { id: "vermilion", name: "朱红", color: "#b8402f" },
+  { id: "paper", name: "米白", color: "#e9e4da" },
+  { id: "follow", name: "跟随书的颜色", color: null },
+];
+const DEFAULT_THEME = "pine";
 // Set once anyone has signed in on this browser, so the sign-in sheet opens
 // on 注册 for first-time visitors and on 登录 for returning ones.
 const HAS_ACCOUNT_STORAGE_KEY = "brooke-bookshelf:has-account:v1";
@@ -351,6 +368,7 @@ let pinnedIndex = null;
 let userBooks = readUserBooks();
 let showMyRoomFirst = readShowMyRoomFirst();
 let myRoomName = readRoomName();
+let themeId = readThemeId();
 let activeSpace = "brooke";
 let myShelfFilter = "all";
 let myShelfView = "list";
@@ -446,6 +464,30 @@ function updateSpaceSwitch() {
   });
   library.classList.toggle("is-user-space", activeSpace === "user");
   roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
+}
+
+function readThemeId() {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return THEMES.some((theme) => theme.id === saved) ? saved : DEFAULT_THEME;
+  } catch {
+    return DEFAULT_THEME;
+  }
+}
+
+// The theme's colour, or null when pages should follow the book.
+function themeColor() {
+  return THEMES.find((theme) => theme.id === themeId)?.color || null;
+}
+
+function setTheme(id) {
+  if (!THEMES.some((theme) => theme.id === id) || id === themeId) return;
+  themeId = id;
+  try { window.localStorage.setItem(THEME_STORAGE_KEY, id); } catch { /* private mode */ }
+  syncSettingsToSupabase();
+  if (!readingPanel.hidden) renderReadingPanel();
+  if (quotePanel && !quotePanel.hidden) applyNotesColor();
+  if (!profilePanel.hidden) renderProfile();
 }
 
 function readRoomName() {
@@ -892,7 +934,7 @@ async function loadSettingsFromSupabase() {
   if (!client || !userId) return;
   const { data, error } = await client
     .from("user_settings")
-    .select("room_name, show_my_room_first")
+    .select("room_name, show_my_room_first, theme_color")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) {
@@ -905,6 +947,10 @@ async function loadSettingsFromSupabase() {
   }
   myRoomName = data.room_name || "Your Reading Room";
   showMyRoomFirst = Boolean(data.show_my_room_first);
+  if (THEMES.some((theme) => theme.id === data.theme_color)) {
+    themeId = data.theme_color;
+    try { window.localStorage.setItem(THEME_STORAGE_KEY, themeId); } catch { /* private mode */ }
+  }
   window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, myRoomName);
   window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(showMyRoomFirst));
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
@@ -920,6 +966,7 @@ async function syncSettingsToSupabase() {
     user_id: userId,
     room_name: myRoomName || "Your Reading Room",
     show_my_room_first: Boolean(showMyRoomFirst),
+    theme_color: themeId,
   }, { onConflict: "user_id" });
   if (error) console.error("Supabase user_settings upsert failed", error);
 }
@@ -2532,6 +2579,7 @@ function readingFeature(mode = reading.mode) {
 }
 
 function readingThemeColor(mode = reading.mode) {
+  if (themeColor()) return themeColor();
   const cover = readingFeature(mode)?.book?.cover;
   return (cover && reading.themeColors[cover]) || READING_THEME_FALLBACK;
 }
@@ -5283,10 +5331,35 @@ function profileRows(rows) {
     </ol>`;
 }
 
+// 我的 itself is in the theme colour; with 'follow' (no single book here)
+// it stays near-black.
+function applyProfileColor() {
+  const color = themeColor() || "#141414";
+  const ink = inkForColor(color);
+  profilePanel.style.setProperty("--pf-bg", color);
+  profilePanel.style.setProperty("--pf-ink", ink);
+  library.style.setProperty("--profile-bg", color);
+  library.style.setProperty("--profile-ink", ink);
+}
+
+function themePickerMarkup() {
+  const current = THEMES.find((theme) => theme.id === themeId);
+  return `
+    <section class="pf-theme" aria-label="主题色">
+      <div class="pf-theme-head"><h4>主题色</h4><span>${escapeHtml(current?.name || "")}</span></div>
+      <div class="pf-swatches" role="radiogroup" aria-label="主题色">
+        ${THEMES.map((theme) => `
+          <button type="button" role="radio" aria-checked="${theme.id === themeId}" aria-label="${theme.name}" title="${theme.name}"
+            data-theme-id="${theme.id}" class="${theme.color ? "" : "is-follow"}" style="${theme.color ? `--sw: ${theme.color};` : ""}"></button>`).join("")}
+      </div>
+    </section>`;
+}
+
 function renderProfile() {
   if (!profileBody) return;
   const user = supabaseSession?.user;
   if (!user) {
+    applyProfileColor();
     profileBody.innerHTML = `
       <div class="pf">
         <section class="pf-card">
@@ -5295,6 +5368,7 @@ function renderProfile() {
           <p>登录后，你的书架和阅读记录会保存在账号里。</p>
           <button type="button" class="pf-signin" data-profile-action="signin">登录 / 注册</button>
         </section>
+        ${themePickerMarkup()}
         ${profileRows([["room", "我的空间", "登录后进入"], ["index", "全部书目"], ["help", "操作提示"], ["setup", "打造你的书架"]])}
       </div>`;
     return;
@@ -5304,6 +5378,7 @@ function renderProfile() {
   const connected = reading.connected;
   const rows = [["room", "我的空间"], ["add", "增添书籍"], ["reference", "参考书架", "范例"], ["index", "全部书目"], ["help", "操作提示"]];
   if (!hasSavedBooks()) rows.push(["setup", "打造你的书架"]);
+  applyProfileColor();
   profileBody.innerHTML = `
     <div class="pf">
       <section class="pf-card">
@@ -5323,6 +5398,8 @@ function renderProfile() {
           <span>微信读书</span>
         </button>
       </div>
+
+      ${themePickerMarkup()}
 
       ${profileRows(rows)}
 
@@ -5424,7 +5501,7 @@ function notesListMarkup() {
 // from, with ink that reads on it; plain paper until a colour is known.
 function applyNotesColor(quote = reading.quote) {
   if (!quotePanel) return;
-  const color = quote?.cover && reading.themeColors[quote.cover];
+  const color = themeColor() || (quote?.cover && reading.themeColors[quote.cover]);
   quotePanel.toggleAttribute("data-coloured", Boolean(color));
   library.classList.toggle("has-coloured-notes", Boolean(color));
   if (!color) return;
@@ -5436,7 +5513,7 @@ function applyNotesColor(quote = reading.quote) {
 
 function renderQuotePanel(state = "ready") {
   if (!quotePanelBody) return;
-  applyNotesColor(state === "ready" ? reading.quote : null);
+  applyNotesColor(state === "ready" ? reading.quote : undefined);
   if (state === "loading") {
     quotePanelBody.innerHTML = `<p class="quote-panel-note">正在翻你的笔记…</p>`;
   } else if (state === "connect") {
@@ -5601,6 +5678,11 @@ function goToShelf() {
 
 profileClose?.addEventListener("click", () => closeProfile());
 profileBody?.addEventListener("click", (event) => {
+  const swatch = event.target instanceof Element ? event.target.closest("[data-theme-id]") : null;
+  if (swatch) {
+    setTheme(swatch.dataset.themeId);
+    return;
+  }
   const button = event.target instanceof Element ? event.target.closest("[data-profile-action]") : null;
   if (button) runProfileAction(button.dataset.profileAction);
 });

@@ -7139,12 +7139,13 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
    number boxes, then a numbered list with arrows, all on one grid. */
 @media (max-width: 720px) {
   .profile-panel {
-    background: #141414;
-    color: var(--paper);
+    background: var(--pf-bg, #141414);
+    color: var(--pf-ink, var(--paper));
+    transition: opacity 380ms ease, transform 560ms cubic-bezier(0.22, 0.8, 0.2, 1), visibility 0s linear 560ms, background-color 500ms ease, color 500ms ease;
   }
 
   .library.is-profile-open {
-    background-color: #141414;
+    background-color: var(--profile-bg, #141414);
   }
 
   .profile-panel .book-index-header {
@@ -7153,17 +7154,19 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 
   /* The tab bar turns light-on-dark here. */
   .library.is-profile-open .tab-bar {
-    border-color: rgba(238, 236, 232, 0.14);
-    background: rgba(238, 236, 232, 0.08);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    border-color: color-mix(in srgb, var(--profile-ink, #eeece8) 16%, transparent);
+    background: color-mix(in srgb, var(--profile-ink, #eeece8) 9%, transparent);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(24px) saturate(1.1);
+    -webkit-backdrop-filter: blur(24px) saturate(1.1);
   }
 
   .library.is-profile-open .tab-bar button:not([aria-current="page"]) {
-    color: rgba(238, 236, 232, 0.5);
+    color: color-mix(in srgb, var(--profile-ink, #eeece8) 52%, transparent);
   }
 
   .library.is-profile-open .tab-bar button[aria-current="page"] {
-    color: var(--paper);
+    color: var(--profile-ink, #eeece8);
   }
 }
 
@@ -7179,6 +7182,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   justify-items: center;
   gap: 6px;
   padding: 36px 20px 30px;
+  border: 1px solid color-mix(in srgb, var(--pf-ink) 10%, transparent);
   border-radius: 6px;
   background: #e6ddd0;
   color: #141414;
@@ -7247,17 +7251,17 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   place-content: center;
   justify-items: center;
   gap: 8px;
-  border: 1px solid rgba(238, 236, 232, 0.12);
+  border: 1px solid color-mix(in srgb, var(--pf-ink) 12%, transparent);
   border-radius: 6px;
-  background: rgba(238, 236, 232, 0.03);
-  color: var(--paper);
+  background: color-mix(in srgb, var(--pf-ink) 3%, transparent);
+  color: var(--pf-ink);
   cursor: pointer;
   font: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
 .pf-stats button:active {
-  background: rgba(238, 236, 232, 0.08);
+  background: color-mix(in srgb, var(--pf-ink) 8%, transparent);
 }
 
 .pf-stats b {
@@ -7271,7 +7275,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 }
 
 .pf-stats b small {
-  color: rgba(238, 236, 232, 0.6);
+  color: color-mix(in srgb, var(--pf-ink) 60%, transparent);
   font-family: -apple-system, "PingFang SC", Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -7288,7 +7292,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 }
 
 .pf-stats span {
-  color: rgba(238, 236, 232, 0.5);
+  color: color-mix(in srgb, var(--pf-ink) 50%, transparent);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -7298,7 +7302,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid rgba(238, 236, 232, 0.1);
+  border-top: 1px solid color-mix(in srgb, var(--pf-ink) 10%, transparent);
 }
 
 .pf-list button {
@@ -7310,9 +7314,9 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   gap: 8px;
   padding: 0 2px;
   border: 0;
-  border-bottom: 1px solid rgba(238, 236, 232, 0.1);
+  border-bottom: 1px solid color-mix(in srgb, var(--pf-ink) 10%, transparent);
   background: none;
-  color: var(--paper);
+  color: var(--pf-ink);
   cursor: pointer;
   font: inherit;
   text-align: left;
@@ -7320,7 +7324,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 }
 
 .pf-list em {
-  color: rgba(238, 236, 232, 0.45);
+  color: color-mix(in srgb, var(--pf-ink) 45%, transparent);
   font-family: "Syne", -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   font-size: 12px;
   font-style: normal;
@@ -7334,7 +7338,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 }
 
 .pf-list small {
-  color: rgba(238, 236, 232, 0.45);
+  color: color-mix(in srgb, var(--pf-ink) 45%, transparent);
   font-size: 12px;
 }
 
@@ -7343,7 +7347,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   width: 18px;
   height: 18px;
   fill: none;
-  stroke: rgba(238, 236, 232, 0.55);
+  stroke: color-mix(in srgb, var(--pf-ink) 55%, transparent);
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -7355,7 +7359,7 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   padding: 8px 14px;
   border: 0;
   background: none;
-  color: rgba(238, 236, 232, 0.5);
+  color: color-mix(in srgb, var(--pf-ink) 50%, transparent);
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -7440,4 +7444,62 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   .library.is-quote-open.has-coloured-notes .tab-bar button[aria-current="page"] {
     color: var(--notes-ink, #fff);
   }
+}
+
+
+/* 我的: theme colour swatches. 跟随书的颜色 is a ring of several colours. */
+.pf-theme {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 8px;
+  padding: 18px 16px;
+  border: 1px solid color-mix(in srgb, var(--pf-ink) 12%, transparent);
+  border-radius: 6px;
+}
+
+.pf-theme-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.pf-theme h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.pf-theme-head span {
+  color: color-mix(in srgb, var(--pf-ink) 55%, transparent);
+  font-size: 12px;
+}
+
+.pf-swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.pf-swatches button {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--pf-ink) 22%, transparent);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 200ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pf-swatches button.is-follow {
+  background: conic-gradient(#2f4a3a, #253a55, #574f6e, #6b2632, #b8402f, #9b5a26, #e8d27a, #2f4a3a);
+}
+
+.pf-swatches button:active {
+  transform: scale(0.92);
+}
+
+.pf-swatches button[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--pf-bg, #141414), 0 0 0 4px var(--pf-ink);
 }

@@ -25,6 +25,13 @@ create table if not exists public.user_settings (
   updated_at timestamptz not null default now()
 );
 
+-- Theme colour picked on 我的 (an id such as 'pine', or 'follow' for the
+-- book's own colour). Null means the default.
+alter table public.user_settings add column if not exists theme_color text;
+alter table public.user_settings drop constraint if exists user_settings_theme_color_check;
+alter table public.user_settings add constraint user_settings_theme_color_check
+  check (theme_color is null or theme_color ~ '^[a-z]{1,16}$');
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql
