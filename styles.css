@@ -7059,3 +7059,44 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   color: rgba(21, 21, 21, 0.62);
   font-size: 14px;
 }
+
+/* ---- Phones: the tab bar as frosted glass ----
+   Mostly see-through, blurring whatever is behind it, so it takes on the
+   page's colour instead of sitting on top as a pale slab. On the coloured
+   reading record the icons switch to that page's ink. */
+@media (max-width: 720px) {
+  .tab-bar {
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 10px 30px rgba(21, 21, 21, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    transition: opacity 240ms ease, transform 320ms ease, background-color 400ms ease, border-color 400ms ease;
+  }
+
+  .tab-bar button {
+    color: rgba(21, 21, 21, 0.55);
+  }
+
+  .tab-bar button[aria-current="page"] {
+    background: rgba(21, 21, 21, 0.07);
+    color: var(--ink);
+  }
+
+  .library.is-reading-open.has-coloured-page .tab-bar {
+    border-color: color-mix(in srgb, var(--page-ink, #fff) 24%, transparent);
+    background: color-mix(in srgb, var(--page-ink, #fff) 10%, transparent);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(24px) saturate(1.1);
+    -webkit-backdrop-filter: blur(24px) saturate(1.1);
+  }
+
+  .library.is-reading-open.has-coloured-page .tab-bar button {
+    color: color-mix(in srgb, var(--page-ink, #fff) 62%, transparent);
+  }
+
+  .library.is-reading-open.has-coloured-page .tab-bar button[aria-current="page"] {
+    background: color-mix(in srgb, var(--page-ink, #fff) 16%, transparent);
+    color: var(--page-ink, #fff);
+  }
+}

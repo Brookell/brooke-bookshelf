@@ -3209,7 +3209,11 @@ function renderReadingPanel() {
   if (themed) {
     readingPanel.style.setProperty("--rd-c", readingThemeColor());
     readingPanel.style.setProperty("--rd-on", inkForColor(readingThemeColor()));
+    // The floating tab bar sits outside the panel and takes the same ink.
+    library.style.setProperty("--page-tint", readingThemeColor());
+    library.style.setProperty("--page-ink", inkForColor(readingThemeColor()));
   }
+  library.classList.toggle("has-coloured-page", Boolean(readingPanel.hasAttribute("data-insights")));
   setupReadingSegment();
   updateSetupCard();
 }
