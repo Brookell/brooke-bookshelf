@@ -2,6 +2,9 @@
 //
 // POST { passcode } -> { token, data }   token keeps the page signed in
 // POST { token }    -> { data }          admin_overview_data()
+// POST { token, resetPassword: { userId, password } } -> { ok }
+//                    sets a new 6-digit password for one user (accounts
+//                    made with a username have no email to reset with)
 //
 // The passcode lives in the secret ADMIN_PASSCODE (never in the repo).
 // Tokens are HMAC-signed with a key derived from the passcode and the
@@ -97,6 +100,25 @@ async function overview() {
   return response.json();
 }
 
+async function resetPassword(input: { userId?: unknown; password?: unknown }) {
+  const userId = String(input?.userId ?? "");
+  const password = String(input?.password ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return jsonResponse({ error: "bad_user" }, 400);
+  if (!/^\d{6}$/.test(password)) return jsonResponse({ error: "bad_password" }, 400);
+  const key = env("SUPABASE_SERVICE_ROLE_KEY");
+  const response = await fetch(`${env("SUPABASE_URL")}/auth/v1/admin/users/${userId}`, {
+    method: "PUT",
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
+  if (response.status === 404) return jsonResponse({ error: "no_user" }, 404);
+  if (!response.ok) {
+    console.error("reset password", response.status, await response.text().catch(() => ""));
+    return jsonResponse({ error: "reset_failed" }, 500);
+  }
+  return jsonResponse({ ok: true });
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
@@ -107,6 +129,7 @@ Deno.serve(async (request) => {
 
     if (typeof body.token === "string") {
       if (!(await tokenValid(body.token))) return jsonResponse({ error: "signed_out" }, 401);
+      if (body.resetPassword) return await resetPassword(body.resetPassword);
       return jsonResponse({ data: await overview() });
     }
 

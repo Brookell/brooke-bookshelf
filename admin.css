@@ -608,3 +608,34 @@ button:disabled { opacity: 0.5; cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   .flow-button, .flow-button * { transition-duration: 1ms !important; }
 }
+
+/* 重置密码 in each user row. */
+.row-action {
+  padding: 5px 10px;
+  border: 1px solid rgba(16, 14, 25, 0.16);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.row-action:hover {
+  background: #d8f275;
+  border-color: #d8f275;
+}
+
+.row-action:disabled {
+  opacity: 0.5;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

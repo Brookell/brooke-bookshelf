@@ -39,6 +39,8 @@ const authGate = document.querySelector("#authGate");
 const authGateClose = document.querySelector("#authGateClose");
 const authGateForm = document.querySelector("#authGateForm");
 const authEmail = document.querySelector("#authEmail");
+const authIdLabel = document.querySelector("label[for='authEmail']");
+const authPasswordLabel = document.querySelector("label[for='authPassword']");
 const authPassword = document.querySelector("#authPassword");
 const authPasswordConfirm = document.querySelector("#authPasswordConfirm");
 const authConfirmRow = document.querySelector("#authConfirmRow");
@@ -491,7 +493,7 @@ function writeDisplayName(value) {
 
 // The name shown on 我的: the user's own, else their email before the @.
 function userDisplayName(user = supabaseSession?.user) {
-  return displayName || String(user?.email || "").split("@")[0] || "读者";
+  return displayName || usernameFromEmail(user?.email) || String(user?.email || "").split("@")[0] || "读者";
 }
 
 function readAvatarUrl() {
@@ -766,9 +768,86 @@ function hasAuthSession() {
   return Boolean(readAuthSession());
 }
 
-// Email + password. 登录 and 注册 are separate so sign-up can ask for the
-// password twice; email confirmation is off in Supabase, so a new account
-// is signed in straight away.
+// ---- Usernames ----
+// New accounts sign up with a username and a 6-digit password; accounts
+// made earlier keep signing in with their email. Supabase needs an email,
+// so a username is stored as a hidden address on the reserved .invalid
+// domain (no mail can ever reach it): "u" + base32 of the name's UTF-8.
+// 12 characters at most keeps it within the 64-character email limit.
+const USERNAME_DOMAIN = "users.reading-room.invalid";
+const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
+
+function normalizeUsername(value) {
+  return String(value || "").normalize("NFKC").trim().toLowerCase();
+}
+
+function isValidUsername(name) {
+  return /^[\p{L}\p{N}_-]{2,12}$/u.test(name);
+}
+
+function toBase32(bytes) {
+  let bits = 0;
+  let value = 0;
+  let out = "";
+  for (const byte of bytes) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
+  return out;
+}
+
+function fromBase32(text) {
+  let bits = 0;
+  let value = 0;
+  const bytes = [];
+  for (const char of text) {
+    const index = BASE32.indexOf(char);
+    if (index < 0) throw new Error("bad base32");
+    value = (value << 5) | index;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
+function usernameEmail(name) {
+  return `u${toBase32(new TextEncoder().encode(normalizeUsername(name)))}@${USERNAME_DOMAIN}`;
+}
+
+// The username behind a hidden address, or "" for a real email.
+function usernameFromEmail(email) {
+  const match = /^u([a-z2-7]+)@users\.reading-room\.invalid$/i.exec(String(email || ""));
+  if (!match) return "";
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(fromBase32(match[1].toLowerCase()));
+  } catch {
+    return "";
+  }
+}
+
+// Six digits, but not the ones people guess first.
+function weakPinReason(pin) {
+  if (!/^\d{6}$/.test(pin)) return "密码要 6 位数字。";
+  const digits = [...pin].map(Number);
+  const steps = digits.slice(1).map((digit, i) => digit - digits[i]);
+  if (steps.every((step) => step === 0)) return "密码太简单了（同一个数字），换一个吧。";
+  if (steps.every((step) => step === 1) || steps.every((step) => step === -1)) return "密码太简单了（连续数字），换一个吧。";
+  if (pin.slice(0, 2).repeat(3) === pin || pin.slice(0, 3).repeat(2) === pin) return "密码太简单了（重复的数字），换一个吧。";
+  if (["112233", "111222", "147258", "159357", "520520", "520131", "123321", "654321"].includes(pin)) return "这个密码太常见了，换一个吧。";
+  return "";
+}
+
+// 登录 takes a username or (for older accounts) an email; 注册 asks for a
+// username and the 6-digit password twice. Email confirmation is off in
+// Supabase, so a new account is signed in straight away.
 let authMode = "signin";
 
 function setAuthMode(mode) {
@@ -780,6 +859,17 @@ function setAuthMode(mode) {
   authConfirmRow.hidden = !signup;
   authPasswordConfirm.required = signup;
   authPassword.autocomplete = signup ? "new-password" : "current-password";
+  authIdLabel.textContent = signup ? "用户名" : "用户名或邮箱";
+  authEmail.placeholder = signup ? "2–12 个字，中英文、数字都可以" : "用户名（以前用邮箱注册的，填邮箱）";
+  authEmail.autocomplete = "username";
+  authPasswordLabel.textContent = signup ? "6 位数字密码" : "密码";
+  authPassword.placeholder = signup ? "6 位数字" : "";
+  // Sign-up passwords are 6 digits: number pad on phones. Older accounts
+  // may have any password, so 登录 leaves the keyboard alone.
+  [authPassword, authPasswordConfirm].forEach((input) => {
+    input.inputMode = signup ? "numeric" : "";
+    input.maxLength = signup ? 6 : 200;
+  });
   authSubmit.textContent = signup ? "注册" : "登录";
   // "忘记密码？" only makes sense when signing in.
   authGateMagicLink.hidden = signup;
@@ -1025,7 +1115,7 @@ function updateAccountButton() {
   const user = supabaseSession?.user;
   accountButton.hidden = !getSupabaseClient();
   accountButton.textContent = user ? t("signOut") : t("signIn");
-  accountButton.title = user ? t("signedInAs", { email: user.email || "" }) : t("signIn");
+  accountButton.title = user ? t("signedInAs", { email: usernameFromEmail(user.email) || user.email || "" }) : t("signIn");
   accountButton.classList.toggle("is-signed-in", Boolean(user));
 }
 
@@ -4816,13 +4906,31 @@ authGate.querySelectorAll("[data-auth-mode]").forEach((button) => {
 });
 authGateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const email = authEmail.value.trim();
+  const id = authEmail.value.trim();
   const password = authPassword.value;
-  if (!email || !password) return;
-  if (authMode === "signup" && password !== authPasswordConfirm.value) {
-    authGateStatus.textContent = "两次输入的密码不一样，请再检查一下。";
-    authPasswordConfirm.focus();
-    return;
+  if (!id || !password) return;
+  let email = id;
+  if (authMode === "signup") {
+    const name = normalizeUsername(id);
+    if (!isValidUsername(name)) {
+      authGateStatus.textContent = "用户名要 2–12 个字，只能用中英文、数字、下划线或短横线。";
+      authEmail.focus();
+      return;
+    }
+    const weak = weakPinReason(password);
+    if (weak) {
+      authGateStatus.textContent = weak;
+      authPassword.focus();
+      return;
+    }
+    if (password !== authPasswordConfirm.value) {
+      authGateStatus.textContent = "两次输入的密码不一样，请再检查一下。";
+      authPasswordConfirm.focus();
+      return;
+    }
+    email = usernameEmail(name);
+  } else if (!id.includes("@")) {
+    email = usernameEmail(id);
   }
   authSubmit.disabled = true;
   authGateStatus.textContent = authMode === "signup" ? "正在注册…" : "正在登录…";
@@ -4831,18 +4939,26 @@ authGateForm.addEventListener("submit", async (event) => {
       ? await signUpWithPassword(email, password)
       : await signInWithPassword(email, password);
     if (result.mode === "wrong-credentials") {
-      authGateStatus.textContent = "邮箱或密码不对。还没有账号就先注册；忘记密码可以点下面的「忘记密码？」。";
+      authGateStatus.textContent = id.includes("@")
+        ? "邮箱或密码不对。忘记密码可以点下面的「忘记密码？」。"
+        : "用户名或密码不对。还没有账号就先注册；忘记密码可以点下面的「忘记密码？」。";
       return;
     }
     if (result.mode === "already-registered") {
-      setAuthMode("signin");
-      authGateStatus.textContent = "这个邮箱已经注册过了，请直接登录。";
-      authPassword.focus();
+      authGateStatus.textContent = "这个用户名已经有人用了，换一个吧。";
+      authEmail.focus();
+      authEmail.select();
       return;
     }
     if (result.mode === "check-email") {
       authGateStatus.textContent = "注册成功，请打开邮箱里的确认链接后再登录。";
       return;
+    }
+    // The name shown on 我的 keeps the way it was typed ("Brooke"); the
+    // login itself ignores case.
+    if (authMode === "signup") {
+      writeDisplayName(id.normalize("NFKC"));
+      syncSettingsToSupabase();
     }
     authPassword.value = "";
     authPasswordConfirm.value = "";
@@ -4857,9 +4973,9 @@ authGateForm.addEventListener("submit", async (event) => {
 });
 authGateMagicLink.addEventListener("click", async () => {
   const email = authEmail.value.trim();
-  if (!email || !authEmail.checkValidity()) {
-    authGateStatus.textContent = "请先在上面填好邮箱。";
-    authEmail.focus();
+  // Username accounts have no inbox to send a link to.
+  if (!email.includes("@")) {
+    authGateStatus.textContent = "用用户名注册的账号没有邮箱，忘记密码请联系管理员帮你重置。以前用邮箱注册的，在上面填邮箱再点这里。";
     return;
   }
   authGateMagicLink.disabled = true;

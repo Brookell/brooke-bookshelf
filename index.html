@@ -187,10 +187,10 @@
           <button type="button" data-auth-mode="signup" aria-pressed="false">注册</button>
         </div>
         <form class="auth-gate-form" id="authGateForm">
-          <label for="authEmail">邮箱</label>
-          <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <label for="authEmail">用户名或邮箱</label>
+          <input id="authEmail" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="用户名（以前用邮箱注册的，填邮箱）" required />
           <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="至少 6 位" required />
+          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
           <div class="auth-confirm" id="authConfirmRow" hidden>
             <label for="authPasswordConfirm">确认密码</label>
             <input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="6" />
@@ -469,7 +469,7 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261118-cs2"></script>
+  <script defer src="./app.js?v=20261119-u2"></script>
   <script defer src="./shelf-carousel.js?v=6"></script>
 </body>
 </html>

@@ -40,6 +40,27 @@
     return value.replace(/\/(s|t[0-8])_([^/]+)$/, "/t9_$2").replace(/^http:/, "https:");
   }
 
+  // Accounts made with a username are stored as u<base32>@users.reading-room.invalid
+  // (see app.js); show the username instead.
+  const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
+  function usernameFromEmail(email) {
+    const match = /^u([a-z2-7]+)@users\.reading-room\.invalid$/i.exec(String(email || ""));
+    if (!match) return "";
+    let bits = 0;
+    let value = 0;
+    const bytes = [];
+    for (const char of match[1].toLowerCase()) {
+      value = (value << 5) | BASE32.indexOf(char);
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 255);
+        bits -= 8;
+      }
+    }
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes)); } catch { return ""; }
+  }
+  const userLabel = (u) => usernameFromEmail(u.email) || u.email || "";
+
   const TOKEN_KEY = "brooke-bookshelf:admin-token";
 
   function readToken() {
@@ -217,7 +238,7 @@
   function filteredUsers() {
     const q = $("userFilter").value.trim().toLowerCase();
     const users = (data?.users || []).filter((u) => !q
-      || String(u.email || "").toLowerCase().includes(q)
+      || userLabel(u).toLowerCase().includes(q)
       || String(u.room_name || "").toLowerCase().includes(q));
     const dir = sortDir === "asc" ? 1 : -1;
     return users.sort((a, b) => {
@@ -241,19 +262,20 @@
     });
     const body = $("userTable").querySelector("tbody");
     if (!users.length) {
-      body.innerHTML = `<tr><td colspan="5" class="empty">${(data.users || []).length ? "没有匹配的用户" : "还没有用户注册"}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty">${(data.users || []).length ? "没有匹配的用户" : "还没有用户注册"}</td></tr>`;
       return;
     }
     body.innerHTML = users.map((u) => `
       <tr>
         <td>
-          <span class="avatar" aria-hidden="true">${escapeHtml(String(u.email || "?").slice(0, 1).toUpperCase())}</span>
-          <span class="who"><b>${escapeHtml(u.email)}</b>${u.room_name ? `<small>${escapeHtml(u.room_name)}</small>` : ""}</span>
+          <span class="avatar" aria-hidden="true">${escapeHtml(Array.from(userLabel(u) || "?")[0].toUpperCase())}</span>
+          <span class="who"><b>${escapeHtml(userLabel(u))}</b><small>${usernameFromEmail(u.email) ? "用户名账号" : "邮箱账号"}</small></span>
         </td>
         <td title="${escapeHtml(u.created_at)}">${formatDate(u.created_at, false)}</td>
         <td title="${escapeHtml(u.last_sign_in_at)}">${u.last_sign_in_at ? relative(u.last_sign_in_at) : "—"}</td>
         <td class="num">${u.books}</td>
         <td>${u.weread_connected ? '<span class="pill pill-on">已连接</span>' : '<span class="pill">未连接</span>'}</td>
+        <td class="num"><button type="button" class="row-action" data-reset-user="${escapeHtml(u.id)}" data-reset-name="${escapeHtml(userLabel(u))}">重置密码</button></td>
       </tr>`).join("");
   }
 
@@ -374,6 +396,30 @@
     $("signOutButton").addEventListener("click", () => { writeToken(""); load(); });
     $("userFilter").addEventListener("input", renderUsers);
 
+    // 重置密码: the user tells you they forgot; you set a new 6-digit one
+    // and pass it on to them.
+    $("userTable").addEventListener("click", async (event) => {
+      const button = event.target instanceof Element ? event.target.closest("[data-reset-user]") : null;
+      if (!button) return;
+      const name = button.dataset.resetName || "这个用户";
+      const password = window.prompt(`给「${name}」设一个新的 6 位数字密码：`, "");
+      if (password === null) return;
+      if (!/^\d{6}$/.test(password.trim())) {
+        window.alert("新密码要 6 位数字。");
+        return;
+      }
+      button.disabled = true;
+      try {
+        await callAdmin({ token: readToken(), resetPassword: { userId: button.dataset.resetUser, password: password.trim() } });
+        window.alert(`「${name}」的密码已改成 ${password.trim()}，请转告对方。`);
+      } catch (error) {
+        console.error(error);
+        window.alert(error.code === "signed_out" ? "后台登录已过期，请重新登录。" : "重置失败，请稍后再试。");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     document.querySelectorAll("#userTable th[data-sort]").forEach((th) => {
       const sort = () => {
         const key = th.dataset.sort;
@@ -388,7 +434,7 @@
     $("exportUsers").addEventListener("click", () => downloadCsv(
       `reading-room-users-${formatDate(new Date(), false)}.csv`,
       ["email", "confirmed", "room_name", "created_at", "last_sign_in_at", "books", "from_weread", "weread_connected"],
-      filteredUsers().map((u) => [u.email, u.confirmed, u.room_name, u.created_at, u.last_sign_in_at, u.books, u.from_weread, u.weread_connected]),
+      filteredUsers().map((u) => [userLabel(u), u.confirmed, u.room_name, u.created_at, u.last_sign_in_at, u.books, u.from_weread, u.weread_connected]),
     ));
 
     $("exportBooks").addEventListener("click", () => downloadCsv(
