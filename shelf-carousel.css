@@ -1,0 +1,98 @@
+/* Prototype: endless 3D carousel shelf for Brooke's Space.
+   Turned off with ?shelf=classic. */
+
+body.cs-on .shelf-viewport {
+  overflow: hidden;
+  touch-action: pan-y;
+  cursor: default;
+}
+
+body.cs-on #booksTrack {
+  display: none;
+}
+
+.cs-shelf {
+  position: absolute;
+  inset: 0;
+  perspective: 2200px;
+  perspective-origin: 50% 60%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Origin sits on the shelf floor, in the middle of the viewport. */
+.cs-stage {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+.cs-book {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+  cursor: pointer;
+}
+
+.cs-book.is-source {
+  visibility: hidden;
+}
+
+.cs-face {
+  position: absolute;
+  bottom: 0;
+  height: var(--h);
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.cs-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #000;
+  opacity: var(--shade, 0);
+  pointer-events: none;
+}
+
+/* Front of the box: the spine. */
+.cs-spine {
+  width: var(--sw);
+  left: calc(var(--sw) / -2);
+  transform: translateZ(calc(var(--cw) / 2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--spine);
+  color: var(--spine-ink);
+  box-shadow: inset -5px 0 9px rgba(0, 0, 0, 0.12);
+}
+
+/* Right-hand side of the box: the cover, which turns to face you. */
+.cs-cover {
+  width: var(--cw);
+  left: calc(var(--cw) / -2);
+  transform: rotateY(90deg) translateZ(calc(var(--sw) / 2));
+  box-shadow: 0 30px 60px -28px rgba(20, 16, 10, 0.55);
+}
+
+.cs-cover .book-cover {
+  position: absolute;
+  inset: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-book {
+    will-change: auto;
+  }
+}
