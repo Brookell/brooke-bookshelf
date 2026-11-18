@@ -7827,3 +7827,141 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     display: none;
   }
 }
+
+/* ---- First visit in iPhone Safari: add-to-home guide ---- */
+.install-guide {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0);
+  transition: background-color 280ms ease;
+}
+
+.install-guide.is-visible {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.install-guide-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 28px 22px max(22px, calc(env(safe-area-inset-bottom) + 16px));
+  border-radius: 22px 22px 0 0;
+  background: #f4f1ec;
+  color: #141414;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  text-align: center;
+  transform: translateY(100%);
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.install-guide.is-visible .install-guide-card {
+  transform: none;
+}
+
+.install-guide-card img {
+  border-radius: 14px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+}
+
+.install-guide-card h2 {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.install-guide-card > p {
+  margin: 0 0 6px;
+  color: rgba(20, 20, 20, 0.6);
+  font-size: 14px;
+}
+
+.install-guide-card ol {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgba(20, 20, 20, 0.1);
+  text-align: left;
+}
+
+.install-guide-card li {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 2px;
+  border-bottom: 1px solid rgba(20, 20, 20, 0.1);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.install-guide-card li em {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  background: #141414;
+  color: #f4f1ec;
+  font-family: "Syne", -apple-system, sans-serif;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.install-guide-card li small {
+  display: block;
+  color: rgba(20, 20, 20, 0.5);
+  font-size: 12px;
+}
+
+.install-guide-card li b {
+  font-weight: 600;
+}
+
+.install-guide-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  margin: 0 1px;
+  place-items: center;
+  border-radius: 6px;
+  background: #fff;
+  color: #0a7aff;
+  vertical-align: -5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.install-guide-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.install-guide-ok {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: #141414;
+  color: #f4f1ec;
+  cursor: pointer;
+  font: 600 16px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .install-guide,
+  .install-guide-card {
+    transition: none;
+  }
+}

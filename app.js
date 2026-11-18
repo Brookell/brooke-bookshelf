@@ -5484,8 +5484,63 @@ document.querySelector("#installHintAction")?.addEventListener("click", async ()
   deferredInstallPrompt = null;
   if (choice) hideInstallHint();
 });
-// Give people a moment with the shelf first.
-window.setTimeout(showInstallHint, 12000);
+// ---- First visit in iPhone Safari: a step-by-step add-to-home guide ----
+// Safari can't be asked to install, so the first time someone opens the
+// site there a sheet shows the three taps. Once seen (or closed) it never
+// comes back; the small hint above still covers other browsers.
+const INSTALL_GUIDE_KEY = "brooke-bookshelf:install-guide-seen";
+
+function isIphoneSafari() {
+  const ua = window.navigator.userAgent;
+  const ios = /iphone|ipod/i.test(ua) || (/ipad/i.test(ua)) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  return ios && /safari/i.test(ua) && !/crios|fxios|edgios|opios|micromessenger|qq\/|weibo|alipay|dingtalk/i.test(ua);
+}
+
+function installGuideSeen() {
+  try {
+    return Boolean(window.localStorage.getItem(INSTALL_GUIDE_KEY));
+  } catch {
+    return true;
+  }
+}
+
+const SHARE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M7 10H5.5A1.5 1.5 0 0 0 4 11.5v8A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-8A1.5 1.5 0 0 0 18.5 10H17"/></svg>';
+const ADD_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+
+function showInstallGuide() {
+  if (isStandalone() || installGuideSeen() || !isIphoneSafari()) return false;
+  if (!window.matchMedia("(max-width: 720px)").matches) return false;
+  try { window.localStorage.setItem(INSTALL_GUIDE_KEY, String(Date.now())); } catch { /* private mode */ }
+  const sheet = document.createElement("div");
+  sheet.className = "install-guide";
+  sheet.innerHTML = `
+    <section class="install-guide-card" role="dialog" aria-modal="true" aria-labelledby="installGuideTitle">
+      <img src="./assets/icons/icon-192.png" alt="" width="60" height="60" />
+      <h2 id="installGuideTitle">添加到主屏幕</h2>
+      <p>像 App 一样从桌面打开：全屏、不用找网址。</p>
+      <ol>
+        <li><em>1</em><span>点 Safari 底部的 <b class="install-guide-icon">${SHARE_ICON}</b> <b>分享</b><small>看不到分享按钮，就先点 <b>···</b></small></span></li>
+        <li><em>2</em><span>往下滑，选 <b class="install-guide-icon">${ADD_ICON}</b> <b>添加到主屏幕</b></span></li>
+        <li><em>3</em><span>点右上角的 <b>添加</b></span></li>
+      </ol>
+      <button type="button" class="install-guide-ok">知道了</button>
+    </section>`;
+  document.body.append(sheet);
+  requestAnimationFrame(() => sheet.classList.add("is-visible"));
+  const close = () => {
+    sheet.classList.remove("is-visible");
+    window.setTimeout(() => sheet.remove(), 320);
+  };
+  sheet.querySelector(".install-guide-ok").addEventListener("click", close);
+  sheet.addEventListener("click", (event) => { if (event.target === sheet) close(); });
+  return true;
+}
+
+// First visit in iPhone Safari: the guide, soon after the page settles.
+// Everyone else: the small hint after a while with the shelf.
+window.setTimeout(() => {
+  if (!showInstallGuide()) window.setTimeout(showInstallHint, 10500);
+}, 1500);
 
 // ---- 我的 (profile) page and the phone tab bar ----
 
