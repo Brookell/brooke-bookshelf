@@ -220,6 +220,34 @@ function start(api) {
     dragging = false;
   });
 
+  // Clicks that land on the shelf itself. Browsers often fail to hit-test
+  // the turned 3D faces (they sit in a zero-size preserve-3d stage), so the
+  // click reaches the shelf instead of the book. Work out the book from the
+  // pointer position: the middle cover opens it, any other spine slides to
+  // it. Clicks the book itself received are handled above.
+  const inside = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  host.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest(".cs-book")) return;
+    if (suppressClick) { suppressClick = false; return; }
+    if (api.detailIndex !== null || !N) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    const centre = centreTape();
+    if (centre && inside(centre.cover.getBoundingClientRect(), x, y)) {
+      openActive();
+      return;
+    }
+    let hit = null;
+    for (const t of tapes) {
+      if (t.hidden) continue;
+      if (!inside(t.spine.getBoundingClientRect(), x, y)) continue;
+      if (!hit || Math.abs(t.r) < Math.abs(hit.r)) hit = t;
+    }
+    if (!hit) return;
+    if (Math.abs(hit.r) < 0.5) openActive();
+    else T = Math.round(T + hit.r);
+  });
+
   // Toolbar arrows: take over before app.js's own handlers.
   addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
