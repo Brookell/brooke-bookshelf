@@ -692,6 +692,16 @@ function readSupabaseUrl() {
   return String(window.BROOKE_SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
 }
 
+// Photos uploaded to Supabase Storage were saved with whichever address was
+// in use. On our own domain, load them through api.<domain> as well, so
+// they show up where supabase.co is blocked (see config.js).
+function siteImage(url) {
+  const value = String(url || "");
+  const direct = String(window.BROOKE_SUPABASE_DIRECT_URL || DEFAULT_SUPABASE_URL).replace(/\/+$/, "");
+  const base = readSupabaseUrl();
+  return base !== direct && value.startsWith(`${direct}/storage/`) ? base + value.slice(direct.length) : value;
+}
+
 function readSupabaseAnonKey() {
   return String(window.BROOKE_SUPABASE_ANON_KEY || "").trim();
 }
@@ -702,6 +712,8 @@ function getSupabaseClient() {
   if (!key || !window.supabase?.createClient) return null;
   supabaseClient = window.supabase.createClient(readSupabaseUrl(), key, {
     auth: {
+      // Same key on every domain, whichever Supabase address is in use.
+      storageKey: "sb-oipsefmckxyojnntiaax-auth-token",
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
@@ -1676,7 +1688,7 @@ function renderAddBookResults(results = lastSearchResults) {
       <li>
         <article class="add-book-result">
           <div class="add-book-cover" style="--book-index-color: ${book.spine}">
-            ${book.image ? `<img src="${book.image}" alt="" loading="lazy" />` : `<span>${escapeHtml(book.title.slice(0, 2))}</span>`}
+            ${book.image ? `<img src="${escapeHtml(siteImage(book.image))}" alt="" loading="lazy" />` : `<span>${escapeHtml(book.title.slice(0, 2))}</span>`}
           </div>
           <div class="add-book-copy">
             <h3>${escapeHtml(book.title)}</h3>
@@ -2067,7 +2079,7 @@ let coverPickerState = null;
 
 function coverPickerPreviewMarkup(url, book) {
   return url
-    ? `<img src="${escapeHtml(url)}" alt="" />`
+    ? `<img src="${escapeHtml(siteImage(url))}" alt="" />`
     : `<span>${escapeHtml(book.title.slice(0, 4))}</span>`;
 }
 
@@ -2079,7 +2091,7 @@ function renderCoverPicker() {
   coverPickerPreview.innerHTML = coverPickerPreviewMarkup(previewUrl, state.book);
   coverPickerGrid.innerHTML = state.options.map((url, index) => `
     <button type="button" data-cover-option="${index}" aria-pressed="${String(!state.uploadBlob && state.selected === url)}">
-      <img src="${escapeHtml(url)}" alt="" loading="lazy" />
+      <img src="${escapeHtml(siteImage(url))}" alt="" loading="lazy" />
     </button>
   `).join("");
   coverPickerTextButton.setAttribute("aria-pressed", String(!state.uploadBlob && !state.selected));
@@ -2585,7 +2597,7 @@ function readingHeatmapMarkup(year) {
 
 function readingCoverMarkup(cover, title = "") {
   cover = sharpCover(cover);
-  return `<span class="rd-cover">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(title).slice(0, 2))}</span>`}</span>`;
+  return `<span class="rd-cover">${cover ? `<img src="${escapeHtml(siteImage(cover))}" alt="" loading="lazy" />` : `<span>${escapeHtml(String(title).slice(0, 2))}</span>`}</span>`;
 }
 
 // "3.5 小时" / "40 分钟": fits under a narrow month column.
@@ -3753,10 +3765,10 @@ function coverMarkup(book, index) {
   const safeTitle = escapeHtml(cleanBookTitle(book.title));
   const safeAuthor = escapeHtml(book.author);
   if (book.originalCover && book.image) {
-    return `<img class="cover-art cover-art--original" src="${book.image}" alt="" draggable="false" />`;
+    return `<img class="cover-art cover-art--original" src="${escapeHtml(siteImage(book.image))}" alt="" draggable="false" />`;
   }
   const coverArt = book.image
-    ? `<img class="cover-art" src="${book.image}" alt="" draggable="false" />`
+    ? `<img class="cover-art" src="${escapeHtml(siteImage(book.image))}" alt="" draggable="false" />`
     : "";
   return `
     <span class="cover-series"><span>${escapeHtml(t("selectedPages"))}</span><span>${String(index + 1).padStart(2, "0")}</span></span>
@@ -5577,7 +5589,7 @@ function applyProfileColor() {
 function avatarMarkup(user, url = avatarUrl) {
   const initial = escapeHtml(Array.from(userDisplayName(user))[0]?.toUpperCase() || "?");
   return url
-    ? `<span class="pf-avatar has-photo" aria-hidden="true"><img src="${escapeHtml(url)}" alt="" /></span>`
+    ? `<span class="pf-avatar has-photo" aria-hidden="true"><img src="${escapeHtml(siteImage(url))}" alt="" /></span>`
     : `<span class="pf-avatar" aria-hidden="true">${initial}</span>`;
 }
 
