@@ -121,6 +121,14 @@ const DEFAULT_SUPABASE_URL = "https://oipsefmckxyojnntiaax.supabase.co";
 const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
+// The room's name until the user picks one. Rooms still carrying the old
+// default ("Your Reading Room") are shown with the new one.
+const DEFAULT_ROOM_NAME = "A Room of My Own";
+const LEGACY_ROOM_NAME = "Your Reading Room";
+const roomNameOrDefault = (value) => {
+  const name = String(value || "").trim();
+  return !name || name === LEGACY_ROOM_NAME ? DEFAULT_ROOM_NAME : name;
+};
 const THEME_STORAGE_KEY = "brooke-bookshelf:theme:v1";
 const AVATAR_STORAGE_KEY = "brooke-bookshelf:avatar:v1";
 
@@ -193,7 +201,7 @@ const I18N = {
     room: "房间",
     personalReadingRoom: "个人阅读房间",
     nameYourRoom: "设计房间名",
-    roomNamePlaceholder: "Your Reading Room",
+    roomNamePlaceholder: "A Room of My Own",
     saveRoomName: "保存",
     myRoomShelf: "我的阅读房间书架",
     emptyShelf: "你保存的书会出现在这里。",
@@ -291,7 +299,7 @@ const I18N = {
     room: "Room",
     personalReadingRoom: "Personal reading room",
     nameYourRoom: "Name your room",
-    roomNamePlaceholder: "Your Reading Room",
+    roomNamePlaceholder: "A Room of My Own",
     saveRoomName: "Save",
     myRoomShelf: "My reading room shelf",
     emptyShelf: "Your saved books will appear here.",
@@ -511,10 +519,9 @@ function setTheme(id) {
 
 function readRoomName() {
   try {
-    const value = window.localStorage.getItem(ROOM_NAME_STORAGE_KEY)?.trim();
-    return value || "Your Reading Room";
+    return roomNameOrDefault(window.localStorage.getItem(ROOM_NAME_STORAGE_KEY));
   } catch {
-    return "Your Reading Room";
+    return DEFAULT_ROOM_NAME;
   }
 }
 
@@ -528,12 +535,10 @@ function writeRoomName(value) {
 }
 
 function formatRoomTitle(value) {
-  const title = (value || "Your Reading Room").trim() || "Your Reading Room";
+  const title = roomNameOrDefault(value);
   const words = title.split(/\s+/);
   if (words.length <= 1) return escapeHtml(title);
-  if (/^your$/i.test(words[0]) && /^reading$/i.test(words[1]) && /^room$/i.test(words[2] || "")) {
-    return "Your<br />Reading Room";
-  }
+  if (title === DEFAULT_ROOM_NAME) return "A Room<br />of My Own";
   const midpoint = Math.ceil(words.length / 2);
   return `${escapeHtml(words.slice(0, midpoint).join(" "))}<br />${escapeHtml(words.slice(midpoint).join(" "))}`;
 }
@@ -964,7 +969,7 @@ async function loadSettingsFromSupabase() {
     await syncSettingsToSupabase();
     return;
   }
-  myRoomName = data.room_name || "Your Reading Room";
+  myRoomName = roomNameOrDefault(data.room_name);
   showMyRoomFirst = Boolean(data.show_my_room_first);
   writeAvatarUrl(typeof data.avatar_url === "string" && data.avatar_url.startsWith("https://") ? data.avatar_url : "");
   if (THEMES.some((theme) => theme.id === data.theme_color)) {
@@ -984,7 +989,7 @@ async function syncSettingsToSupabase() {
   if (!client || !userId) return;
   const { error } = await client.from("user_settings").upsert({
     user_id: userId,
-    room_name: myRoomName || "Your Reading Room",
+    room_name: roomNameOrDefault(myRoomName),
     show_my_room_first: Boolean(showMyRoomFirst),
     theme_color: themeId,
     avatar_url: avatarUrl || null,
@@ -1171,7 +1176,7 @@ function updateStaticLanguage() {
   myRoomTitle.title = "点击修改房间名";
   myRoomTitle.setAttribute("aria-label", "点击修改房间名");
   myRoomNameInput.placeholder = t("roomNamePlaceholder");
-  myRoomNameInput.value = myRoomName === "Your Reading Room" ? "" : myRoomName;
+  myRoomNameInput.value = myRoomName === DEFAULT_ROOM_NAME ? "" : myRoomName;
   myRoomNameForm.querySelector("button").textContent = t("saveRoomName");
 
   const bookIndexMeta = document.querySelector("#bookIndex .book-index-header p");
@@ -2339,7 +2344,9 @@ async function refreshReadingPanel() {
     if (error.code === "not_connected") reading.connected = false;
     reading.error = readingErrorText(error);
   }
+  if (reading.loading) await readingProgress.finish();
   reading.loading = null;
+  readingProgress.reset();
   renderReadingPanel();
 }
 
@@ -2378,22 +2385,85 @@ function readingLoadingPercent() {
   return Math.round(50 + (images.total ? images.done / images.total : 1) * 50);
 }
 
+// ---- Loading indicators that never jump ----
+// The real progress (0–1) only sets a target; every frame the drawn value
+// glides toward it, and while a step is still running it keeps creeping a
+// little further (never past 96%), so it doesn't stall or move in steps.
+// finish() runs it quickly to 100% before the page appears.
+function createSmoothProgress(draw) {
+  const state = { target: 0, shown: 0, last: 0, raf: 0, finishing: false, onFull: null };
+  const tick = (now) => {
+    const dt = Math.min(64, now - (state.last || now));
+    state.last = now;
+    let goal;
+    let tau;
+    if (state.finishing) {
+      goal = 1;
+      tau = 170;
+    } else if (state.shown < state.target) {
+      goal = state.target;
+      tau = 260;
+    } else {
+      goal = Math.min(0.96, state.target + 0.14);
+      tau = 2600;
+    }
+    state.shown = Math.max(state.shown, state.shown + (goal - state.shown) * (1 - Math.exp(-dt / tau)));
+    if (state.finishing && state.shown > 0.995) state.shown = 1;
+    draw(state.shown);
+    if (state.shown >= 1) {
+      state.raf = 0;
+      state.onFull?.();
+      return;
+    }
+    state.raf = requestAnimationFrame(tick);
+  };
+  const run = () => {
+    if (!state.raf) {
+      state.last = 0;
+      state.raf = requestAnimationFrame(tick);
+    }
+  };
+  return {
+    set(value) {
+      state.target = Math.max(state.target, Math.min(1, value));
+      run();
+    },
+    reset() {
+      cancelAnimationFrame(state.raf);
+      Object.assign(state, { target: 0, shown: 0, last: 0, raf: 0, finishing: false, onFull: null });
+      draw(0);
+    },
+    // Resolves at 100%, or after 800 ms at most.
+    finish() {
+      state.finishing = true;
+      run();
+      return new Promise((resolve) => {
+        const timer = setTimeout(resolve, 800);
+        state.onFull = () => { clearTimeout(timer); resolve(); };
+      });
+    },
+  };
+}
+
+const readingProgress = createSmoothProgress((value) => {
+  const box = readingPanelBody?.querySelector(".rd-loading");
+  if (!box) return;
+  box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(Math.round(value * 100)));
+  box.querySelector("i").style.transform = `scaleX(${value})`;
+});
+
 function readingLoadingMarkup() {
   const percent = readingLoadingPercent();
   return `
     <div class="rd-loading">
       <div class="weread-progress-bar" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
-        <i style="width: ${percent}%"></i>
+        <i></i>
       </div>
     </div>`;
 }
 
 function updateReadingLoading() {
-  const box = readingPanelBody.querySelector(".rd-loading");
-  if (!box || !reading.loading) return;
-  const percent = readingLoadingPercent();
-  box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(percent));
-  box.querySelector("i").style.width = `${percent}%`;
+  if (reading.loading) readingProgress.set(readingLoadingPercent() / 100);
 }
 
 async function loadReadingStats(mode) {
@@ -2969,7 +3039,7 @@ function insightsHeatmapMarkup(year) {
       }
       if (day.getDate() === 1) label = String(day.getMonth() + 1);
       const seconds = byDay.get(`${day.getMonth()}-${day.getDate()}`) || 0;
-      days.push(`<span class="level-${level(seconds)}" title="${day.getMonth() + 1}月${day.getDate()}日：${seconds ? formatDuration(seconds) : "没有阅读"}"></span>`);
+      days.push(`<span class="level-${level(seconds)}" data-day="${day.getMonth() + 1}月${day.getDate()}日" data-time="${seconds ? formatDuration(seconds) : "没有阅读"}"></span>`);
     }
     weeks.push(`<div class="ri-week"><em>${label}</em>${days.join("")}</div>`);
   }
@@ -3060,7 +3130,10 @@ function readingInsightsMarkup() {
 
       <section class="ri-section">
         <h4>阅读日历热力图</h4>
-        ${year ? insightsHeatmapMarkup(year) : `<p class="ri-empty">没有读取到全年数据。</p>`}
+        <div class="ri-heat-wrap">
+          ${year ? insightsHeatmapMarkup(year) : `<p class="ri-empty">没有读取到全年数据。</p>`}
+          <span class="ri-tip" role="status" hidden></span>
+        </div>
       </section>
 
       <section class="ri-section">
@@ -3301,7 +3374,10 @@ function setupReadingSegment() {
 
 function renderReadingPanel() {
   if (!readingPanelBody) return;
-  if (reading.loading) readingPanelBody.innerHTML = readingLoadingMarkup();
+  if (reading.loading) {
+    readingPanelBody.innerHTML = readingLoadingMarkup();
+    readingProgress.set(Math.max(0.04, readingLoadingPercent() / 100));
+  }
   else if (reading.connected === null) readingPanelBody.innerHTML = reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : "";
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
   else {
@@ -3310,7 +3386,8 @@ function renderReadingPanel() {
       : isCompactScreen() ? readingInsightsMarkup() : readingOverviewMarkup();
     animateInsightNumbers(previousNumbers);
   }
-  readingPanel.toggleAttribute("data-insights", Boolean(readingPanelBody.querySelector(".ri")));
+  const insights = Boolean(readingPanelBody.querySelector(".ri")) || Boolean(reading.loading && isCompactScreen());
+  readingPanel.toggleAttribute("data-insights", insights);
   // Card rows and the heat grid start at the latest month / today.
   readingPanelBody.querySelectorAll("[data-scroll-end]").forEach((row) => { row.scrollLeft = row.scrollWidth; });
   window.lucide?.createIcons({ attrs: { "aria-hidden": "true" } });
@@ -3324,7 +3401,12 @@ function renderReadingPanel() {
     library.style.setProperty("--page-tint", readingThemeColor());
     library.style.setProperty("--page-ink", inkForColor(readingThemeColor()));
   }
-  library.classList.toggle("has-coloured-page", Boolean(readingPanel.hasAttribute("data-insights")));
+  if (insights && !themed) {
+    readingPanel.style.setProperty("--rd-c", readingThemeColor());
+    readingPanel.style.setProperty("--rd-on", inkForColor(readingThemeColor()));
+    library.style.setProperty("--page-ink", inkForColor(readingThemeColor()));
+  }
+  library.classList.toggle("has-coloured-page", insights);
   setupReadingSegment();
   updateSetupCard();
 }
@@ -4833,12 +4915,12 @@ myShelfViewToggle.addEventListener("click", (event) => {
 myRoomTitle.addEventListener("click", () => {
   myRoomNameForm.hidden = !myRoomNameForm.hidden;
   if (!myRoomNameForm.hidden) {
-    myRoomNameInput.value = myRoomName === "Your Reading Room" ? "" : myRoomName;
+    myRoomNameInput.value = myRoomName === DEFAULT_ROOM_NAME ? "" : myRoomName;
     myRoomNameInput.focus({ preventScroll: true });
   }
 });
 function renameRoom(name) {
-  myRoomName = String(name || "").trim().slice(0, 40) || "Your Reading Room";
+  myRoomName = roomNameOrDefault(String(name || "").slice(0, 40));
   writeRoomName(myRoomName);
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
   updatePageTitle();
@@ -4920,8 +5002,34 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !readingPanel.hidden && !coverPickerState) closeReadingPanel();
 });
 readingPanelClose.addEventListener("click", () => closeReadingPanel());
+// Heat grid (phones): tap a square for its date and reading time.
+function showHeatTip(cell) {
+  const wrap = readingPanelBody.querySelector(".ri-heat-wrap");
+  const tip = wrap?.querySelector(".ri-tip");
+  if (!tip) return;
+  wrap.querySelectorAll(".is-picked").forEach((picked) => picked.classList.remove("is-picked"));
+  if (!cell) {
+    tip.hidden = true;
+    return;
+  }
+  cell.classList.add("is-picked");
+  tip.innerHTML = `<b>${escapeHtml(cell.dataset.day)}</b>${escapeHtml(cell.dataset.time)}`;
+  tip.hidden = false;
+  const box = wrap.getBoundingClientRect();
+  const rect = cell.getBoundingClientRect();
+  const half = tip.offsetWidth / 2;
+  const x = Math.min(Math.max(rect.left + rect.width / 2 - box.left, half + 4), box.width - half - 4);
+  tip.style.left = `${x}px`;
+  tip.style.top = `${rect.top - box.top}px`;
+}
+
 readingPanelBody.addEventListener("click", async (event) => {
   const target = event.target instanceof Element ? event.target : null;
+  const heatCell = target?.closest(".ri-week span[data-day]");
+  if (heatCell || readingPanelBody.querySelector(".ri-heat .is-picked")) {
+    showHeatTip(heatCell && !heatCell.classList.contains("is-picked") ? heatCell : null);
+    if (heatCell) return;
+  }
   const modeButton = target?.closest("[data-reading-mode]");
   if (modeButton) {
     // A drag that just ended also fires a click; the drag already chose.
@@ -5435,7 +5543,7 @@ function openProfileSheet() {
       </div>
       <label class="pf-sheet-field">
         <span>名字</span>
-        <input type="text" maxlength="40" data-sheet-name value="${escapeHtml(myRoomName === "Your Reading Room" ? "" : myRoomName)}" placeholder="Your Reading Room" />
+        <input type="text" maxlength="40" data-sheet-name value="${escapeHtml(myRoomName === DEFAULT_ROOM_NAME ? "" : myRoomName)}" placeholder="${DEFAULT_ROOM_NAME}" />
       </label>
       <p class="pf-sheet-status" data-sheet-status role="status"></p>
       <div class="pf-sheet-actions">
@@ -5666,6 +5774,14 @@ function runProfileAction(action) {
 
 let quotePanelTimer = 0;
 const notes = { view: "list", book: null };
+const NOTES_RING = 2 * Math.PI * 26;
+const notesProgress = createSmoothProgress((value) => {
+  const ring = quotePanelBody?.querySelector(".notes-ring");
+  if (!ring) return;
+  ring.querySelector(".notes-ring-arc").style.strokeDashoffset = String(NOTES_RING * (1 - value));
+  ring.querySelector("b").textContent = `${Math.round(value * 100)}`;
+  ring.setAttribute("aria-valuenow", String(Math.round(value * 100)));
+});
 
 function notesListMarkup() {
   const list = reading.notebooks || [];
@@ -5706,7 +5822,14 @@ function renderQuotePanel(state = "ready") {
   if (!quotePanelBody) return;
   applyNotesColor(state === "ready" ? reading.quote : undefined);
   if (state === "loading") {
-    quotePanelBody.innerHTML = `<p class="quote-panel-note">正在翻你的笔记…</p>`;
+    quotePanelBody.innerHTML = `
+      <div class="notes-ring" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <svg viewBox="0 0 60 60" aria-hidden="true">
+          <circle class="notes-ring-track" cx="30" cy="30" r="26" />
+          <circle class="notes-ring-arc" cx="30" cy="30" r="26" stroke-dasharray="${NOTES_RING}" stroke-dashoffset="${NOTES_RING}" />
+        </svg>
+        <b>0</b>
+      </div>`;
   } else if (state === "connect") {
     quotePanelBody.innerHTML = `
       <div class="quote-panel-empty">
@@ -5777,16 +5900,22 @@ async function openQuotePanel() {
     renderQuotePanel();
     return;
   }
+  notesProgress.reset();
   renderQuotePanel("loading");
+  notesProgress.set(0.08);
   try {
     if (reading.connected === null) reading.connected = Boolean((await callWereadMe("status")).connected);
+    notesProgress.set(0.3);
     if (!reading.connected) {
+      notesProgress.reset();
       renderQuotePanel("connect");
       return;
     }
     if (!reading.notebooks) reading.notebooks = (await callWereadMe("notebooks")).books || [];
+    notesProgress.set(0.62);
     reading.quote = undefined;
     await loadReadingQuote();
+    await notesProgress.finish();
   } catch (error) {
     console.warn(error);
     if (error.code === "not_connected") {

@@ -19,7 +19,7 @@ create table if not exists public.user_books (
 
 create table if not exists public.user_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
-  room_name text not null default 'Your Reading Room',
+  room_name text not null default 'A Room of My Own',
   show_my_room_first boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

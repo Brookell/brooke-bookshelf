@@ -4392,8 +4392,13 @@ h1 {
   font-size: 11px;
 }
 
+/* Drawn every frame by createSmoothProgress, so no CSS transition. */
 .rd-loading .weread-progress-bar i {
-  transition: width 260ms ease;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: none;
+  will-change: transform;
 }
 
 
@@ -6566,7 +6571,6 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   --ri-line: color-mix(in srgb, var(--rd-on, #fff) 34%, transparent);
   background: var(--rd-c);
   color: var(--rd-on, #fff);
-  transition: background-color 400ms ease;
 }
 
 /* Phones reach this page from the tab bar, so no header or close button. */
@@ -7141,7 +7145,9 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   .profile-panel {
     background: var(--pf-bg, #141414);
     color: var(--pf-ink, var(--paper));
-    transition: opacity 380ms ease, transform 560ms cubic-bezier(0.22, 0.8, 0.2, 1), visibility 0s linear 560ms, background-color 500ms ease, color 500ms ease;
+    /* No background fade: a fading background on this scrolling panel
+       sometimes isn't repainted, so a new theme looked like it hadn't
+       applied. */
   }
 
   .library.is-profile-open {
@@ -7336,7 +7342,8 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
    the cover colour, so everything on it (quote, list, one book's notes)
    follows; 换一条 fades to the next book's colour. */
 .quote-panel {
-  transition: opacity 380ms ease, transform 560ms cubic-bezier(0.22, 0.8, 0.2, 1), visibility 0s linear 560ms, background-color 600ms ease;
+  /* Colour changes are instant (see 我的): faded backgrounds on these
+     scrolling panels were sometimes left unpainted. */
 }
 
 .quote-panel[data-coloured] {
@@ -7643,4 +7650,102 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 
 .pf-sheet-save:disabled {
   opacity: 0.6;
+}
+
+
+/* Phones: the loading bar sits on the coloured page. */
+.reading-panel[data-insights] .rd-loading {
+  margin-top: 38svh;
+  padding: 0 24px;
+}
+
+.reading-panel[data-insights] .weread-progress-bar {
+  height: 4px;
+  background: color-mix(in srgb, var(--rd-on, #fff) 20%, transparent);
+}
+
+.reading-panel[data-insights] .weread-progress-bar i {
+  background: var(--rd-on, #fff);
+}
+
+/* 笔记 loading: a ring with the percentage inside. */
+.notes-ring {
+  position: relative;
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin: 34svh auto 0;
+  place-items: center;
+}
+
+.notes-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.notes-ring circle {
+  fill: none;
+  stroke-width: 3;
+}
+
+.notes-ring-track {
+  stroke: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+.notes-ring-arc {
+  stroke: var(--ink);
+  stroke-linecap: round;
+}
+
+.notes-ring b {
+  font-family: "Syne", -apple-system, "PingFang SC", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Heat grid: the tapped square and its bubble. */
+.ri-heat-wrap {
+  position: relative;
+}
+
+.ri-week span[data-day] {
+  cursor: pointer;
+}
+
+.ri-week span.is-picked {
+  outline: 2px solid var(--rd-on, #fff);
+  outline-offset: 2px;
+}
+
+.ri-tip {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  gap: 2px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: var(--rd-on, #fff);
+  color: var(--rd-c, #141414);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 10px));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.ri-tip[hidden] {
+  display: none;
+}
+
+.ri-tip b {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.7;
 }
