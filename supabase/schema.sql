@@ -32,6 +32,13 @@ alter table public.user_settings drop constraint if exists user_settings_theme_c
 alter table public.user_settings add constraint user_settings_theme_color_check
   check (theme_color is null or theme_color ~ '^[a-z]{1,16}$');
 
+-- Profile photo chosen on 我的: a public URL in the covers bucket, under the
+-- user's own folder (covers/<user id>/avatar-….jpg). Null means the initial.
+alter table public.user_settings add column if not exists avatar_url text;
+alter table public.user_settings drop constraint if exists user_settings_avatar_url_check;
+alter table public.user_settings add constraint user_settings_avatar_url_check
+  check (avatar_url is null or (length(avatar_url) <= 400 and avatar_url like 'https://%'));
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql

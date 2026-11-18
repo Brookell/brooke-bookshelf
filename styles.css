@@ -7177,66 +7177,11 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   font-family: "Syne", -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
 }
 
-.pf-card {
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 36px 20px 30px;
-  border: 1px solid color-mix(in srgb, var(--pf-ink) 10%, transparent);
-  border-radius: 6px;
-  background: #e6ddd0;
-  color: #141414;
-  text-align: center;
-}
 
-.pf-avatar {
-  display: grid;
-  width: 76px;
-  height: 76px;
-  margin-bottom: 16px;
-  place-items: center;
-  border-radius: 50%;
-  background: #141414;
-  color: #e6ddd0;
-  font-family: "Syne", -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  font-size: 32px;
-  font-weight: 700;
-}
 
-.pf-card h3 {
-  margin: 0 0 4px;
-  font-family: "Syne", -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
 
-.pf-card p {
-  max-width: 100%;
-  margin: 0;
-  overflow: hidden;
-  color: rgba(20, 20, 20, 0.7);
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.pf-card small {
-  color: rgba(20, 20, 20, 0.5);
-  font-size: 12px;
-}
 
-.pf-signin {
-  margin-top: 16px;
-  min-height: 44px;
-  padding: 0 26px;
-  border: 0;
-  border-radius: 999px;
-  background: #141414;
-  color: #e6ddd0;
-  cursor: pointer;
-  font: 600 14px -apple-system, "PingFang SC", Arial, sans-serif;
-}
 
 .pf-stats {
   display: grid;
@@ -7502,4 +7447,200 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
 
 .pf-swatches button[aria-checked="true"] {
   box-shadow: 0 0 0 2px var(--pf-bg, #141414), 0 0 0 4px var(--pf-ink);
+}
+
+
+/* 我的: the room as one row (avatar, name, pencil); tap it to edit. */
+.pf-me {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  margin: 8px 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pf-ink);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pf-avatar {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  background: #e6ddd0;
+  color: #141414;
+  font-family: "Syne", -apple-system, "PingFang SC", Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.pf-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pf-me-name {
+  overflow: hidden;
+  font-family: "Syne", -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pf-me-edit {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: color-mix(in srgb, var(--pf-ink) 55%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pf-me.is-guest {
+  cursor: default;
+}
+
+.pf-me.is-guest .pf-me-name {
+  font-family: -apple-system, "PingFang SC", sans-serif;
+  font-size: 17px;
+}
+
+.pf-signin {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pf-ink);
+  color: var(--pf-bg, #141414);
+  cursor: pointer;
+  font: 600 13px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+/* The edit sheet slides up from the bottom of 我的. */
+.pf-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0);
+  transition: background-color 240ms ease;
+}
+
+.pf-sheet.is-visible {
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.pf-sheet-card {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 28px 20px max(22px, calc(env(safe-area-inset-bottom) + 14px));
+  border-radius: 20px 20px 0 0;
+  background: #f4f1ec;
+  color: #141414;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  transform: translateY(100%);
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.pf-sheet.is-visible .pf-sheet-card {
+  transform: none;
+}
+
+.pf-sheet-avatar .pf-avatar {
+  width: 88px;
+  height: 88px;
+  background: #141414;
+  color: #f4f1ec;
+  font-size: 34px;
+}
+
+.pf-sheet-photo {
+  display: flex;
+  gap: 10px;
+}
+
+.pf-sheet-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid rgba(20, 20, 20, 0.18);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: 600 13px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+.pf-sheet-button[hidden] {
+  display: none;
+}
+
+.pf-sheet-field {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  font-size: 12px;
+  color: rgba(20, 20, 20, 0.6);
+}
+
+.pf-sheet-field input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid rgba(20, 20, 20, 0.16);
+  border-radius: 12px;
+  background: #fff;
+  color: #141414;
+  font: 500 16px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+.pf-sheet-status {
+  min-height: 1em;
+  margin: -6px 0 0;
+  color: #a33a28;
+  font-size: 12px;
+}
+
+.pf-sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.pf-sheet-actions button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font: 600 15px -apple-system, "PingFang SC", Arial, sans-serif;
+}
+
+.pf-sheet-cancel {
+  background: rgba(20, 20, 20, 0.07);
+  color: #141414;
+}
+
+.pf-sheet-save {
+  background: #141414;
+  color: #f4f1ec;
+}
+
+.pf-sheet-save:disabled {
+  opacity: 0.6;
 }

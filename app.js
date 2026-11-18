@@ -122,6 +122,7 @@ const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
 const THEME_STORAGE_KEY = "brooke-bookshelf:theme:v1";
+const AVATAR_STORAGE_KEY = "brooke-bookshelf:avatar:v1";
 
 // Theme colour for 阅读记录, 笔记 and 我的 (picked on 我的). Each colour is
 // tuned so its ink reads on it. 'follow' keeps the old behaviour: each page
@@ -369,6 +370,7 @@ let userBooks = readUserBooks();
 let showMyRoomFirst = readShowMyRoomFirst();
 let myRoomName = readRoomName();
 let themeId = readThemeId();
+let avatarUrl = readAvatarUrl();
 let activeSpace = "brooke";
 let myShelfFilter = "all";
 let myShelfView = "list";
@@ -464,6 +466,23 @@ function updateSpaceSwitch() {
   });
   library.classList.toggle("is-user-space", activeSpace === "user");
   roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
+}
+
+function readAvatarUrl() {
+  try {
+    const saved = window.localStorage.getItem(AVATAR_STORAGE_KEY) || "";
+    return saved.startsWith("https://") ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
+function writeAvatarUrl(url) {
+  avatarUrl = url || "";
+  try {
+    if (avatarUrl) window.localStorage.setItem(AVATAR_STORAGE_KEY, avatarUrl);
+    else window.localStorage.removeItem(AVATAR_STORAGE_KEY);
+  } catch { /* private mode */ }
 }
 
 function readThemeId() {
@@ -934,7 +953,7 @@ async function loadSettingsFromSupabase() {
   if (!client || !userId) return;
   const { data, error } = await client
     .from("user_settings")
-    .select("room_name, show_my_room_first, theme_color")
+    .select("room_name, show_my_room_first, theme_color, avatar_url")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) {
@@ -947,6 +966,7 @@ async function loadSettingsFromSupabase() {
   }
   myRoomName = data.room_name || "Your Reading Room";
   showMyRoomFirst = Boolean(data.show_my_room_first);
+  writeAvatarUrl(typeof data.avatar_url === "string" && data.avatar_url.startsWith("https://") ? data.avatar_url : "");
   if (THEMES.some((theme) => theme.id === data.theme_color)) {
     themeId = data.theme_color;
     try { window.localStorage.setItem(THEME_STORAGE_KEY, themeId); } catch { /* private mode */ }
@@ -967,6 +987,7 @@ async function syncSettingsToSupabase() {
     room_name: myRoomName || "Your Reading Room",
     show_my_room_first: Boolean(showMyRoomFirst),
     theme_color: themeId,
+    avatar_url: avatarUrl || null,
   }, { onConflict: "user_id" });
   if (error) console.error("Supabase user_settings upsert failed", error);
 }
@@ -1001,7 +1022,7 @@ async function signOutEverywhere() {
   }
   // Everything a signed-in user has is already in Supabase, so clear this
   // browser's copy to keep the next person on a shared computer out of it.
-  [AUTH_STORAGE_KEY, SHELF_STORAGE_KEY, CUSTOM_BOOKS_STORAGE_KEY, ROOM_NAME_STORAGE_KEY, ROOM_DEFAULT_STORAGE_KEY]
+  [AUTH_STORAGE_KEY, SHELF_STORAGE_KEY, CUSTOM_BOOKS_STORAGE_KEY, ROOM_NAME_STORAGE_KEY, ROOM_DEFAULT_STORAGE_KEY, AVATAR_STORAGE_KEY]
     .forEach((key) => window.localStorage.removeItem(key));
   window.location.reload();
 }
@@ -2976,6 +2997,44 @@ function insightsStatsMarkup(stats) {
     </div>`;
 }
 
+// The pills' numbers by label, read before a redraw so the new ones can
+// count from where the old ones were.
+function insightNumbers() {
+  const numbers = new Map();
+  readingPanelBody?.querySelectorAll(".ri-pill").forEach((pill) => {
+    const value = Number.parseFloat(pill.querySelector("b")?.textContent || "");
+    if (Number.isFinite(value)) numbers.set(pill.querySelector("small")?.textContent || "", value);
+  });
+  return numbers;
+}
+
+// Count each pill from its previous value (0 on first show) to the new
+// one, easing out, keeping the new value's decimal places.
+function animateInsightNumbers(previous) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  readingPanelBody.querySelectorAll(".ri-pill").forEach((pill) => {
+    const output = pill.querySelector("b");
+    const text = output?.textContent || "";
+    const target = Number.parseFloat(text);
+    if (!Number.isFinite(target)) return;
+    const decimals = (text.split(".")[1] || "").length;
+    const from = previous.get(pill.querySelector("small")?.textContent || "") ?? 0;
+    if (from === target) return;
+    const duration = 700;
+    const start = performance.now();
+    const step = (now) => {
+      if (!output.isConnected) return;
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      output.textContent = (from + (target - from) * eased).toFixed(decimals);
+      if (t < 1) requestAnimationFrame(step);
+      else output.textContent = text;
+    };
+    output.textContent = from.toFixed(decimals);
+    requestAnimationFrame(step);
+  });
+}
+
 function readingInsightsMarkup() {
   const stats = reading.stats[reading.mode];
   const year = reading.year;
@@ -3245,8 +3304,12 @@ function renderReadingPanel() {
   if (reading.loading) readingPanelBody.innerHTML = readingLoadingMarkup();
   else if (reading.connected === null) readingPanelBody.innerHTML = reading.error ? `<p class="reading-error">${escapeHtml(reading.error)}</p>` : "";
   else if (!reading.connected) readingPanelBody.innerHTML = readingConnectMarkup();
-  else readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup()
-    : isCompactScreen() ? readingInsightsMarkup() : readingOverviewMarkup();
+  else {
+    const previousNumbers = insightNumbers();
+    readingPanelBody.innerHTML = reading.view === "book" ? readingBookMarkup()
+      : isCompactScreen() ? readingInsightsMarkup() : readingOverviewMarkup();
+    animateInsightNumbers(previousNumbers);
+  }
   readingPanel.toggleAttribute("data-insights", Boolean(readingPanelBody.querySelector(".ri")));
   // Card rows and the heat grid start at the latest month / today.
   readingPanelBody.querySelectorAll("[data-scroll-end]").forEach((row) => { row.scrollLeft = row.scrollWidth; });
@@ -4774,12 +4837,16 @@ myRoomTitle.addEventListener("click", () => {
     myRoomNameInput.focus({ preventScroll: true });
   }
 });
-myRoomNameForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  myRoomName = myRoomNameInput.value.trim() || "Your Reading Room";
+function renameRoom(name) {
+  myRoomName = String(name || "").trim().slice(0, 40) || "Your Reading Room";
   writeRoomName(myRoomName);
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
   updatePageTitle();
+}
+
+myRoomNameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  renameRoom(myRoomNameInput.value);
   myRoomNameForm.hidden = true;
   myRoomTitle.focus({ preventScroll: true });
 });
@@ -5342,6 +5409,128 @@ function applyProfileColor() {
   library.style.setProperty("--profile-ink", ink);
 }
 
+function avatarMarkup(user, url = avatarUrl) {
+  const initial = escapeHtml(String(user?.email || "?").slice(0, 1).toUpperCase());
+  return url
+    ? `<span class="pf-avatar has-photo" aria-hidden="true"><img src="${escapeHtml(url)}" alt="" /></span>`
+    : `<span class="pf-avatar" aria-hidden="true">${initial}</span>`;
+}
+
+// Sheet for changing the room's name and the avatar. A new photo is only
+// uploaded on 保存; 用首字母 goes back to the letter.
+let profileSheet = null;
+
+function openProfileSheet() {
+  const user = supabaseSession?.user;
+  if (!user) return;
+  profileSheet = { file: null, preview: "", photo: avatarUrl };
+  const sheet = document.createElement("div");
+  sheet.className = "pf-sheet";
+  sheet.innerHTML = `
+    <form class="pf-sheet-card" role="dialog" aria-modal="true" aria-label="修改名字和头像">
+      <div class="pf-sheet-avatar" data-sheet-avatar>${avatarMarkup(user)}</div>
+      <div class="pf-sheet-photo">
+        <label class="pf-sheet-button">换头像<input type="file" accept="image/*" data-sheet-file hidden /></label>
+        <button type="button" class="pf-sheet-button" data-sheet-letter ${avatarUrl ? "" : "hidden"}>用首字母</button>
+      </div>
+      <label class="pf-sheet-field">
+        <span>名字</span>
+        <input type="text" maxlength="40" data-sheet-name value="${escapeHtml(myRoomName === "Your Reading Room" ? "" : myRoomName)}" placeholder="Your Reading Room" />
+      </label>
+      <p class="pf-sheet-status" data-sheet-status role="status"></p>
+      <div class="pf-sheet-actions">
+        <button type="button" class="pf-sheet-cancel" data-sheet-cancel>取消</button>
+        <button type="submit" class="pf-sheet-save" data-sheet-save>保存</button>
+      </div>
+    </form>`;
+  // On the page itself, so it sits above the floating tab bar.
+  document.body.append(sheet);
+  requestAnimationFrame(() => sheet.classList.add("is-visible"));
+
+  const avatarBox = sheet.querySelector("[data-sheet-avatar]");
+  const letterButton = sheet.querySelector("[data-sheet-letter]");
+  const status = sheet.querySelector("[data-sheet-status]");
+  const showAvatar = (url) => {
+    avatarBox.innerHTML = avatarMarkup(user, url);
+    letterButton.hidden = !url;
+  };
+  sheet.querySelector("[data-sheet-file]").addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    if (profileSheet.preview) URL.revokeObjectURL(profileSheet.preview);
+    profileSheet.file = file;
+    profileSheet.preview = URL.createObjectURL(file);
+    showAvatar(profileSheet.preview);
+  });
+  letterButton.addEventListener("click", () => {
+    profileSheet.file = null;
+    profileSheet.photo = "";
+    showAvatar("");
+  });
+  sheet.querySelector("[data-sheet-cancel]").addEventListener("click", closeProfileSheet);
+  sheet.addEventListener("click", (event) => { if (event.target === sheet) closeProfileSheet(); });
+  sheet.querySelector("form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const save = sheet.querySelector("[data-sheet-save]");
+    save.disabled = true;
+    status.textContent = profileSheet.file ? "正在上传头像…" : "";
+    try {
+      let url = profileSheet.photo;
+      if (profileSheet.file) url = await uploadAvatarImage(profileSheet.file);
+      if (avatarUrl && avatarUrl !== url) removeStoredAvatar(avatarUrl);
+      writeAvatarUrl(url);
+      renameRoom(sheet.querySelector("[data-sheet-name]").value);
+      closeProfileSheet();
+      renderProfile();
+    } catch (error) {
+      console.warn("Profile save failed", error);
+      status.textContent = "头像没有上传成功，请换一张图片或稍后再试。";
+      save.disabled = false;
+    }
+  });
+  sheet.querySelector("[data-sheet-name]").focus({ preventScroll: true });
+}
+
+function closeProfileSheet() {
+  const sheet = document.querySelector(".pf-sheet");
+  if (profileSheet?.preview) URL.revokeObjectURL(profileSheet.preview);
+  profileSheet = null;
+  if (!sheet) return;
+  sheet.classList.remove("is-visible");
+  window.setTimeout(() => sheet.remove(), 260);
+}
+
+// Best effort: drop a replaced avatar from the user's own folder.
+function removeStoredAvatar(url) {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  const path = decodeURIComponent(String(url).split("/object/public/covers/")[1] || "");
+  if (!client || !userId || !path.startsWith(`${userId}/avatar-`)) return;
+  client.storage.from("covers").remove([path]).catch((error) => console.warn("Old avatar not removed", error));
+}
+
+// Square, centre-cropped, 320 px JPEG in the user's own storage folder.
+async function uploadAvatarImage(file) {
+  const client = getSupabaseClient();
+  const userId = supabaseSession?.user?.id;
+  if (!client || !userId) throw new Error("sign in");
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const size = Math.min(320, side);
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  canvas.getContext("2d").drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+  bitmap.close?.();
+  const blob = await new Promise((resolve, reject) => {
+    canvas.toBlob((result) => (result ? resolve(result) : reject(new Error("encode failed"))), "image/jpeg", 0.86);
+  });
+  const path = `${userId}/avatar-${Date.now()}.jpg`;
+  const { error } = await client.storage.from("covers").upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error;
+  return client.storage.from("covers").getPublicUrl(path).data.publicUrl;
+}
+
 function themePickerMarkup() {
   const current = THEMES.find((theme) => theme.id === themeId);
   return `
@@ -5362,31 +5551,28 @@ function renderProfile() {
     applyProfileColor();
     profileBody.innerHTML = `
       <div class="pf">
-        <section class="pf-card">
+        <div class="pf-me is-guest">
           <span class="pf-avatar" aria-hidden="true">R</span>
-          <h3>Reading Room</h3>
-          <p>登录后，你的书架和阅读记录会保存在账号里。</p>
+          <span class="pf-me-name">还没有登录</span>
           <button type="button" class="pf-signin" data-profile-action="signin">登录 / 注册</button>
-        </section>
+        </div>
         ${themePickerMarkup()}
         ${profileRows([["room", "我的空间", "登录后进入"], ["index", "全部书目"], ["help", "操作提示"], ["setup", "打造你的书架"]])}
       </div>`;
     return;
   }
   const saved = books.filter((book) => getBookState(book)).length;
-  const joined = user.created_at ? new Date(user.created_at) : null;
   const connected = reading.connected;
   const rows = [["room", "我的空间"], ["add", "增添书籍"], ["reference", "参考书架", "范例"], ["index", "全部书目"], ["help", "操作提示"]];
   if (!hasSavedBooks()) rows.push(["setup", "打造你的书架"]);
   applyProfileColor();
   profileBody.innerHTML = `
     <div class="pf">
-      <section class="pf-card">
-        <span class="pf-avatar" aria-hidden="true">${escapeHtml(String(user.email || "?").slice(0, 1).toUpperCase())}</span>
-        <h3>${escapeHtml(myRoomName)}</h3>
-        <p>${escapeHtml(user.email || "")}</p>
-        ${joined ? `<small>${joined.getFullYear()} 年 ${joined.getMonth() + 1} 月加入</small>` : ""}
-      </section>
+      <button type="button" class="pf-me" data-profile-action="edit-profile" aria-label="修改名字和头像">
+        ${avatarMarkup(user)}
+        <span class="pf-me-name">${escapeHtml(myRoomName)}</span>
+        <svg class="pf-me-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>
+      </button>
 
       <div class="pf-stats">
         <button type="button" data-profile-action="shelf">
@@ -5431,6 +5617,7 @@ function openProfile() {
 }
 
 function closeProfile({ immediate = false } = {}) {
+  closeProfileSheet();
   if (profilePanel.hidden) return;
   window.clearTimeout(profileCloseTimer);
   library.classList.remove("is-profile-open");
@@ -5447,6 +5634,10 @@ function closeProfile({ immediate = false } = {}) {
 function runProfileAction(action) {
   if (action === "signin") {
     openAuthGate(() => openProfile());
+    return;
+  }
+  if (action === "edit-profile") {
+    openProfileSheet();
     return;
   }
   if (action === "signout") {

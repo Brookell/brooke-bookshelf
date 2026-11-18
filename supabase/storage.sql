@@ -10,6 +10,13 @@ on conflict (id) do update
       file_size_limit = excluded.file_size_limit,
       allowed_mime_types = excluded.allowed_mime_types;
 
+-- Owners can see the files in their own folder. The Storage API needs this
+-- to delete or replace a file (e.g. an old avatar).
+drop policy if exists "Users read their own covers" on storage.objects;
+create policy "Users read their own covers"
+on storage.objects for select to authenticated
+using (bucket_id = 'covers' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
 drop policy if exists "Users upload their own covers" on storage.objects;
 create policy "Users upload their own covers"
 on storage.objects for insert to authenticated
