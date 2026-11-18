@@ -40,10 +40,65 @@ const authGateClose = document.querySelector("#authGateClose");
 const authGateForm = document.querySelector("#authGateForm");
 const authEmail = document.querySelector("#authEmail");
 const authIdLabel = document.querySelector("label[for='authEmail']");
-const authPasswordLabel = document.querySelector("label[for='authPassword']");
+const authPasswordRow = document.querySelector("#authPasswordRow");
+const authPinRow = document.querySelector("#authPinRow");
+const authPinConfirmRow = document.querySelector("#authPinConfirmRow");
+
+// 6-digit passwords as a row of slots (code-slots.js; light version of the
+// dark palette: pale slots, ink digits, ink fill once accepted).
+const PIN_SLOT_STYLE = {
+  length: 6,
+  accentColor: "#151515",
+  inkColor: "#151515",
+  slotColor: "rgba(21, 21, 21, 0.07)",
+  digitColor: "#f4f1ec",
+  dangerColor: "#ff3b30",
+  slotSize: 44,
+  gap: 8,
+  radius: 12,
+  bounce: 0.2,
+  settle: 0.3,
+  rise: 8,
+  cascade: 20,
+};
+let authPinSlots = null;
+let authPinConfirmSlots = null;
+
+function setupPinSlots() {
+  if (authPinSlots || typeof window.CodeSlots !== "function") return;
+  authPinSlots = window.CodeSlots(document.querySelector("#authPin"), {
+    ...PIN_SLOT_STYLE,
+    onChange: () => {
+      authPinSlots?.setStatus("idle");
+      authPinConfirmSlots?.setStatus("idle");
+    },
+    // Sign-in goes as soon as the 6th digit is in; sign-up moves on to
+    // 再输一次.
+    onComplete: () => {
+      if (authMode === "signup") authPinConfirmSlots?.focus();
+      else authGateForm.requestSubmit();
+    },
+  });
+  authPinConfirmSlots = window.CodeSlots(document.querySelector("#authPinConfirm"), {
+    ...PIN_SLOT_STYLE,
+    onChange: () => authPinConfirmSlots?.setStatus("idle"),
+    onComplete: () => authGateForm.requestSubmit(),
+  });
+}
+
+// Username accounts use the slots; an email in 用户名或邮箱 means an older
+// account, whose password can be anything, so it gets a plain field.
+function authUsesPin() {
+  return authMode === "signup" || !authEmail.value.includes("@");
+}
+
+function updateAuthPasswordFields() {
+  const pin = authUsesPin();
+  authPinRow.hidden = !pin;
+  authPasswordRow.hidden = pin;
+  authPinConfirmRow.hidden = authMode !== "signup";
+}
 const authPassword = document.querySelector("#authPassword");
-const authPasswordConfirm = document.querySelector("#authPasswordConfirm");
-const authConfirmRow = document.querySelector("#authConfirmRow");
 const authSubmit = document.querySelector("#authSubmit");
 const authGateStatus = document.querySelector("#authGateStatus");
 const authGateMagicLink = document.querySelector("#authGateMagicLink");
@@ -856,20 +911,16 @@ function setAuthMode(mode) {
     button.setAttribute("aria-pressed", String(button.dataset.authMode === authMode));
   });
   const signup = authMode === "signup";
-  authConfirmRow.hidden = !signup;
-  authPasswordConfirm.required = signup;
-  authPassword.autocomplete = signup ? "new-password" : "current-password";
+  setupPinSlots();
   authIdLabel.textContent = signup ? "用户名" : "用户名或邮箱";
   authEmail.placeholder = signup ? "2–12 个字，中英文、数字都可以" : "用户名（以前用邮箱注册的，填邮箱）";
   authEmail.autocomplete = "username";
-  authPasswordLabel.textContent = signup ? "6 位数字密码" : "密码";
-  authPassword.placeholder = signup ? "6 位数字" : "";
-  // Sign-up passwords are 6 digits: number pad on phones. Older accounts
-  // may have any password, so 登录 leaves the keyboard alone.
-  [authPassword, authPasswordConfirm].forEach((input) => {
-    input.inputMode = signup ? "numeric" : "";
-    input.maxLength = signup ? 6 : 200;
-  });
+  document.querySelector("#authPin").autocomplete = signup ? "new-password" : "current-password";
+  authPinSlots?.clear();
+  authPinConfirmSlots?.clear();
+  authPinSlots?.setStatus("idle");
+  authPinConfirmSlots?.setStatus("idle");
+  updateAuthPasswordFields();
   authSubmit.textContent = signup ? "注册" : "登录";
   // "忘记密码？" only makes sense when signing in.
   authGateMagicLink.hidden = signup;
@@ -4901,14 +4952,25 @@ addBookResults.addEventListener("click", (event) => {
   if (Number.isInteger(index) && book) addCustomBook(book);
 });
 authGateClose.addEventListener("click", () => closeAuthGate({ restoreFocus: true }));
+// Typing an @ switches 登录 to the plain password field (older accounts).
+authEmail.addEventListener("input", updateAuthPasswordFields);
 authGate.querySelectorAll("[data-auth-mode]").forEach((button) => {
   button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
 });
 authGateForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const id = authEmail.value.trim();
-  const password = authPassword.value;
-  if (!id || !password) return;
+  const usesPin = authUsesPin();
+  const password = usesPin ? authPinSlots?.value || "" : authPassword.value;
+  if (!id) {
+    authGateStatus.textContent = authMode === "signup" ? "先起一个用户名。" : "先填用户名（或以前注册用的邮箱）。";
+    authEmail.focus();
+    return;
+  }
+  if (!password) {
+    (usesPin ? authPinSlots : authPassword)?.focus();
+    return;
+  }
   let email = id;
   if (authMode === "signup") {
     const name = normalizeUsername(id);
@@ -4920,12 +4982,21 @@ authGateForm.addEventListener("submit", async (event) => {
     const weak = weakPinReason(password);
     if (weak) {
       authGateStatus.textContent = weak;
-      authPassword.focus();
+      authPinSlots.setStatus("error");
+      authPinSlots.clear();
+      authPinConfirmSlots.clear();
+      authPinSlots.focus();
       return;
     }
-    if (password !== authPasswordConfirm.value) {
-      authGateStatus.textContent = "两次输入的密码不一样，请再检查一下。";
-      authPasswordConfirm.focus();
+    if (authPinConfirmSlots.value.length < 6) {
+      authPinConfirmSlots.focus();
+      return;
+    }
+    if (password !== authPinConfirmSlots.value) {
+      authGateStatus.textContent = "两次输入的密码不一样，请再输一次。";
+      authPinConfirmSlots.setStatus("error");
+      authPinConfirmSlots.clear();
+      authPinConfirmSlots.focus();
       return;
     }
     email = usernameEmail(name);
@@ -4939,6 +5010,11 @@ authGateForm.addEventListener("submit", async (event) => {
       ? await signUpWithPassword(email, password)
       : await signInWithPassword(email, password);
     if (result.mode === "wrong-credentials") {
+      if (usesPin) {
+        authPinSlots.setStatus("error");
+        authPinSlots.clear();
+        authPinSlots.focus();
+      }
       authGateStatus.textContent = id.includes("@")
         ? "邮箱或密码不对。忘记密码可以点下面的「忘记密码？」。"
         : "用户名或密码不对。还没有账号就先注册；忘记密码可以点下面的「忘记密码？」。";
@@ -4960,8 +5036,17 @@ authGateForm.addEventListener("submit", async (event) => {
       writeDisplayName(id.normalize("NFKC"));
       syncSettingsToSupabase();
     }
+    if (usesPin) {
+      // Slots fill in, then the sheet closes.
+      authPinSlots.setStatus("success");
+      if (authMode === "signup") authPinConfirmSlots.setStatus("success");
+      await new Promise((resolve) => setTimeout(resolve, 420));
+    }
     authPassword.value = "";
-    authPasswordConfirm.value = "";
+    authPinSlots?.clear();
+    authPinConfirmSlots?.clear();
+    authPinSlots?.setStatus("idle");
+    authPinConfirmSlots?.setStatus("idle");
     authGateStatus.textContent = "";
     closeAuthGate({ restoreFocus: false, runPending: true });
   } catch (error) {

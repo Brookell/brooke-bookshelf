@@ -7965,3 +7965,33 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
     transition: none;
   }
 }
+
+/* Sign-in sheet: password rows. Username accounts get six digit slots
+   (code-slots.js); older email accounts a plain field. */
+.auth-field {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-field[hidden] {
+  display: none;
+}
+
+.auth-pin .cs-root {
+  justify-self: start;
+}
+
+@media (max-width: 380px) {
+  .auth-pin .cs-root {
+    --cs-size: 40px !important;
+  }
+
+  .auth-pin .cs-slot {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .auth-pin .cs-row {
+    gap: 6px !important;
+  }
+}

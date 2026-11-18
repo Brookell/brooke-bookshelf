@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-title" content="Reading Room" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Reading Room</title>
-  <link rel="stylesheet" href="./styles.css?v=20261116-100" />
+  <link rel="stylesheet" href="./styles.css?v=20261119-1" />
   <link rel="stylesheet" href="./shelf-carousel.css?v=1" />
   <script src="./config.js"></script>
   <script>
@@ -189,11 +189,19 @@
         <form class="auth-gate-form" id="authGateForm">
           <label for="authEmail">用户名或邮箱</label>
           <input id="authEmail" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="用户名（以前用邮箱注册的，填邮箱）" required />
-          <label for="authPassword">密码</label>
-          <input id="authPassword" type="password" autocomplete="current-password" minlength="6" required />
-          <div class="auth-confirm" id="authConfirmRow" hidden>
-            <label for="authPasswordConfirm">确认密码</label>
-            <input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="6" />
+          <!-- Accounts made with an email (older ones): any password. -->
+          <div class="auth-field" id="authPasswordRow" hidden>
+            <label for="authPassword">密码</label>
+            <input id="authPassword" type="password" autocomplete="current-password" />
+          </div>
+          <!-- Username accounts: 6 digits in slots (code-slots.js). -->
+          <div class="auth-field auth-pin" id="authPinRow">
+            <label for="authPin">6 位数字密码</label>
+            <input id="authPin" type="password" autocomplete="current-password" />
+          </div>
+          <div class="auth-field auth-pin" id="authPinConfirmRow" hidden>
+            <label for="authPinConfirm">再输一次</label>
+            <input id="authPinConfirm" type="password" autocomplete="new-password" />
           </div>
           <button type="submit" id="authSubmit" class="flow flow-invert flow-wide">登录</button>
         </form>
@@ -469,7 +477,8 @@
 
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
-  <script defer src="./app.js?v=20261119-u3"></script>
+  <script defer src="./code-slots.js?v=20261117-1"></script>
+  <script defer src="./app.js?v=20261119-u4"></script>
   <script defer src="./shelf-carousel.js?v=7"></script>
 </body>
 </html>
