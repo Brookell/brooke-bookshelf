@@ -6225,6 +6225,15 @@ updateViewSwitch();
 function setupSiteMenu() {
   if (typeof window.StaggeredMenu !== "function") return;
 
+  // Just before the menu opens, match it to what is on screen: your room's
+  // wash when you are in it, otherwise the page's.
+  library.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".sm-toggle")) return;
+    const surface = !myShelf.hidden ? myShelf : library;
+    const color = getComputedStyle(surface).backgroundColor;
+    if (color && color !== "rgba(0, 0, 0, 0)") library.style.setProperty("--menu-bg", color);
+  }, true);
+
   const runAfterDetail = (action) => {
     closeReadingPanel({ immediate: true, returnToShelf: false });
     if (detailIndex === null) {
@@ -6244,8 +6253,10 @@ function setupSiteMenu() {
     title: "Reading Room / 目录",
     position: "right",
     toggleLabels: ["菜单", "关闭"],
-    colors: ["#d9d5ce", "#151515"],
-    panelColor: "#eeece8",
+    // The panel takes the colour of the page behind it (--menu-bg, set as
+    // the menu opens); the sweep in front is a shade darker.
+    colors: ["color-mix(in srgb, var(--menu-bg, #eeece8) 86%, #151515)", "#151515"],
+    panelColor: "var(--menu-bg, #eeece8)",
     panelInk: "#151515",
     items: [
       {

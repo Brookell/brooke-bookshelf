@@ -1,9 +1,9 @@
-// Prototype: endless 3D carousel shelf for Brooke's Space.
+// 3D carousel shelf for the reference room.
 //
 // Each reference book is a box: the spine is its front, the cover its
 // right-hand side. The book in the middle turns until its cover faces you
-// straight on and comes forward; the rest stand spine-out and repeat
-// endlessly on both sides. Wheel, drag, arrow keys, the toolbar arrows and
+// straight on and comes forward; the rest stand spine-out. The shelf runs
+// once, from the first book to the last, and stops at both ends. Wheel, drag, arrow keys, the toolbar arrows and
 // clicks slide the shelf; clicking the middle cover (or Space / Enter)
 // opens the existing detail page from that cover.
 //
@@ -24,7 +24,7 @@ function start(api) {
   } = api;
 
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const COPIES = 3;
+  const COPIES = 1;
   const BASE_HEIGHT = 430;
 
   document.body.classList.add("cs-on");
@@ -138,7 +138,8 @@ function start(api) {
       tapes.push(t);
     }
     layoutTable();
-    if (s === 0 && T === 0) { s = T = N; } // start on the first book, middle copy
+    s = Math.min(Math.max(s, 0), N - 1); // start on the first book
+    T = Math.min(Math.max(T, 0), N - 1);
     active = -1;
   }
 
@@ -291,20 +292,19 @@ function start(api) {
     const inDetail = api.detailIndex !== null && api.detailSourceMode === "shelf";
     if (inDetail) {
       const pos = refs.indexOf(api.detailIndex);
-      if (pos >= 0 && mod(Math.round(T), N) !== pos) {
-        let d = mod(pos - mod(Math.round(T), N), N);
-        if (d > N / 2) d -= N;
-        T = Math.round(T) + d;
+      if (pos >= 0 && Math.round(T) !== pos) {
+        T = pos;
         s = T;
       }
     }
 
+    // One run of books: no going past the first or the last.
+    T = Math.min(Math.max(T, 0), N - 1);
+
     const k = dragging ? 18 : 5.2;
     s += (T - s) * (reduced ? 1 : 1 - Math.exp(-k * dt));
     if (Math.abs(T - s) < 1e-4) s = T;
-    if (Math.abs(s) > 4 * V) { const shift = Math.round(s / V) * V; s -= shift; T -= shift; }
-
-    const a = mod(Math.round(s), N);
+    const a = Math.min(Math.max(Math.round(s), 0), N - 1);
     if (a !== active) setActive(a);
 
     const box = viewport.getBoundingClientRect();
@@ -320,7 +320,7 @@ function start(api) {
     const lim = box.width / 2 + maxCover;
     const le = reduced ? 1 : 1 - Math.exp(-12 * dt);
     for (const t of tapes) {
-      const r = mod(t.v - s + V / 2, V) - V / 2;
+      const r = t.v - s;
       t.r = r;
       const x = P(Math.round(s + r)) - ps + es * B(r);
       const liftTarget = hover === t.v && Math.abs(r) > 0.5 && !inDetail ? 1 : 0;
