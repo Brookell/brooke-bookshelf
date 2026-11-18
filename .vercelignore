@@ -4,4 +4,3 @@ config.local.js
 .env*
 # Docs and data notes are for maintainers, not visitors.
 *.md
-/deploy/
