@@ -463,16 +463,11 @@ function updatePageTitle() {
 
 function updateSpaceSwitch() {
   updatePageTitle();
-  // Signed-in people don't get 参考空间 in the top bar at all. Before that,
-  // once someone has their own books it steps back while they are in their
-  // room, and reappears up top whenever they visit it.
-  // It only steps back while you're in your own room; whenever you are in
-  // the reference room its tab is there (and highlighted), so you always
-  // know where you are. The menu always lists it.
-  const tuckReference = activeSpace === "user" && (isSignedIn() || hasSavedBooks());
+  // 参考空间 and 我的空间 are both always in the top bar, so you can always
+  // get back to the reference room in one click.
   spaceSwitch?.querySelectorAll("[data-space-target]").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.spaceTarget === activeSpace));
-    if (button.dataset.spaceTarget === "brooke") button.hidden = tuckReference;
+    button.hidden = false;
   });
   library.classList.toggle("is-user-space", activeSpace === "user");
   roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
@@ -5275,16 +5270,6 @@ window.addEventListener("resize", () => {
   if (detailIndex !== null && !detail.classList.contains("is-returning")) positionDetailBook();
 });
 
-// Once someone has a shelf of their own, they land in it; the reference
-// space stays one click away (参考空间 in the top bar) but isn't shown first.
-// The loading screen waits for sign-in so books saved in the account count
-// (at most 3 s), then the right space is chosen before it fades.
-function landInMyRoomIfReady() {
-  if (!hasSavedBooks() || !myShelf.hidden || detailIndex !== null) return;
-  if (!bookIndex.hidden || !addBookPanel.hidden || !authGate.hidden || !readingPanel.hidden) return;
-  openMyShelf({ view: "room", restoreFocus: false });
-}
-
 // Count a visit once per browser session for the admin dashboard. The id is
 // random and stays in this browser; no IP or personal data is sent.
 function logVisit() {
@@ -6213,7 +6198,7 @@ Promise.all([
   new Promise((resolve) => window.setTimeout(resolve, 1250)),
   Promise.race([authReady, new Promise((resolve) => window.setTimeout(resolve, 3000))]),
 ]).then(() => {
-  landInMyRoomIfReady();
+  // Everyone opens on REFERENCE ROOM; your own room is one tap away.
   entryScreen?.classList.add("is-done");
 });
 
