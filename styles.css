@@ -7749,3 +7749,80 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   font-weight: 600;
   opacity: 0.7;
 }
+
+/* 阅读记录 loading ring on the coloured page. */
+.reading-panel .notes-ring-track {
+  stroke: color-mix(in srgb, var(--rd-on, var(--ink)) 20%, transparent);
+}
+
+.reading-panel .notes-ring-arc {
+  stroke: var(--rd-on, var(--ink));
+}
+
+.reading-panel .notes-ring b {
+  color: var(--rd-on, var(--ink));
+}
+
+/* The room title is fixed now: plain text, not a rename button. */
+.my-room-title-button {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* ---- Phones: shelf / list switch, top right ---- */
+.view-switch {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .view-switch:not([hidden]) {
+    position: fixed;
+    top: max(18px, calc(env(safe-area-inset-top) + 8px));
+    right: max(16px, env(safe-area-inset-right));
+    z-index: 95;
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid rgba(21, 21, 21, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  }
+
+  .view-switch button {
+    display: grid;
+    width: 34px;
+    height: 30px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: rgba(21, 21, 21, 0.45);
+    cursor: pointer;
+    transition: background-color 200ms ease, color 200ms ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .view-switch button[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .view-switch svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* The switch takes the place of the list pages' close buttons. */
+  #bookIndexClose,
+  #myShelfClose {
+    display: none;
+  }
+}

@@ -32,6 +32,13 @@ alter table public.user_settings drop constraint if exists user_settings_theme_c
 alter table public.user_settings add constraint user_settings_theme_color_check
   check (theme_color is null or theme_color ~ '^[a-z]{1,16}$');
 
+-- The user's own name in the app (shown on 我的; the shelf is always
+-- "A Room of My Own"). Null means the part of the email before the @.
+alter table public.user_settings add column if not exists display_name text;
+alter table public.user_settings drop constraint if exists user_settings_display_name_check;
+alter table public.user_settings add constraint user_settings_display_name_check
+  check (display_name is null or char_length(display_name) between 1 and 40);
+
 -- Profile photo chosen on 我的: a public URL in the covers bucket, under the
 -- user's own folder (covers/<user id>/avatar-….jpg). Null means the initial.
 alter table public.user_settings add column if not exists avatar_url text;

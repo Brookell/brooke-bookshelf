@@ -121,8 +121,8 @@ const DEFAULT_SUPABASE_URL = "https://oipsefmckxyojnntiaax.supabase.co";
 const DEFAULT_SUPABASE_FUNCTIONS_URL = "https://oipsefmckxyojnntiaax.supabase.co/functions/v1";
 const ROOM_DEFAULT_STORAGE_KEY = "brooke-bookshelf:show-my-room-first:v1";
 const ROOM_NAME_STORAGE_KEY = "brooke-bookshelf:room-name:v1";
-// The room's name until the user picks one. Rooms still carrying the old
-// default ("Your Reading Room") are shown with the new one.
+// Every user's own shelf is called this; it can't be renamed. (The user's
+// own name lives separately, on 我的.)
 const DEFAULT_ROOM_NAME = "A Room of My Own";
 const LEGACY_ROOM_NAME = "Your Reading Room";
 const roomNameOrDefault = (value) => {
@@ -131,6 +131,7 @@ const roomNameOrDefault = (value) => {
 };
 const THEME_STORAGE_KEY = "brooke-bookshelf:theme:v1";
 const AVATAR_STORAGE_KEY = "brooke-bookshelf:avatar:v1";
+const DISPLAY_NAME_STORAGE_KEY = "brooke-bookshelf:display-name:v1";
 
 // Theme colour for 阅读记录, 笔记 and 我的 (picked on 我的). Each colour is
 // tuned so its ink reads on it. 'follow' keeps the old behaviour: each page
@@ -376,7 +377,8 @@ let activeIndex = null;
 let pinnedIndex = null;
 let userBooks = readUserBooks();
 let showMyRoomFirst = readShowMyRoomFirst();
-let myRoomName = readRoomName();
+const myRoomName = DEFAULT_ROOM_NAME;
+let displayName = readDisplayName();
 let themeId = readThemeId();
 let avatarUrl = readAvatarUrl();
 let activeSpace = "brooke";
@@ -476,6 +478,27 @@ function updateSpaceSwitch() {
   roomOnlyToggle?.setAttribute("aria-pressed", String(activeSpace === "user"));
 }
 
+function readDisplayName() {
+  try {
+    return (window.localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) || "").trim().slice(0, 40);
+  } catch {
+    return "";
+  }
+}
+
+function writeDisplayName(value) {
+  displayName = String(value || "").trim().slice(0, 40);
+  try {
+    if (displayName) window.localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, displayName);
+    else window.localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
+  } catch { /* private mode */ }
+}
+
+// The name shown on 我的: the user's own, else their email before the @.
+function userDisplayName(user = supabaseSession?.user) {
+  return displayName || String(user?.email || "").split("@")[0] || "读者";
+}
+
 function readAvatarUrl() {
   try {
     const saved = window.localStorage.getItem(AVATAR_STORAGE_KEY) || "";
@@ -515,23 +538,6 @@ function setTheme(id) {
   if (!readingPanel.hidden) renderReadingPanel();
   if (quotePanel && !quotePanel.hidden) applyNotesColor();
   if (!profilePanel.hidden) renderProfile();
-}
-
-function readRoomName() {
-  try {
-    return roomNameOrDefault(window.localStorage.getItem(ROOM_NAME_STORAGE_KEY));
-  } catch {
-    return DEFAULT_ROOM_NAME;
-  }
-}
-
-function writeRoomName(value) {
-  try {
-    window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, value);
-  } catch {
-    // Room naming still updates for the current session when storage is unavailable.
-  }
-  syncSettingsToSupabase();
 }
 
 function formatRoomTitle(value) {
@@ -958,7 +964,7 @@ async function loadSettingsFromSupabase() {
   if (!client || !userId) return;
   const { data, error } = await client
     .from("user_settings")
-    .select("room_name, show_my_room_first, theme_color, avatar_url")
+    .select("show_my_room_first, theme_color, avatar_url, display_name")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) {
@@ -969,14 +975,13 @@ async function loadSettingsFromSupabase() {
     await syncSettingsToSupabase();
     return;
   }
-  myRoomName = roomNameOrDefault(data.room_name);
+  writeDisplayName(typeof data.display_name === "string" ? data.display_name : "");
   showMyRoomFirst = Boolean(data.show_my_room_first);
   writeAvatarUrl(typeof data.avatar_url === "string" && data.avatar_url.startsWith("https://") ? data.avatar_url : "");
   if (THEMES.some((theme) => theme.id === data.theme_color)) {
     themeId = data.theme_color;
     try { window.localStorage.setItem(THEME_STORAGE_KEY, themeId); } catch { /* private mode */ }
   }
-  window.localStorage.setItem(ROOM_NAME_STORAGE_KEY, myRoomName);
   window.localStorage.setItem(ROOM_DEFAULT_STORAGE_KEY, String(showMyRoomFirst));
   myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
   updatePageTitle();
@@ -989,7 +994,8 @@ async function syncSettingsToSupabase() {
   if (!client || !userId) return;
   const { error } = await client.from("user_settings").upsert({
     user_id: userId,
-    room_name: roomNameOrDefault(myRoomName),
+    room_name: DEFAULT_ROOM_NAME,
+    display_name: displayName || null,
     show_my_room_first: Boolean(showMyRoomFirst),
     theme_color: themeId,
     avatar_url: avatarUrl || null,
@@ -1027,7 +1033,7 @@ async function signOutEverywhere() {
   }
   // Everything a signed-in user has is already in Supabase, so clear this
   // browser's copy to keep the next person on a shared computer out of it.
-  [AUTH_STORAGE_KEY, SHELF_STORAGE_KEY, CUSTOM_BOOKS_STORAGE_KEY, ROOM_NAME_STORAGE_KEY, ROOM_DEFAULT_STORAGE_KEY, AVATAR_STORAGE_KEY]
+  [AUTH_STORAGE_KEY, SHELF_STORAGE_KEY, CUSTOM_BOOKS_STORAGE_KEY, ROOM_NAME_STORAGE_KEY, ROOM_DEFAULT_STORAGE_KEY, AVATAR_STORAGE_KEY, DISPLAY_NAME_STORAGE_KEY]
     .forEach((key) => window.localStorage.removeItem(key));
   window.location.reload();
 }
@@ -2445,21 +2451,32 @@ function createSmoothProgress(draw) {
   };
 }
 
-const readingProgress = createSmoothProgress((value) => {
-  const box = readingPanelBody?.querySelector(".rd-loading");
-  if (!box) return;
-  box.querySelector("[role='progressbar']").setAttribute("aria-valuenow", String(Math.round(value * 100)));
-  box.querySelector("i").style.transform = `scaleX(${value})`;
-});
+// A thin ring with the percentage inside (笔记 and 阅读记录 while loading).
+const PROGRESS_RING = 2 * Math.PI * 26;
+
+function progressRingMarkup() {
+  return `
+    <div class="notes-ring" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <svg viewBox="0 0 60 60" aria-hidden="true">
+        <circle class="notes-ring-track" cx="30" cy="30" r="26" />
+        <circle class="notes-ring-arc" cx="30" cy="30" r="26" stroke-dasharray="${PROGRESS_RING}" stroke-dashoffset="${PROGRESS_RING}" />
+      </svg>
+      <b>0</b>
+    </div>`;
+}
+
+function drawProgressRing(root, value) {
+  const ring = root?.querySelector(".notes-ring");
+  if (!ring) return;
+  ring.querySelector(".notes-ring-arc").style.strokeDashoffset = String(PROGRESS_RING * (1 - value));
+  ring.querySelector("b").textContent = `${Math.round(value * 100)}`;
+  ring.setAttribute("aria-valuenow", String(Math.round(value * 100)));
+}
+
+const readingProgress = createSmoothProgress((value) => drawProgressRing(readingPanelBody, value));
 
 function readingLoadingMarkup() {
-  const percent = readingLoadingPercent();
-  return `
-    <div class="rd-loading">
-      <div class="weread-progress-bar" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
-        <i></i>
-      </div>
-    </div>`;
+  return progressRingMarkup();
 }
 
 function updateReadingLoading() {
@@ -4912,26 +4929,11 @@ myShelfViewToggle.addEventListener("click", (event) => {
   else if (action === "previous") navigateMyRoom(-1);
   else if (action === "next") navigateMyRoom(1);
 });
-myRoomTitle.addEventListener("click", () => {
-  myRoomNameForm.hidden = !myRoomNameForm.hidden;
-  if (!myRoomNameForm.hidden) {
-    myRoomNameInput.value = myRoomName === DEFAULT_ROOM_NAME ? "" : myRoomName;
-    myRoomNameInput.focus({ preventScroll: true });
-  }
-});
-function renameRoom(name) {
-  myRoomName = roomNameOrDefault(String(name || "").slice(0, 40));
-  writeRoomName(myRoomName);
-  myRoomTitle.innerHTML = formatRoomTitle(myRoomName);
-  updatePageTitle();
-}
+// The shelf title is fixed (A Room of My Own), so it isn't a rename button.
+myRoomTitle.removeAttribute("title");
+myRoomTitle.tabIndex = -1;
+myRoomTitle.setAttribute("aria-disabled", "true");
 
-myRoomNameForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  renameRoom(myRoomNameInput.value);
-  myRoomNameForm.hidden = true;
-  myRoomTitle.focus({ preventScroll: true });
-});
 roomOnlyToggle.addEventListener("click", () => {
   if (activeSpace === "user") openBrookeSpace({ restoreFocus: false });
   else requireAuth(() => openUserSpace({ restoreFocus: false }));
@@ -5518,7 +5520,7 @@ function applyProfileColor() {
 }
 
 function avatarMarkup(user, url = avatarUrl) {
-  const initial = escapeHtml(String(user?.email || "?").slice(0, 1).toUpperCase());
+  const initial = escapeHtml(Array.from(userDisplayName(user))[0]?.toUpperCase() || "?");
   return url
     ? `<span class="pf-avatar has-photo" aria-hidden="true"><img src="${escapeHtml(url)}" alt="" /></span>`
     : `<span class="pf-avatar" aria-hidden="true">${initial}</span>`;
@@ -5543,7 +5545,7 @@ function openProfileSheet() {
       </div>
       <label class="pf-sheet-field">
         <span>名字</span>
-        <input type="text" maxlength="40" data-sheet-name value="${escapeHtml(myRoomName === DEFAULT_ROOM_NAME ? "" : myRoomName)}" placeholder="${DEFAULT_ROOM_NAME}" />
+        <input type="text" maxlength="40" data-sheet-name value="${escapeHtml(displayName)}" placeholder="${escapeHtml(userDisplayName(user))}" />
       </label>
       <p class="pf-sheet-status" data-sheet-status role="status"></p>
       <div class="pf-sheet-actions">
@@ -5587,7 +5589,8 @@ function openProfileSheet() {
       if (profileSheet.file) url = await uploadAvatarImage(profileSheet.file);
       if (avatarUrl && avatarUrl !== url) removeStoredAvatar(avatarUrl);
       writeAvatarUrl(url);
-      renameRoom(sheet.querySelector("[data-sheet-name]").value);
+      writeDisplayName(sheet.querySelector("[data-sheet-name]").value);
+      syncSettingsToSupabase();
       closeProfileSheet();
       renderProfile();
     } catch (error) {
@@ -5678,7 +5681,7 @@ function renderProfile() {
     <div class="pf">
       <button type="button" class="pf-me" data-profile-action="edit-profile" aria-label="修改名字和头像">
         ${avatarMarkup(user)}
-        <span class="pf-me-name">${escapeHtml(myRoomName)}</span>
+        <span class="pf-me-name">${escapeHtml(userDisplayName(user))}</span>
         <svg class="pf-me-edit" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>
       </button>
 
@@ -5774,14 +5777,7 @@ function runProfileAction(action) {
 
 let quotePanelTimer = 0;
 const notes = { view: "list", book: null };
-const NOTES_RING = 2 * Math.PI * 26;
-const notesProgress = createSmoothProgress((value) => {
-  const ring = quotePanelBody?.querySelector(".notes-ring");
-  if (!ring) return;
-  ring.querySelector(".notes-ring-arc").style.strokeDashoffset = String(NOTES_RING * (1 - value));
-  ring.querySelector("b").textContent = `${Math.round(value * 100)}`;
-  ring.setAttribute("aria-valuenow", String(Math.round(value * 100)));
-});
+const notesProgress = createSmoothProgress((value) => drawProgressRing(quotePanelBody, value));
 
 function notesListMarkup() {
   const list = reading.notebooks || [];
@@ -5822,14 +5818,7 @@ function renderQuotePanel(state = "ready") {
   if (!quotePanelBody) return;
   applyNotesColor(state === "ready" ? reading.quote : undefined);
   if (state === "loading") {
-    quotePanelBody.innerHTML = `
-      <div class="notes-ring" role="progressbar" aria-label="加载中" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <svg viewBox="0 0 60 60" aria-hidden="true">
-          <circle class="notes-ring-track" cx="30" cy="30" r="26" />
-          <circle class="notes-ring-arc" cx="30" cy="30" r="26" stroke-dasharray="${NOTES_RING}" stroke-dashoffset="${NOTES_RING}" />
-        </svg>
-        <b>0</b>
-      </div>`;
+    quotePanelBody.innerHTML = progressRingMarkup();
   } else if (state === "connect") {
     quotePanelBody.innerHTML = `
       <div class="quote-panel-empty">
@@ -6025,6 +6014,43 @@ tabBar?.addEventListener("click", (event) => {
   }
 });
 new MutationObserver(updateTabBar).observe(library, { attributes: true, attributeFilter: ["class"] });
+
+// ---- Phones: shelf / list switch (top right) ----
+// On the reference shelf, list = 全部书籍; in your own room, list = your
+// books as a list. Hidden while a book, a tab page or a sheet is open.
+const viewSwitch = document.querySelector("#viewSwitch");
+
+function updateViewSwitch() {
+  if (!viewSwitch) return;
+  const covered = ["is-detail-open", "is-auth-gate-open", "is-reading-open", "is-profile-open", "is-quote-open"]
+    .some((name) => library.classList.contains(name))
+    || !addBookPanel.hidden || !shelfHelp.hidden;
+  viewSwitch.hidden = covered;
+  const list = !bookIndex.hidden || (!myShelf.hidden && myShelfView === "list");
+  viewSwitch.querySelector('[data-view="shelf"]').setAttribute("aria-pressed", String(!list));
+  viewSwitch.querySelector('[data-view="list"]').setAttribute("aria-pressed", String(list));
+}
+
+viewSwitch?.addEventListener("click", (event) => {
+  const button = event.target instanceof Element ? event.target.closest("[data-view]") : null;
+  if (!button || button.getAttribute("aria-pressed") === "true") return;
+  if (button.dataset.view === "list") {
+    if (!myShelf.hidden) switchMyShelfView("list");
+    else openBookIndex();
+  } else if (!bookIndex.hidden) {
+    closeBookIndex({ restoreFocus: false });
+  } else if (!myShelf.hidden) {
+    switchMyShelfView("room");
+  }
+  // The pressed state follows at once; the panels catch up.
+  viewSwitch.querySelectorAll("[data-view]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+});
+
+const viewSwitchObserver = new MutationObserver(updateViewSwitch);
+[library, myShelf, bookIndex, addBookPanel, shelfHelp].forEach((element) => {
+  viewSwitchObserver.observe(element, { attributes: true, attributeFilter: ["class", "hidden"] });
+});
+updateViewSwitch();
 
 // Top-right menu (staggered-menu.js). Each entry reuses the same path as the
 // matching toolbar button, after clearing whatever is open in front of it.
