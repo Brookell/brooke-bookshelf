@@ -7238,8 +7238,9 @@ html.is-standalone :is(.book-index, .my-shelf, .add-book-panel, .panel-scroll) {
   font-weight: 700;
 }
 
+/* 已连接 in the same ink as the number beside it. */
 .pf-stats b.pf-weread.is-on {
-  color: #e2553d;
+  color: inherit;
 }
 
 .pf-stats span {
