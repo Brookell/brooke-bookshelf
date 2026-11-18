@@ -6216,6 +6216,35 @@ Promise.all([
   landInMyRoomIfReady();
   entryScreen?.classList.add("is-done");
 });
+
+// Bridge for shelf-carousel.js (prototype), which lives outside this scope.
+window.BROOKE_SHELF_API = {
+  books,
+  bookElements,
+  viewport,
+  track,
+  library,
+  activeTitle,
+  activeNumber,
+  isReferenceBook,
+  referencePosition,
+  setShelfCaption,
+  setAmbientColor,
+  coverMarkup,
+  cleanBookTitle,
+  escapeHtml,
+  openBookDetail,
+  get detailIndex() { return detailIndex; },
+  get detailSourceMode() { return detailSourceMode; },
+  setActive(index) { activeIndex = index; pinnedIndex = index; },
+  overlayOpen() {
+    const open = (el) => Boolean(el && !el.hidden);
+    return open(authGate) || open(bookIndex) || open(addBookPanel) || open(myShelf) ||
+      open(shelfHelp) || open(readingPanel) || (quotePanel && open(quotePanel)) ||
+      (profilePanel && open(profilePanel)) || Boolean(coverPickerState);
+  },
+};
+document.dispatchEvent(new Event("brooke:shelf-ready"));
 }).catch((error) => {
   console.error(error);
   const status = document.querySelector("#activeTitle");
