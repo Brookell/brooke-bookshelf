@@ -819,7 +819,11 @@ function writeAuthSession(session) {
   }));
 }
 
+// 我的空间 and everything in it need a real account; the old 先逛逛 guest
+// session no longer counts. (Without Supabase configured, the local
+// prototype session still does.)
 function hasAuthSession() {
+  if (getSupabaseClient()) return Boolean(supabaseSession?.user);
   return Boolean(readAuthSession());
 }
 
@@ -975,7 +979,10 @@ async function signInWithEmail(email) {
   return { mode: "supabase" };
 }
 
+// Saved books belong to an account: while signed out, nothing shows as
+// saved (a copy left in this browser stays hidden until you sign in).
 function getBookState(book) {
+  if (getSupabaseClient() && !supabaseSession?.user) return null;
   return userBooks[book.id] || null;
 }
 
@@ -1079,6 +1086,10 @@ async function loadShelfFromSupabase() {
     isSyncingRemoteShelf = false;
     return;
   }
+  // The account's shelf replaces whatever this browser had kept, so books
+  // left behind by an earlier account never show up in (or get copied into)
+  // another one.
+  userBooks = {};
   (data || []).forEach((row, index) => {
     const book = findBookForRemoteRow(row, index);
     userBooks[book.id] = {
@@ -1098,12 +1109,6 @@ async function loadShelfFromSupabase() {
   updateOnboarding();
   loadMissingCoverPalettes();
   loadMissingIntros();
-}
-
-async function syncLocalShelfToSupabase() {
-  const client = getSupabaseClient();
-  if (!client || !supabaseSession?.user) return;
-  await Promise.all(books.filter((book) => getBookState(book)).map((book) => syncBookStateToSupabase(book)));
 }
 
 async function loadSettingsFromSupabase() {
@@ -1201,7 +1206,6 @@ async function initializeSupabaseAuth() {
     rememberHasAccount();
     await loadSettingsFromSupabase();
     await loadShelfFromSupabase();
-    await syncLocalShelfToSupabase();
   }
   let knownUserId = supabaseSession?.user?.id || null;
   client.auth.onAuthStateChange((event, session) => {
@@ -1220,7 +1224,6 @@ async function initializeSupabaseAuth() {
       reading.connected = null;
       await loadSettingsFromSupabase();
       await loadShelfFromSupabase();
-      await syncLocalShelfToSupabase();
       if (!authGate.hidden) closeAuthGate({ restoreFocus: false, runPending: true });
     }, 0);
   });
@@ -5074,9 +5077,9 @@ authGateMagicLink.addEventListener("click", async () => {
     authGateMagicLink.disabled = false;
   }
 });
+// 先逛逛: keep browsing the reference room without an account.
 authGateGuest.addEventListener("click", () => {
-  writeAuthSession({ email: "", mode: "guest-prototype" });
-  closeAuthGate({ restoreFocus: false, runPending: true });
+  closeAuthGate({ restoreFocus: false, runPending: false });
 });
 myShelfToggle.addEventListener("click", () => requireAuth(() => openMyShelf({ view: "room" })));
 // The list (我的书架) closes back into your room; leaving the room itself
