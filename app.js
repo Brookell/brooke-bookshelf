@@ -913,7 +913,7 @@ function setAuthMode(mode) {
   const signup = authMode === "signup";
   setupPinSlots();
   authIdLabel.textContent = signup ? "用户名" : "用户名或邮箱";
-  authEmail.placeholder = signup ? "2–12 个字，中英文、数字都可以" : "用户名（以前用邮箱注册的，填邮箱）";
+  authEmail.placeholder = "";
   authEmail.autocomplete = "username";
   document.querySelector("#authPin").autocomplete = signup ? "new-password" : "current-password";
   authPinSlots?.clear();

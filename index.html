@@ -181,14 +181,14 @@
           <i data-lucide="x"></i>
           <span class="sr-only">返回</span>
         </button>
-        <h2 id="authGateTitle">进入 Reading Room</h2>
+        <h2 id="authGateTitle" class="sr-only">登录或注册</h2>
         <div class="auth-gate-tabs" role="group" aria-label="登录或注册">
           <button type="button" data-auth-mode="signin" aria-pressed="true">登录</button>
           <button type="button" data-auth-mode="signup" aria-pressed="false">注册</button>
         </div>
         <form class="auth-gate-form" id="authGateForm">
           <label for="authEmail">用户名或邮箱</label>
-          <input id="authEmail" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="用户名（以前用邮箱注册的，填邮箱）" required />
+          <input id="authEmail" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required />
           <!-- Accounts made with an email (older ones): any password. -->
           <div class="auth-field" id="authPasswordRow" hidden>
             <label for="authPassword">密码</label>
@@ -478,7 +478,7 @@
   <script defer src="./catalog.js?v=20260811-6"></script>
   <script defer src="./staggered-menu.js?v=20261116-6"></script>
   <script defer src="./code-slots.js?v=20261117-1"></script>
-  <script defer src="./app.js?v=20261119-u4"></script>
+  <script defer src="./app.js?v=20261119-u5"></script>
   <script defer src="./shelf-carousel.js?v=7"></script>
 </body>
 </html>
